@@ -33,7 +33,7 @@
 
 ## 🎬 Trailer
 
-<!-- TRAILER -->
+https://github.com/user-attachments/assets/6206cf99-9648-42d5-abdc-1e849d804483
 
 <p align="center">
   <img src="media/clips/openz_clip_01.gif" alt="Flamethrower fight on the bridge" width="100%">
