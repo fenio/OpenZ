@@ -38,7 +38,7 @@ https://github.com/user-attachments/assets/6206cf99-9648-42d5-abdc-1e849d804483
 <table>
   <tr>
     <td width="50%"><img src="media/clips/openz_clip_01.gif" alt="Flamethrower fight on the bridge" width="100%"></td>
-    <td width="50%"><img src="media/clips/openz_clip_06.gif" alt="Night barrage in the Car Park level" width="100%"></td>
+    <td width="50%"><img src="media/clips/openz_clip_05.gif" alt="The fort blows up in the Car Park level" width="100%"></td>
   </tr>
 </table>
 
@@ -62,7 +62,7 @@ And that's not all: several completely new ideas and brand-new content have been
   </tr>
   <tr>
     <td width="50%"><img src="media/clips/openz_clip_04.gif" alt="OpenZ gameplay clip" width="100%"></td>
-    <td width="50%"><img src="media/clips/openz_clip_05.gif" alt="OpenZ gameplay clip" width="100%"></td>
+    <td width="50%"><img src="media/clips/openz_clip_06.gif" alt="OpenZ gameplay clip" width="100%"></td>
   </tr>
 </table>
 
@@ -80,7 +80,9 @@ And that's not all: several completely new ideas and brand-new content have been
 - **Everything goes boom:** buildings break apart, bridges fall, wrecks burn, crews get thrown.
 - **Modern comfort:** smooth zoom from a close tactical view out to the whole map, control groups, production queues,
   rally points, rebindable keys, game speed, 4K support.
-- **The humour is back:** commander Zod and his robots have plenty to say.
+- **The humour is back:** commander Zod and his robots have plenty to say. Every character, voice and line was
+  re-created from scratch for OpenZ: new designs, new models, new recordings. No original assets or materials were
+  used, and any likeness to other characters or real persons is purely coincidental.
 
 ## 📸 Screenshots
 
@@ -151,6 +153,10 @@ with every model, texture, sound and scene is attached to each
 - **Art, audio and all other assets:** [CC BY-NC-SA 4.0](docs/LICENSE-ASSETS.md): share and adapt them with credit, under
   the same terms, **never for commercial use**.
 - OpenZ is free and will never be sold: no price, no donations, no ads, no commercial use.
+- **No original materials:** nothing from the original Z game is used. No sprites, sounds, music, voices, art or logos
+  were taken from it; everything in OpenZ was made new, from scratch.
+- **No affiliation:** OpenZ is a faithful fan recreation built from scratch. It is not affiliated with or endorsed by
+  **The Bitmap Brothers** or **Rebellion**.
 
 Full credits: [CREDITS.md](docs/CREDITS.md).
 
