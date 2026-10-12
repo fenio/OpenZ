@@ -193,6 +193,27 @@ with every model, texture, sound and scene is attached to each
 
 Full credits: [CREDITS.md](docs/CREDITS.md).
 
+## ❓ FAQ
+
+**Are any original models or resources used?**
+No. Everything in OpenZ was made from scratch: every model, texture, animation, sound, voice line, music track and
+interface element. Nothing was taken or converted from the original game.
+
+**Do you accept donations or plan to sell it?**
+No. OpenZ is a fully non-commercial fan remake. It is free, it will never be sold, and there are no donations, ads
+or paid extras of any kind.
+
+**Does it use models or resources from Z: Steel Soldiers?**
+No. Nothing from Z: Steel Soldiers is used. All models and resources were made from scratch for OpenZ.
+
+**Is it a remake of Z: Steel Soldiers?**
+No. Honestly, we were never big fans of Steel Soldiers. OpenZ is focused only on the original Z from 1996.
+
+**What are the unit stats and game rules?**
+The same as in the original game, taken from the open-source Zod Engine: unit stats, build times, territory rules
+and the CPU opponent. On top of that there are some updates and improvements, and every one of them is listed in the
+game's **Changes & Updates** screen.
+
 ## ⚠️ Disclaimer
 
 OpenZ is an unofficial, fan-made faithful remake of Z (The Bitmap Brothers, 1996), created for its 30th anniversary.
