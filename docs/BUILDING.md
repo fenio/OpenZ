@@ -1,6 +1,6 @@
 # Building OpenZ from source
 
-This repository holds the game code (C# and shaders) for reading. The complete Unity project, with every model,
+The [`source`](../source) folder of this repository holds the game code (C# and shaders) for reading. The complete Unity project, with every model,
 texture, sound and scene (about 2 GB), is attached to each release as two source zips.
 
 ## Requirements

@@ -10,8 +10,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/playopenz/OpenZ/releases/latest"><img src="https://img.shields.io/github/v/release/playopenz/OpenZ?label=version&color=c8102e&style=for-the-badge" alt="Latest version"></a>
-  <a href="https://github.com/playopenz/OpenZ/releases"><img src="https://img.shields.io/github/downloads/playopenz/OpenZ/total?label=downloads&color=6b7a3a&style=for-the-badge" alt="Downloads"></a>
+  <a href="https://github.com/playopenz/OpenZ/releases/latest"><img src="https://img.shields.io/github/v/release/playopenz/OpenZ?label=version&color=c8102e&style=for-the-badge&cacheSeconds=3600" alt="Latest version"></a>
+  <a href="https://github.com/playopenz/OpenZ/releases"><img src="https://img.shields.io/github/downloads/playopenz/OpenZ/total?label=downloads&color=6b7a3a&style=for-the-badge&cacheSeconds=3600" alt="Downloads"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%2F%2011-2b5797?style=for-the-badge" alt="Windows 10 / 11">
   <img src="https://img.shields.io/badge/price-free-d9a441?style=for-the-badge" alt="Free">
   <a href="LICENSE"><img src="https://img.shields.io/badge/code-GPL--3.0-444444?style=for-the-badge" alt="GPL-3.0"></a>
@@ -35,9 +35,12 @@
 
 https://github.com/user-attachments/assets/6206cf99-9648-42d5-abdc-1e849d804483
 
-<p align="center">
-  <img src="media/clips/openz_clip_01.gif" alt="Flamethrower fight on the bridge" width="100%">
-</p>
+<table>
+  <tr>
+    <td width="50%"><img src="media/clips/openz_clip_01.gif" alt="Flamethrower fight on the bridge" width="100%"></td>
+    <td width="50%"><img src="media/clips/openz_clip_06.gif" alt="Night barrage in the Car Park level" width="100%"></td>
+  </tr>
+</table>
 
 ## 🤖 The legendary Z is 30. This is the remake we always wanted.
 
@@ -136,7 +139,7 @@ art contributions right now: what we need most is players and their feedback.
 
 ## 🛠️ Source code
 
-OpenZ is open source. This repository holds the game code (C# and shaders) for reading. The **complete Unity project**
+OpenZ is open source. The [`source`](source) folder holds the game code (C# and shaders) for reading. The **complete Unity project**
 with every model, texture, sound and scene is attached to each
 [release](https://github.com/playopenz/OpenZ/releases/latest) as `OpenZ_1.0_source_part1.zip` and
 `OpenZ_1.0_source_part2.zip`. See [Building OpenZ from source](docs/BUILDING.md) (Unity 6.3 LTS).
@@ -145,11 +148,11 @@ with every model, texture, sound and scene is attached to each
 
 - **Code:** [GNU GPL-3.0](LICENSE). OpenZ ports the gameplay rules of the GPL-3.0 **Zod Engine**, huge respect to its
   creators!
-- **Art, audio and all other assets:** [CC BY-NC-SA 4.0](LICENSE-ASSETS.md): share and adapt them with credit, under
+- **Art, audio and all other assets:** [CC BY-NC-SA 4.0](docs/LICENSE-ASSETS.md): share and adapt them with credit, under
   the same terms, **never for commercial use**.
 - OpenZ is free and will never be sold: no price, no donations, no ads, no commercial use.
 
-Full credits: [CREDITS.md](CREDITS.md).
+Full credits: [CREDITS.md](docs/CREDITS.md).
 
 ## ⚠️ Disclaimer
 

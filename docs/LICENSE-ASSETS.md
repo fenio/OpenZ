@@ -1,7 +1,7 @@
 # OpenZ assets licence
 
 The **code** of OpenZ (C# scripts, shaders and project files) is licensed under the GNU General Public License v3.0.
-See [LICENSE](LICENSE).
+See [LICENSE](../LICENSE).
 
 All **other original OpenZ content** (3D models, textures, images, animations, sound effects, voice recordings, music,
 video, maps as rebuilt for OpenZ, interface art, screenshots, clips and the trailer) is licensed under the
