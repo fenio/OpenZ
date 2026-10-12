@@ -84,6 +84,39 @@ And that's not all: several completely new ideas and brand-new content have been
   re-created from scratch for OpenZ: new designs, new models, new recordings. No original assets or materials were
   used, and any likeness to other characters or real persons is purely coincidental.
 
+## 🎨 Graphics & polish
+
+OpenZ is built in **Unity 6** with the Universal Render Pipeline, and every model was shaped, rigged, animated and
+painted in **Blender**. The goal was simple: the Z you remember, at the visual standard of a modern game, in 4K at
+60 fps.
+
+- **Living battlefields:** a full day and night cycle, rain and storms, drifting fog, wind in the flags and palms,
+  heat haze over fire, lamps, searchlights and headlights that light up the night.
+- **Modern rendering:** real-time shadows, anti-aliasing, bloom, motion blur, soft atmospheric lighting, animated
+  water with shorelines, wet ground in the rain, and custom shaders for fire, flames, lasers and electric arcs.
+- **Physics you can feel:** buildings break into pieces, bridges collapse, wrecks burn out, turrets get tossed, crews
+  are thrown clear, debris bounces, shells leave craters and scorch marks, and tracks and wheels leave trails in the
+  sand.
+- **Animation with weight:** inverse kinematics plants every Mech foot on the ground, robots aim, kneel, go prone
+  and climb into vehicles, vehicles lean and bounce, and the camera shakes when the big guns fire.
+- **The little things:** flora and fauna for each biome (palms, cacti, seagulls, eagles, sandworms), base props around
+  every building, team paint and war paint, rust and grime, and idle antics: leave your robots alone and they will
+  find something to do.
+- **Sound to match:** every action has its own sound, and commander Zod and the robots comment on the battle.
+
+Every one of these details was recreated, restored and polished by hand, pass after pass, until it matched the
+feeling of the original. This is where it started, and where it is now:
+
+<p align="center">
+  <img src="media/making/making_desert_then_now.jpg" alt="Desert level: first playable version next to OpenZ 1.0" width="100%">
+</p>
+<p align="center">
+  <img src="media/making/making_carpark_then_now.jpg" alt="Car Park level: first pass next to OpenZ 1.0" width="100%">
+</p>
+<p align="center">
+  <img src="media/making/making_blender_models.jpg" alt="Blender renders of the robot line-up, the fort and the base props" width="100%">
+</p>
+
 ## 📸 Screenshots
 
 <table>
