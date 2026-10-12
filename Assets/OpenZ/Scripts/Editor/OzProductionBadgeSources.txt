@@ -1,0 +1,26 @@
+# production_badge_v2: the source art of every baked face (tools/bake_badge.py). face | live card art (what the production
+# window shows) | its md5 | the master the bake read | its md5. OpenZ / UI / Production Badge / Art Report compares the live md5
+# with this list: a new portrait / icon package makes it say RE-BAKE (python tools/bake_badge.py; tools/write_metas.py).
+face_grunt_red|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_grunt_red.png|c3385226038da8f6290c71b718f0f11a|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_grunt_red.png|c3385226038da8f6290c71b718f0f11a
+face_psycho_red|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_psycho_red.png|54f9e6915d1a9baab7862e7b94d8f1bc|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_psycho_red.png|54f9e6915d1a9baab7862e7b94d8f1bc
+face_sniper_red|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_sniper_red.png|016b410e2019b28d6c8ead2328a8f93e|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_sniper_red.png|016b410e2019b28d6c8ead2328a8f93e
+face_tough_red|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_tough_red.png|ea8c3eb2c1fa495d8d1a5d7e9786d502|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_tough_red.png|ea8c3eb2c1fa495d8d1a5d7e9786d502
+face_pyro_red|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_pyro_red.png|095b43187697ff179f356c06e1ae80e5|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_pyro_red.png|095b43187697ff179f356c06e1ae80e5
+face_laser_red|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_laser_red.png|2437421a10eae1ffeed8ad7f580eacd0|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_laser_red.png|2437421a10eae1ffeed8ad7f580eacd0
+face_grunt_blue|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_grunt_blue.png|6336277c281c976c80c29a8d0f6d8817|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_grunt_blue.png|6336277c281c976c80c29a8d0f6d8817
+face_psycho_blue|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_psycho_blue.png|e3fb9f360a2dff59bf3a8ee9e083c47a|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_psycho_blue.png|e3fb9f360a2dff59bf3a8ee9e083c47a
+face_sniper_blue|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_sniper_blue.png|f10fd378c29787544563675124f804b2|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_sniper_blue.png|f10fd378c29787544563675124f804b2
+face_tough_blue|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_tough_blue.png|7ad880ddde617c28f886c824c6346599|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_tough_blue.png|7ad880ddde617c28f886c824c6346599
+face_pyro_blue|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_pyro_blue.png|6a6218b1cc54d7ea8496038721a77cfa|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_pyro_blue.png|6a6218b1cc54d7ea8496038721a77cfa
+face_laser_blue|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_laser_blue.png|531fe54791b1366aecbbcd0f67e0057b|Assets/OpenZ/Resources/OpenZ/UI/PortraitsBS01/portrait_laser_blue.png|531fe54791b1366aecbbcd0f67e0057b
+face_jeep_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_jeep_red.png|925a3ab6da2ae6d390b0634d7f0116cc|Materials/ui/icons/512/icon_jeep_red.png|1e9189e61deac85b6255d025e1037ae6
+face_light_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_light_tank_red.png|f74ecb48b711e003c944c95a3bc64e37|Materials/ui/icons/512/icon_light_tank_red.png|5df98eff93c725160119a23be0d91d91
+face_medium_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_medium_tank_red.png|45893ec556285564d37dcc862acfad54|Materials/ui/icons/512/icon_medium_tank_red.png|bfb626ac46434d7ba5e26faa729cbd96
+face_heavy_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_heavy_tank_red.png|4b488dabfab54b5f5bd7272dbd563786|Materials/ui/icons/512/icon_heavy_tank_red.png|8df7cc7d3ee90aff5b530abd1ac20634
+face_apc_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_apc_red.png|61774d06cf41715e22e5970693538745|Materials/ui/icons/512/icon_apc_red.png|7232b3d663175ea95406bd785842e02f
+face_missile_launcher_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_missile_launcher_red.png|f71f0ad53f5ef94adf593f53d9e580a7|Materials/ui/icons/512/icon_missile_launcher_red.png|432d4e397cd306b177cccd1df64591f8
+face_crane_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_crane_red.png|3e0d1d3684493023d69169d92e79999b|Materials/ui/icons/512/icon_crane_red.png|824580c6770fc50c5dcc8bae32ff022c
+face_gatling_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_gatling_red.png|2968ff51d2326fcc64f9ed21f8e3547c|Materials/ui/icons/512/icon_gatling_red.png|68ccb3c38da2e21d620ab2745b1299ab
+face_gun_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_gun_red.png|030607983bd669bbf7fd72e1bbaca896|Materials/ui/icons/512/icon_gun_red.png|ea42fa83e29b9a2a77813e93f911a07e
+face_howitzer_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_howitzer_red.png|7d23e90146e4763e73e08536269f4fef|Materials/ui/icons/512/icon_howitzer_red.png|7feea789606f68583ecf8cd31b403c26
+face_missile_cannon_red|Assets/OpenZ/Resources/OpenZ/UI/Icons/icon_missile_cannon_red.png|22d18baf3c5b602309e4a24f74f40eee|Materials/ui/icons/512/icon_missile_cannon_red.png|bb4494d91e586a2e474ce083508c4558
