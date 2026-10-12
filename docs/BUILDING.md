@@ -11,6 +11,8 @@ texture, sound and scene (about 2 GB), is attached to each release as two source
 
 ## Open, play and build
 
+For community macOS/Linux automation, see [Unofficial builds](UNOFFICIAL-BUILDS.md). These builds are not official platform support.
+
 1. Download **OpenZ_1.0_source_part1.zip** and **OpenZ_1.0_source_part2.zip** from the
    [latest release](https://github.com/playopenz/OpenZ/releases/latest) and unzip both into the same place (they merge
    into one `OpenZ_1.0_source` folder). In **Unity Hub** choose **Add → Add project from disk** and select that

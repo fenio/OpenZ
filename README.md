@@ -1,3 +1,10 @@
+> **Unofficial macOS / Linux builds — community fork**
+>
+> Download from [this fork's releases](https://github.com/fenio/OpenZ/releases/tag/v1.0-unofficial.1).
+> macOS Universal (Apple Silicon + Intel) has been tested locally on Apple Silicon; Linux x86-64 is experimental and not yet runtime-tested.
+> These are not official OpenZ releases or a promise of upstream support. See [launch instructions](docs/UNOFFICIAL-BUILDS.md#running-the-downloads) and [build automation](docs/UNOFFICIAL-BUILDS.md).
+> The upstream project's README follows unchanged.
+
 <p align="center">
   <img src="media/banner.jpg" alt="OpenZ - faithful open-source 3D remake - 30th anniversary" width="100%">
 </p>
