@@ -108,13 +108,13 @@ Every one of these details was recreated, restored and polished by hand, pass af
 feeling of the original. This is where it started, and where it is now:
 
 <p align="center">
-  <img src="media/making/making_desert_then_now.jpg" alt="Desert level: first playable version next to OpenZ 1.0" width="100%">
+  <img src="media/making/making_desert_then_now.jpg" alt="Desert level: the scene in Blender next to OpenZ 1.0" width="100%">
 </p>
 <p align="center">
   <img src="media/making/making_carpark_then_now.jpg" alt="Car Park level: first pass next to OpenZ 1.0" width="100%">
 </p>
 <p align="center">
-  <img src="media/making/making_blender_models.jpg" alt="Blender renders of the robot line-up, the fort and the base props" width="100%">
+  <img src="media/making/making_blender_models.jpg" alt="Blender renders of the robot line-up, the fort, and the vehicles and guns" width="100%">
 </p>
 
 ## 📸 Screenshots
