@@ -148,15 +148,17 @@ namespace OpenZ
         /// <summary>Starts a shower now (fades in over fadeSeconds). makeNight: jumps the clock to 0.6 when it is not full night.</summary>
         public void ForceStorm(float totalSeconds = 70f, bool makeNight = true)
         {
+            if (!Enabled) { Debug.Log("[OzWeather] NIGHT & RAIN is off: no storm"); return; }             // off = none of it, not even a forced one (OzNightRain.cs)
             if (makeNight && dn && (dn.timeOfDay < 0.52f || dn.timeOfDay > 0.8f)) { dn.timeOfDay = 0.6f; dn.Apply(0.6f); }
             var p = OzWeatherPlan.Forced(OzWeatherPlan.Mix(OzWeatherPlan.NightSeed(game ? game.seed : 1, salt, 9000), (ulong)(++forcedCount)), totalSeconds, fadeSeconds);
             Begin(p, true);
         }
-        public static bool Force(float totalSeconds = 70f) { if (!I) return false; I.ForceStorm(totalSeconds); return true; }
+        public static bool Force(float totalSeconds = 70f) { if (!I || !Enabled) return false; I.ForceStorm(totalSeconds); return true; }
 
         /// <summary>One flash now (with its thunder), rain or not: the lightning proof.</summary>
         public void ForceFlash(int kind = OzStormPlan.Close)
         {
+            if (!Enabled) return;                                                     // NIGHT & RAIN off: no lightning (OzNightRain.cs)
             var r = new OzWeatherPlan.Rng(OzWeatherPlan.Mix(0xF1A5, (ulong)(++forcedCount)));
             var f = new OzStormPlan.Flash { Kind = kind, Azimuth = r.Range(0f, 360f), Seed = (uint)r.Next(), Pulses = kind == OzStormPlan.Close ? 3 : 2,
                 Distance = kind == OzStormPlan.Close ? 320f : kind == OzStormPlan.Mid ? 600f : 1100f, Brightness = kind == OzStormPlan.Close ? 1f : kind == OzStormPlan.Mid ? 0.7f : 0.45f };
@@ -192,6 +194,7 @@ namespace OpenZ
             Schedule(t);
 
             if (storm != null && !Enabled && !stopping) StopStorm(3f);                  // WEATHER off (also for a forced shower)
+            if (!Enabled) { thunders.Clear(); if (stopping && stopFade > 3f) stopFade = 3f; }   // NIGHT & RAIN off: a thunder still on its way is dropped; the rain fades in 3 s also when the way back to day passes the dawn (OzNightRain.cs)
             float target = 0f;
             if (storm != null)
             {
@@ -204,7 +207,7 @@ namespace OpenZ
             }
             rain = target;
             float wantWet = Mathf.Clamp01(rain * 1.1f);
-            wet += (wantWet - wet) * (1f - Mathf.Exp(-dt / Mathf.Max(0.1f, wantWet > wet ? wetUpSeconds : dryDownSeconds)));
+            wet += (wantWet - wet) * (1f - Mathf.Exp(-dt / Mathf.Max(0.1f, wantWet > wet ? wetUpSeconds : Enabled ? dryDownSeconds : OzNightRain.OffDrySeconds)));   // off: dry in a few seconds
             if (wet < 0.002f && rain <= 0f) wet = 0f;
 
             float F = StepFlashes(dt);

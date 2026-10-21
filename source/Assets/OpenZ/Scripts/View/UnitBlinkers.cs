@@ -393,7 +393,7 @@ namespace OpenZ
         void Apply(Rig r)
         {
             r.Drawn = false;
-            if (r.IsBuilding ? !r.Building || !r.Building.activeInHierarchy : !r.View || !r.View.isActiveAndEnabled) return;
+            if (r.IsBuilding ? !r.Building || !r.Building.activeInHierarchy : !r.View || !r.View.isActiveAndEnabled || ZodBriefing.EndingHides(r.View)) return;   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs)
             float mx = Mathf.Max(Mathf.Max(Mathf.Max(r.ChA.x, r.ChA.y), Mathf.Max(r.ChA.z, r.ChA.w)), Mathf.Max(Mathf.Max(r.ChB.x, r.ChB.y), Mathf.Max(r.ChB.z, r.ChB.w)));
             if (mx <= 0.002f) return;
             var team = VehicleLights.TeamGlow(r.Owner);

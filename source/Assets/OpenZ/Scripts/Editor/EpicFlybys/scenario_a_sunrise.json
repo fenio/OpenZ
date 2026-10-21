@@ -1,0 +1,791 @@
+{
+ "name": "scenario_a_sunrise",
+ "title": "Sunrise over the swamps and canyons",
+ "about": "Starts on the rising sun with parrots flying close past the lens and a far flock crossing the sun's disc, then swings down onto the battle in the swamp between the east canyon and the plank bridge as the first shots fall; from the bottom-left road blue reinforcements come in (an MLRS firing its salvos, a heavy tank, three squads) while two red mechs come down the road from the red fort; from 12 s a side shot from the east tracks the blue force crossing the plank bridge (squads in file, the jeep, the heavy tank; more squads wading beside it) and rises as the lead reaches the far bank and the red mechs; a crocodile swims the stream; the radar's zone is blue; all from RTS heights.",
+ "level": "L16",
+ "scene": "L16_Jungle",
+ "output": "flyby_a_sunrise_4k",
+ "seconds": 27.0,
+ "time_of_day": 0.935,
+ "weather": "clear",
+ "seed": 1601,
+ "settle_s": 4.0,
+ "floor_m": 2.5,
+ "drift": 1.0,
+ "flyby_sky": true,
+ "lounge_wake_m": 0,
+ "full": {
+  "width": 3840,
+  "height": 2160,
+  "fps": 60
+ },
+ "preview": {
+  "width": 1920,
+  "height": 1080,
+  "fps": 60
+ },
+ "camera": [
+  {
+   "t": 0.0,
+   "pos": [
+    128,
+    34,
+    -80
+   ],
+   "look_sun": true,
+   "sun_up": 0.35,
+   "fov": 40,
+   "cut": true,
+   "ease": "linear",
+   "note": "on the rising sun, the far flock already over the disc at frame 0 (its middle on the disc at 1.2 s)"
+  },
+  {
+   "t": 0.5,
+   "pos": [
+    128.6,
+    33.6,
+    -81.4
+   ],
+   "look_sun": true,
+   "sun_up": 0.5,
+   "fov": 40,
+   "note": "the swing starts: the disc climbs, the flock still on it"
+  },
+  {
+   "t": 2.0,
+   "pos": [
+    130.5,
+    32.4,
+    -85
+   ],
+   "look": [
+    170,
+    -1,
+    -146
+   ],
+   "fov": 40,
+   "note": "swinging down to the south (fast: about 20 deg a second); the battle in the frame from about 2.4 s, its first shot at about 2.0 s"
+  },
+  {
+   "t": 3.5,
+   "pos": [
+    133,
+    30.8,
+    -90
+   ],
+   "look": [
+    139,
+    0,
+    -141
+   ],
+   "fov": 40,
+   "note": "over the battle as the first robots fall (first shots about 2 s, first losses about 4 s)"
+  },
+  {
+   "t": 6.0,
+   "pos": [
+    134.5,
+    30.2,
+    -92
+   ],
+   "look": [
+    138.5,
+    0,
+    -143
+   ],
+   "fov": 40,
+   "note": "settled: the battle in the middle, the radar (blue) right, the crocodile in the stream"
+  },
+  {
+   "t": 9.0,
+   "pos": [
+    137.9,
+    33.22,
+    -89.9
+   ],
+   "look": [
+    139,
+    0,
+    -146
+   ],
+   "fov": 40,
+   "note": "(run 23: 10 % further from its aim point, so the vehicles at the bridge head stay at RTS size)"
+  },
+  {
+   "t": 12.0,
+   "pos": [
+    142.7,
+    33.4,
+    -92.1
+   ],
+   "look": [
+    140.5,
+    0,
+    -149
+   ],
+   "fov": 40,
+   "note": "end of the first shot (0-12 s as in v4)"
+  },
+  {
+   "t": 12.0,
+   "pos": [
+    191.04,
+    30.24,
+    -136.8
+   ],
+   "look": [
+    144,
+    0,
+    -148
+   ],
+   "fov": 40,
+   "cut": true,
+   "ease": "linear",
+   "note": "shot 2: from the east, side-on to the plank bridge as the blue force starts across it"
+  },
+  {
+   "t": 16.0,
+   "pos": [
+    190.0,
+    31.4,
+    -142.0
+   ],
+   "look": [
+    143.5,
+    0,
+    -150.0
+   ],
+   "fov": 40,
+   "note": "v6: follows the column on the bridge (no pan away from the fight)"
+  },
+  {
+   "t": 20.0,
+   "pos": [
+    188.4,
+    33.6,
+    -147.0
+   ],
+   "look": [
+    143.0,
+    0,
+    -155.0
+   ],
+   "fov": 40,
+   "note": "v6: follows the column on the bridge (no pan away from the fight)"
+  },
+  {
+   "t": 24.0,
+   "pos": [
+    185.6,
+    38.4,
+    -151.5
+   ],
+   "look": [
+    142.0,
+    0,
+    -161.0
+   ],
+   "fov": 40,
+   "note": "v6: follows the column on the bridge (no pan away from the fight)"
+  },
+  {
+   "t": 27.0,
+   "pos": [
+    182.6,
+    44.0,
+    -155.0
+   ],
+   "look": [
+    140.5,
+    0,
+    -167.0
+   ],
+   "fov": 40,
+   "note": "v6: follows the column on the bridge (no pan away from the fight)"
+  }
+ ],
+ "sun_birds": {
+  "on": true,
+  "count": 11,
+  "mid_s": 1.2,
+  "cross_s": 4.2,
+  "far_m": 120,
+  "span_m": 2.8,
+  "gain": 0.14,
+  "note": "from frame 0 (birds at the start: 7 on the disc at frame 0, five or more on it while the disc is in the frame for 2.1 s); nearer and bigger than the first take's (170 m, 1.6 m wings; now 140 m, 2.4 m): there the disc's glow swallowed the birds over it; mid_s 1.2 puts the first call at 0.1 s, inside the clip (at 0.9 it fell in the pre-roll); cross_s 4.2 keeps 7 birds on the disc at frame 0 with it"
+ },
+ "units": [
+  {
+   "tag": "blue_west",
+   "team": "b",
+   "type": "psycho",
+   "x": 128,
+   "z": -113,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    130,
+    -152
+   ]
+  },
+  {
+   "tag": "blue_east",
+   "team": "b",
+   "type": "grunt",
+   "x": 136,
+   "z": -113,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    134,
+    -152
+   ]
+  },
+  {
+   "tag": "blue_tough",
+   "team": "b",
+   "type": "tough",
+   "x": 132,
+   "z": -108,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    132,
+    -150
+   ]
+  },
+  {
+   "tag": "blue_tank",
+   "team": "b",
+   "type": "light",
+   "x": 143,
+   "z": -130,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    143,
+    -170
+   ]
+  },
+  {
+   "tag": "blue_jeep",
+   "team": "b",
+   "type": "jeep",
+   "x": 166,
+   "z": -129,
+   "hp_k": 1.0,
+   "start": "attack_move",
+   "to": [
+    138,
+    -130
+   ],
+   "via": [
+    150,
+    -130
+   ],
+   "note": "starts further back east on its road (the bottom-left road in the frame, about 23 m behind the tank and ahead of the heavy reinforcement) and drives it freely to the north bank north-west of the bridge head (away from the bridge); never onto the bridge behind the tank"
+  },
+  {
+   "tag": "red_west",
+   "team": "r",
+   "type": "grunt",
+   "x": 129,
+   "z": -168,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    129,
+    -130
+   ]
+  },
+  {
+   "tag": "red_pyro",
+   "team": "r",
+   "type": "pyro",
+   "x": 135,
+   "z": -168,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    133,
+    -130
+   ]
+  },
+  {
+   "tag": "red_laser",
+   "team": "r",
+   "type": "laser",
+   "x": 130,
+   "z": -171,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    131,
+    -135
+   ]
+  },
+  {
+   "tag": "red_mech",
+   "team": "r",
+   "type": "medium",
+   "x": 143,
+   "z": -176,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    143,
+    -128
+   ]
+  },
+  {
+   "tag": "blue_mlrs",
+   "team": "b",
+   "type": "missile_launcher",
+   "x": 158,
+   "z": -125,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    151,
+    -130
+   ],
+   "note": "reinforcement: the MLRS drives in on the grass beside the bottom-left road to the north bank and fires its salvos into the fight"
+  },
+  {
+   "tag": "blue_heavy",
+   "team": "b",
+   "type": "heavy",
+   "x": 174,
+   "z": -131,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    149,
+    -139
+   ],
+   "via": [
+    156,
+    -133
+   ],
+   "note": "reinforcement: the heavy tank comes along the bottom-left road to the bridge head and fires across the stream"
+  },
+  {
+   "tag": "blue_r1",
+   "team": "b",
+   "type": "grunt",
+   "x": 162,
+   "z": -126,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    136,
+    -146
+   ],
+   "note": "reinforcement squad from the bottom-left road"
+  },
+  {
+   "tag": "blue_r2",
+   "team": "b",
+   "type": "pyro",
+   "x": 168,
+   "z": -124,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    138,
+    -149
+   ],
+   "note": "reinforcement squad from the bottom-left road"
+  },
+  {
+   "tag": "blue_r3",
+   "team": "b",
+   "type": "laser",
+   "x": 175,
+   "z": -125,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    131,
+    -147
+   ],
+   "note": "reinforcement squad from the bottom-left road (the last to come in)"
+  },
+  {
+   "tag": "red_mech2",
+   "team": "r",
+   "type": "medium",
+   "x": 132,
+   "z": -189,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    137,
+    -182
+   ],
+   "via": [
+    140,
+    -186
+   ],
+   "note": "from the red fort: comes down the road and meets the blue advance on the far bank (south of the bridge exit, so the exit stays free)"
+  },
+  {
+   "tag": "red_mech3",
+   "team": "r",
+   "type": "medium",
+   "x": 138,
+   "z": -195,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    151,
+    -185
+   ],
+   "via": [
+    146,
+    -190
+   ],
+   "note": "from the red fort: comes down the road and meets the blue advance on the far bank"
+  }
+ ],
+ "props": [],
+ "setup": [
+  {
+   "action": "award_flag",
+   "x": 151,
+   "z": -123,
+   "team": "b",
+   "note": "the radar's zone (zone 8: the radar, the vehicle factory and the bridge) is blue from the start: its flag blue (the game's own zone award)"
+  }
+ ],
+ "cues": [
+  {
+   "t": 0.0,
+   "action": "log_units"
+  },
+  {
+   "t": 1.0,
+   "action": "croc_show",
+   "x": 135.3,
+   "z": -153.3,
+   "via": [
+    137,
+    -146,
+    132,
+    -143.2,
+    137,
+    -146,
+    135.3,
+    -153.3
+   ],
+   "kind": "swim_past",
+   "note": "the stream's own crocodile (its home 135.3,-153.3) is drawn swimming its stream between the lines and back home, head and back up, the V wake (1.5 m/s, about 17 s); drawn only: the rule's animal never moves, the battle is the same"
+  },
+  {
+   "t": 8.0,
+   "action": "order:hold",
+   "tag": "blue_mlrs",
+   "note": "the MLRS stands on the north bank east of the bridge head (off the bridge's way) and fires over the advance"
+  },
+  {
+   "t": 8.2,
+   "action": "order:attack_move",
+   "tag": "blue_tank",
+   "via": [
+    144,
+    -136,
+    144,
+    -142,
+    144,
+    -150,
+    144,
+    -158,
+    144,
+    -166
+   ],
+   "x": 146,
+   "z": -188,
+   "note": "v6: the light tank leads the column across the bridge (not left standing on it)"
+  },
+  {
+   "t": 8.5,
+   "action": "order:attack_move",
+   "tag": "blue_east",
+   "via": [
+    144,
+    -142,
+    144,
+    -150,
+    144,
+    -158,
+    144,
+    -166
+   ],
+   "x": 142,
+   "z": -182,
+   "note": "the squad already at the bridge head leads across"
+  },
+  {
+   "t": 9.0,
+   "action": "order:attack_move",
+   "tag": "blue_jeep",
+   "via": [
+    144,
+    -136,
+    144,
+    -142,
+    144,
+    -150,
+    144,
+    -158,
+    144,
+    -166
+   ],
+   "x": 150,
+   "z": -186,
+   "note": "the blue advance: the jeep first across the plank bridge and on towards the red fort"
+  },
+  {
+   "t": 9.5,
+   "action": "order:attack_move",
+   "tag": "blue_r1",
+   "via": [
+    144,
+    -136,
+    144,
+    -142,
+    144,
+    -150,
+    144,
+    -158,
+    144,
+    -166
+   ],
+   "x": 140,
+   "z": -184,
+   "note": "a squad across the bridge behind the jeep"
+  },
+  {
+   "t": 9.5,
+   "action": "order:attack_move",
+   "tag": "blue_west",
+   "via": [
+    128,
+    -150,
+    130,
+    -166
+   ],
+   "x": 130,
+   "z": -182,
+   "note": "squads wade the stream beside the bridge to the far bank"
+  },
+  {
+   "t": 10.0,
+   "action": "order:attack_move",
+   "tag": "blue_tough",
+   "via": [
+    133,
+    -150,
+    134,
+    -166
+   ],
+   "x": 128,
+   "z": -184
+  },
+  {
+   "t": 10.5,
+   "action": "order:attack_move",
+   "tag": "blue_r3",
+   "via": [
+    144,
+    -136,
+    144,
+    -142,
+    144,
+    -150,
+    144,
+    -158,
+    144,
+    -166
+   ],
+   "x": 147,
+   "z": -182,
+   "note": "the laser squad across the bridge"
+  },
+  {
+   "t": 10.5,
+   "action": "order:attack_move",
+   "tag": "blue_r2",
+   "via": [
+    138,
+    -146,
+    138,
+    -162
+   ],
+   "x": 136,
+   "z": -180
+  },
+  {
+   "t": 11.0,
+   "action": "destroy",
+   "tag": "red_pyro",
+   "note": "the red stragglers in the stream fall under the blue fire as the advance starts"
+  },
+  {
+   "t": 11.4,
+   "action": "destroy",
+   "tag": "red_laser"
+  },
+  {
+   "t": 12.0,
+   "action": "order:attack_move",
+   "tag": "blue_heavy",
+   "via": [
+    144,
+    -136,
+    144,
+    -142,
+    144,
+    -150,
+    144,
+    -158,
+    144,
+    -166
+   ],
+   "x": 138,
+   "z": -192,
+   "note": "the heavy tank across the bridge behind the squads (never in front of faster units)"
+  },
+  {
+   "t": 12.3,
+   "action": "destroy",
+   "tag": "red_pyro"
+  },
+  {
+   "t": 12.6,
+   "action": "destroy",
+   "tag": "red_mech",
+   "note": "v6 (item 235): the RED mech on the far bank blows up instead of the blue tank on the bridge, so no wreck lies in the column's way"
+  },
+  {
+   "t": 12.7,
+   "action": "destroy",
+   "tag": "red_laser"
+  },
+  {
+   "t": 13.0,
+   "action": "shake",
+   "shake_s": 0.9,
+   "shake_m": 0.25,
+   "shake_deg": 0.6
+  },
+  {
+   "t": 17.5,
+   "action": "destroy",
+   "tag": "red_mech2",
+   "note": "v6: the column breaks through: the first late mech falls"
+  },
+  {
+   "t": 20.0,
+   "action": "log_units"
+  },
+  {
+   "t": 21.0,
+   "action": "destroy",
+   "tag": "red_mech3",
+   "note": "v6: the second late mech falls; the blue force reaches the far bank"
+  },
+  {
+   "t": 26.5,
+   "action": "log_units"
+  }
+ ],
+ "audio": {
+  "mute_buses": [
+   "Music",
+   "UI",
+   "Voice",
+   "Voice/Announcer",
+   "Voice/Robots",
+   "Voice/Commander"
+  ],
+  "silence_clips": [
+   "sd_robot_croc_alarm_a",
+   "sd_robot_cry_cut_a",
+   "sd_vo_croc_hurry_a",
+   "sd_vo_croc_hurry_b",
+   "sd_vo_croc_hurry_c",
+   "sd_vo_croc_hurry_d",
+   "sd_vo_croc_hurry_e",
+   "sd_vo_croc_flee_a",
+   "sd_vo_croc_flee_b",
+   "sd_vo_croc_flee_c",
+   "sd_vo_croc_bank_a",
+   "sd_vo_croc_bank_b"
+  ],
+  "silence_prefixes": [
+   "sd_vo_",
+   "sd_robot_cry",
+   "sd_robot_croc_alarm"
+  ],
+  "voice_gate": true,
+  "music_off": true
+ },
+ "lens_birds": [
+  {
+   "count": 4,
+   "at": 0.55,
+   "lead": 0.8,
+   "tail": 1.5,
+   "stagger": 0.3,
+   "scale": 1.0,
+   "flap": 1.0,
+   "gain": 0.45,
+   "seed": 11,
+   "from": [
+    -5.5,
+    -1.8,
+    -2.5
+   ],
+   "to": [
+    6,
+    3,
+    20
+   ],
+   "spread": [
+    1.2,
+    0.6,
+    1.5
+   ],
+   "note": "four parrots come over the lens's left shoulder at 0.4 s, large and close (4-5 m), and fly away up into the sunrise"
+  },
+  {
+   "count": 3,
+   "at": 1.2,
+   "lead": 0.8,
+   "tail": 0.8,
+   "stagger": 0.25,
+   "scale": 1.0,
+   "flap": 1.0,
+   "gain": 0.4,
+   "seed": 12,
+   "from": [
+    9,
+    0.5,
+    8
+   ],
+   "to": [
+    -9,
+    2.0,
+    12
+   ],
+   "spread": [
+    0.8,
+    0.8,
+    1.8
+   ],
+   "note": "three more cross the frame from right to left 8-12 m in front of the lens as the swing starts"
+  }
+ ],
+ "about_v4": "Starts on the rising sun with parrots flying close past the lens and a far flock crossing the sun's disc, then swings down onto the battle in the swamp between the east canyon and the plank bridge as the first shots fall (squads wading, a tank on the bridge, the jeep driving in on the road behind it); from the bottom-left road blue reinforcements come in (an MLRS firing its salvos, a heavy tank, three squads) while two red mechs come down the road from the red fort; a crocodile swims the stream between the lines; the radar's zone is already blue; all from RTS heights; the red fort in the background at the end."
+}

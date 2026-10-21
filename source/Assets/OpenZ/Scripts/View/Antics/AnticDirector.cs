@@ -167,7 +167,7 @@ namespace OpenZ
             if ((summaryT += Time.deltaTime) >= 60f) { summaryT = 0f; Say(Report()); }
             for (int i = runs.Count - 1; i >= 0; i--)
             {   // a resting antic ends gracefully when its team's lead stays under the ratio (or the game turns)
-                var r = runs[i]; if (r.Kind != AnticKind.Fish && r.Kind != AnticKind.Sunbed) continue;
+                var r = runs[i]; if ((r.Kind != AnticKind.Fish && r.Kind != AnticKind.Sunbed) || r.Hold) continue;   // DV108: the level-start lie of a hero squad ends only on a click, an order or a threat
                 if (ForceIgnoresRest || r.View.Obj == null) continue;
                 var block = RestBlock(game.World, r.View.Obj.Owner);
                 if (block == null || block.StartsWith("before")) { restLow.Remove(r); continue; }
@@ -184,13 +184,13 @@ namespace OpenZ
             var kit = Kit;
             RefreshThreats();
             float p = 1f - Mathf.Exp(-dt / Mathf.Max(1f, MeanWait));
-            int screen = 0; foreach (var r in runs) if (r.View && WreckFx.OnScreen(r.View.transform.position)) screen++;
+            int screen = 0; foreach (var r in runs) if (r.View && !r.Hold && WreckFx.OnScreen(r.View.transform.position)) screen++;   // DV108: nor of those on screen
             if (screen >= MaxOnScreen) return;
             cands.Clear(); candScore.Clear(); int rolled = 0;
             var cam = Camera.main;
             foreach (var v in game.Views.Values)
             {
-                if (!v || !v.isActiveAndEnabled || v.Obj == null || v.Obj.Kind != ZKind.Robot || v.AnticActive) continue;
+                if (!v || !v.isActiveAndEnabled || v.Obj == null || v.Obj.Kind != ZKind.Robot || v.AnticActive || OzHeroAntics.OwnRule(v.Obj)) continue;   // KC4b: the hero squad's antics are their own rule (the drink only, View/OzHeroAntics.cs)
                 if (v.AnticIdleFor < IdleMin + IdleJitter * Hash01(v.Obj.Id) || Time.time < v.AnticCooldownUntil) continue;
                 if (!v.CanAntic || !WreckFx.OnScreen(v.transform.position, -0.05f)) continue;
                 if (TeamActive(v.Obj.Owner) >= MaxPerTeam) continue;
@@ -239,7 +239,7 @@ namespace OpenZ
             AnticFx.Step();
         }
 
-        int TeamActive(Team t) { int n = 0; foreach (var r in runs) if (r.View && r.View.Obj != null && r.View.Obj.Owner == t) n++; return n; }
+        int TeamActive(Team t) { int n = 0; foreach (var r in runs) if (r.View && r.View.Obj != null && r.View.Obj.Owner == t && !r.Hold) n++; return n; }   // DV108: a held level-start lie is not one of the team's antics
 
         bool Threatened(UnitView v, float radius)
         {
@@ -432,13 +432,14 @@ namespace OpenZ
         /// tiles are not the drawn river (a one-tile stream is drawn about 5.5 m wide, drawn water lies up to 14 m from the nearest
         /// water tile, some tiles carry dry bank) and the terrain also dips under the water level in dry pits the water mesh does not
         /// cover (153 of 1811 sample points), so neither the tiles nor the terrain height alone is the surface.</summary>
-        public static bool OpenWater(OpenZFxPlayer fxp, Vector3 q) => fxp.GroundAt(q) < fxp.WaterY - FishDepthM && WaterMeshAt(fxp, q);
+        public static bool OpenWater(OpenZFxPlayer fxp, Vector3 q) => fxp.GroundAt(q) < fxp.WaterYAt(q) - FishDepthM && WaterMeshAt(fxp, q);
 
         // the drawn water surface, rasterised once per level into an XZ grid (no colliders: nothing else may hit it)
         const float CovCell = 0.25f;
         static bool[] cov; static int covW, covH, covKey; static float covX0, covZ0; static bool covMesh;
+        static float[] covY;                                                              // b27: the height of the drawn surface per cell
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetCoverage() { cov = null; covKey = 0; covMesh = false; }
+        static void ResetCoverage() { cov = null; covY = null; covKey = 0; covMesh = false; }
 
         /// <summary>q lies under a drawn water surface (falls back to the Zod water tile when the level has no readable WAT_ mesh).</summary>
         public static bool WaterMeshAt(OpenZFxPlayer fxp, Vector3 q)
@@ -449,9 +450,32 @@ namespace OpenZ
             return ix >= 0 && iz >= 0 && ix < covW && iz < covH && cov[iz * covW + ix];
         }
 
+        /// <summary>b27: the same, with the height of the drawn surface there (the highest water triangle over the middle of q's
+        /// quarter-metre cell: every pool, stream and step at its own height). y = NaN when the level has no readable WAT_ mesh and
+        /// the water tiles answer: the caller then takes the level's water table or flat height.</summary>
+        public static bool WaterMeshAt(OpenZFxPlayer fxp, Vector3 q, out float y)
+        {
+            y = float.NaN;
+            if (covKey != fxp.GetInstanceID()) BuildCoverage(fxp);
+            if (!covMesh) return OpenZFxPlayer.IsWaterTile(q);
+            int ix = Mathf.FloorToInt((q.x - covX0) / CovCell), iz = Mathf.FloorToInt((q.z - covZ0) / CovCell);
+            if (ix < 0 || iz < 0 || ix >= covW || iz >= covH || !cov[iz * covW + ix]) return false;
+            y = covY[iz * covW + ix];
+            return true;
+        }
+
+        /// <summary>b27, counted check: the middle of q's cell of the drawn-water grid (the point that cell was rasterised at); q
+        /// itself when the level has no readable WAT_ mesh.</summary>
+        public static Vector3 WaterCellMiddle(OpenZFxPlayer fxp, Vector3 q)
+        {
+            if (covKey != fxp.GetInstanceID()) BuildCoverage(fxp);
+            if (!covMesh) return q;
+            return new Vector3(covX0 + (Mathf.FloorToInt((q.x - covX0) / CovCell) + 0.5f) * CovCell, q.y, covZ0 + (Mathf.FloorToInt((q.z - covZ0) / CovCell) + 0.5f) * CovCell);
+        }
+
         static void BuildCoverage(OpenZFxPlayer fxp)
         {
-            covKey = fxp.GetInstanceID(); covMesh = false; cov = null;
+            covKey = fxp.GetInstanceID(); covMesh = false; cov = null; covY = null;
             var tris = new List<Vector3>(); bool unreadable = false;
             foreach (var r in Object.FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
             {
@@ -467,7 +491,7 @@ namespace OpenZ
             foreach (var p in tris) { x0 = Mathf.Min(x0, p.x); z0 = Mathf.Min(z0, p.z); x1 = Mathf.Max(x1, p.x); z1 = Mathf.Max(z1, p.z); }
             covX0 = x0 - 1f; covZ0 = z0 - 1f;
             covW = Mathf.CeilToInt((x1 - x0 + 2f) / CovCell); covH = Mathf.CeilToInt((z1 - z0 + 2f) / CovCell);
-            cov = new bool[covW * covH];
+            cov = new bool[covW * covH]; covY = new float[covW * covH];
             for (int i = 0; i < tris.Count; i += 3)
             {
                 Vector2 a = new Vector2(tris[i].x, tris[i].z), b = new Vector2(tris[i + 1].x, tris[i + 1].z), c = new Vector2(tris[i + 2].x, tris[i + 2].z);
@@ -480,7 +504,12 @@ namespace OpenZ
                     {
                         float px = covX0 + (ix + 0.5f) * CovCell, pz = covZ0 + (iz + 0.5f) * CovCell;
                         float w0 = (b.x - px) * (c.y - pz) - (b.y - pz) * (c.x - px), w1 = (c.x - px) * (a.y - pz) - (c.y - pz) * (a.x - px), w2 = (a.x - px) * (b.y - pz) - (a.y - pz) * (b.x - px);
-                        if (area > 0f ? (w0 >= 0f && w1 >= 0f && w2 >= 0f) : (w0 <= 0f && w1 <= 0f && w2 <= 0f)) cov[iz * covW + ix] = true;
+                        if (area > 0f ? (w0 >= 0f && w1 >= 0f && w2 >= 0f) : (w0 <= 0f && w1 <= 0f && w2 <= 0f))
+                        {   // b27: the height of this triangle at the cell's middle (w0, w1, w2 over area = the weights of its three corners); the highest one wins
+                            int k = iz * covW + ix; float y = (w0 * tris[i].y + w1 * tris[i + 1].y + w2 * tris[i + 2].y) / area;
+                            if (!cov[k] || y > covY[k]) covY[k] = y;
+                            cov[k] = true;
+                        }
                     }
             }
             covMesh = true;
@@ -519,7 +548,7 @@ namespace OpenZ
 
         /// <summary>The drawn water shows at q (deep water or the thin film on the shore): under a water surface, the ground there not
         /// higher than FishFootDryM over the water level.</summary>
-        public static bool WaterShows(OpenZFxPlayer fxp, Vector3 q) => fxp.GroundAt(q) < fxp.WaterY + FishFootDryM && WaterMeshAt(fxp, q);
+        public static bool WaterShows(OpenZFxPlayer fxp, Vector3 q) => fxp.GroundAt(q) < fxp.WaterYAt(q) + FishFootDryM && WaterMeshAt(fxp, q);
 
         /// <summary>No water shows on a disc of radius r round c: the centre, 16 rays at r, 8 at r / 2.</summary>
         static bool DryDisc(OpenZFxPlayer fxp, Vector3 c, float r)
@@ -596,7 +625,7 @@ namespace OpenZ
                     float run = open ? need - d0 : dFar - d0;
                     best = new AnticSpot
                     {
-                        yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg, waterY = fxp.WaterY,
+                        yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg, waterY = fxp.WaterYAt(p),
                         edge = p + dir * (d0 + 0.35f * k), land = lp,
                         castWidth = run, castOut = land - d0, farClear = open ? need - land : dFar - land, ringClear = m, openBeyond = open,
                     };
@@ -615,8 +644,12 @@ namespace OpenZ
         public static float ParasolTilt = 28f, ParasolGap = 1.75f, ParasolCanopyY = 2.6f, ParasolShadeShift = 1.2f;
 
         /// <summary>The view direction of the game camera on the ground plane (screen-up on the map); +Z when there is none.</summary>
+        /// <summary>DV108 (View/OzHeroSquadView.cs): while set, the lounger layout uses this ground direction instead of the camera's
+        /// (the level-start loungers are laid out for the standard game view while the briefing camera is still on).</summary>
+        public static Vector3? GroundForwardOverride;
         public static Vector3 CameraGroundForward()
         {
+            if (GroundForwardOverride.HasValue) return GroundForwardOverride.Value;
             var cam = Camera.main;
             if (cam) { var f = cam.transform.forward; f.y = 0f; if (f.sqrMagnitude > 0.01f) return f.normalized; }
             return Vector3.forward;
@@ -675,7 +708,7 @@ namespace OpenZ
                 if (OpenZFxPlayer.IsWaterTile(q)) return false;
                 var cl = OpenZFxPlayer.ClassAt(q); if (cl == ZClass.Impassable) return false;
                 float h = g.GroundY(q.x, q.z); lo = Mathf.Min(lo, h); hi = Mathf.Max(hi, h);
-                if (Physics.Raycast(new Vector3(q.x, h + 6f, q.z), Vector3.down, out var hit, 5.85f, ~0, QueryTriggerInteraction.Ignore) && hit.point.y > h + 0.15f
+                if (Physics.Raycast(new Vector3(q.x, h + 6f, q.z), Vector3.down, out var hit, 5.85f, ~OzRockSolid.Mask, QueryTriggerInteraction.Ignore) && hit.point.y > h + 0.15f
                     && !hit.collider.GetComponentInParent<UnitView>()) return false;                    // something stands there (hut, wall, prop)
             }
             y = Mathf.Min(y, lo + 0.02f);

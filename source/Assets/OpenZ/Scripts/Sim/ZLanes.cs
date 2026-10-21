@@ -53,13 +53,56 @@ namespace OpenZ.Sim
         public long LaneHolds;
         int lanesVersion = int.MinValue;
 
+        // ---- the lanes near a point: the lane rules below ask about the lanes round one unit, not about every lane of the map
+        const int LaneCell = 64, LaneNearMargin = 48;
+        List<ZLane>[] laneCells; int laneCellsW, laneCellsH, laneCellsStamp = -1, laneCellsCount = -1;
+        /// <summary>Counts every change of the lane list (EnsureLanes; pathing v3: SyncLanes): the cells are rebuilt after it.</summary>
+        int lanesStamp;
+
+        /// <summary>The lanes whose areas (corridor, zone, keep-clear area) come within LaneNearMargin px of the 64 px cell that holds
+        /// (x, y), in the order of the lane list; for a point off the map the whole list. A test of a point, or of a unit's box, against
+        /// a lane's areas can only be true for a lane of this list while the tested place lies within LaneNearMargin px of (x, y).</summary>
+        List<ZLane> LanesNear(double x, double y)
+        {
+            if (laneCellsStamp != lanesStamp || laneCellsCount != Lanes.Count || laneCells == null) BuildLaneCells();
+            int cx = (int)Math.Floor(x / LaneCell), cy = (int)Math.Floor(y / LaneCell);
+            return cx >= 0 && cy >= 0 && cx < laneCellsW && cy < laneCellsH ? laneCells[cy * laneCellsW + cx] : Lanes;   // (off the map, NaN: the whole list)
+        }
+
+        /// <summary>The lanes a unit's box can touch at top-left (ox, oy) and after a step to (nx, ny): the list of its centre's cell
+        /// (a box of at most 32 px and a step of at most 14 px stay within 30 px of the centre); anything bigger: the whole list.</summary>
+        List<ZLane> LanesAt(ZObject a, double ox, double oy, double nx, double ny) =>
+            a.WidthPix <= 32 && a.HeightPix <= 32 && Math.Abs(nx - ox) <= 14 && Math.Abs(ny - oy) <= 14 ? LanesNear(ox + a.WidthPix * 0.5, oy + a.HeightPix * 0.5) : Lanes;
+        List<ZLane> LanesAt(ZObject a) => LanesAt(a, a.LocX + a.XOver, a.LocY + a.YOver, a.LocX + a.XOver, a.LocY + a.YOver);
+
+        void BuildLaneCells()
+        {
+            laneCellsStamp = lanesStamp; laneCellsCount = Lanes.Count;
+            int w = Math.Max(1, W.Map.WidthPix) / LaneCell + 1, h = Math.Max(1, W.Map.HeightPix) / LaneCell + 1;
+            if (laneCells == null || w != laneCellsW || h != laneCellsH)
+            {
+                laneCellsW = w; laneCellsH = h; laneCells = new List<ZLane>[w * h];
+                for (int i = 0; i < laneCells.Length; i++) laneCells[i] = new List<ZLane>();
+            }
+            else foreach (var c in laneCells) c.Clear();
+            foreach (var L in Lanes)                                                       // in list order: every cell keeps the order of the list
+            {
+                int x0 = Math.Min(L.X0, Math.Min(L.ZX0, L.KX0)) - LaneNearMargin, x1 = Math.Max(L.X1, Math.Max(L.ZX1, L.KX1)) + LaneNearMargin;
+                int y0 = Math.Min(L.Y0, Math.Min(L.ZY0, L.KY0)) - LaneNearMargin, y1 = Math.Max(L.Y1, Math.Max(L.ZY1, L.KY1)) + LaneNearMargin;
+                int cx0 = Math.Max(0, (int)Math.Floor((double)x0 / LaneCell)), cx1 = Math.Min(w - 1, (int)Math.Floor((double)x1 / LaneCell));
+                int cy0 = Math.Max(0, (int)Math.Floor((double)y0 / LaneCell)), cy1 = Math.Min(h - 1, (int)Math.Floor((double)y1 / LaneCell));
+                for (int cy = cy0; cy <= cy1; cy++)
+                    for (int cx = cx0; cx <= cx1; cx++) laneCells[cy * w + cx].Add(L);
+            }
+        }
+
         /// <summary>Find the lanes on the current grids (again when passability changed). Runs every tick; tests call it before
         /// the first tick.</summary>
         public void EnsureLanes()
         {
             var pf = W.Path;
             if (lanesVersion == pf.Version && lanesShort == ShortLanes) return;            // DV44: short chokepoints are lanes too (ZCommit.Lanes.cs)
-            lanesShort = ShortLanes; squadRes.Clear(); lanesBuilds++;
+            lanesShort = ShortLanes; squadRes.Clear(); lanesBuilds++; lanesStamp++;
             lanesVersion = pf.Version;
             Lanes.Clear();
             FindLanes(false, 2, 3, true);      // vehicle grid: corridors 2-3 tiles wide (one vehicle)
@@ -186,10 +229,10 @@ namespace OpenZ.Sim
                 if (Static(o)) continue;
                 if (!Moving(o))
                 {                                                                          // held in the approach with an order into the lane
-                    if (o.Waypoints.Count > 0) foreach (var L in Lanes) CountApproach(L, o);
+                    if (o.Waypoints.Count > 0) foreach (var L in LanesAt(o)) CountApproach(L, o);   // (only a lane whose zone its box touches counts it)
                     continue;
                 }
-                foreach (var L in Lanes)
+                foreach (var L in LanesAt(o))
                 {
                     double lx = o.LocX + o.XOver, ly = o.LocY + o.YOver;
                     if (!BoxInZone(L, lx, ly, o.WidthPix, o.HeightPix)) continue;
@@ -233,7 +276,7 @@ namespace OpenZ.Sim
             // vehicles first (ZYield.cs): robots of its own team are no lane traffic for a vehicle (it drives through them): they neither
             // close the lane against it, nor fill its approach, nor take the turn from it
             bool vf = VehicleFirst && a.Kind == ZKind.Vehicle && a.Owner != Team.Neutral; int own = TeamSlot(a), who = a.Kind == ZKind.Vehicle ? 8 : 1 << TeamSlot(a);
-            foreach (var L in Lanes)
+            foreach (var L in LanesAt(a, ox, oy, nx, ny))                                    // (every other lane ends at "came in sideways / no entry" below)
             {
                 if (!L.VehicleLane && !a.IsRobot) continue;                                  // vehicles never fit a 1-tile gap
                 if (L.Bridge && BridgeQueueEnabled) continue;                                // bridge decks: the reservation queue (ZBridges.cs)
@@ -306,7 +349,7 @@ namespace OpenZ.Sim
         void LaneEnter(ZObject a, double ox, double oy, double nx, double ny)
         {
             if (Lanes.Count == 0) return;
-            foreach (var L in Lanes)
+            foreach (var L in LanesAt(a, ox, oy, nx, ny))
             {
                 bool zoneEntry = BoxInZone(L, nx, ny, a.WidthPix, a.HeightPix) && !BoxInZone(L, ox, oy, a.WidthPix, a.HeightPix);
                 bool corridorEntry = BoxInCorridor(L, nx, ny, a.WidthPix, a.HeightPix) && !BoxInCorridor(L, ox, oy, a.WidthPix, a.HeightPix);
@@ -330,7 +373,7 @@ namespace OpenZ.Sim
         bool OnLaneMoving(ZObject o)
         {
             if (!Moving(o)) return false;
-            foreach (var L in Lanes)
+            foreach (var L in LanesAt(o))
                 if (BoxInCorridor(L, o.LocX + o.XOver, o.LocY + o.YOver, o.WidthPix, o.HeightPix) && TravelDir(L, o) >= 0) return true;
             return false;
         }
@@ -340,7 +383,7 @@ namespace OpenZ.Sim
         /// in the way of the rest.</summary>
         ZLane KeepClearAt(int x, int y)
         {
-            foreach (var L in Lanes) if (x >= L.KX0 && x < L.KX1 && y >= L.KY0 && y < L.KY1) return L;
+            foreach (var L in LanesNear(x, y)) if (x >= L.KX0 && x < L.KX1 && y >= L.KY0 && y < L.KY1) return L;
             return null;
         }
         const int KeepClearExtra = 48;
@@ -348,7 +391,7 @@ namespace OpenZ.Sim
         /// <summary>Lane zone containing the unit's centre, if any (step-aside targets leave the lane).</summary>
         ZLane LaneAt(int cx, int cy)
         {
-            foreach (var L in Lanes) if (cx >= L.ZX0 && cx < L.ZX1 && cy >= L.ZY0 && cy < L.ZY1) return L;
+            foreach (var L in LanesNear(cx, cy)) if (cx >= L.ZX0 && cx < L.ZX1 && cy >= L.ZY0 && cy < L.ZY1) return L;
             return null;
         }
     }

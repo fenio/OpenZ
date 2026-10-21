@@ -273,7 +273,15 @@ namespace OpenZ
             var hz = new Vector3(dir.x, 0, dir.z);
             var rot = hz.sqrMagnitude > 1e-4f ? Quaternion.LookRotation(hz.normalized, Vector3.up) : Quaternion.identity;
             f.PoolT.SetPositionAndRotation(new Vector3(c.x, gy + 0.35f, c.z), rot);
-            f.PoolT.localScale = new Vector3(w, 3.8f, dir.y < -0.9f ? w : len);
+            // owner item 269: the height band covers the ground under the whole ellipse (a fixed 3.8 m band cut the light in a straight
+            // edge where the ellipse reached down a bank or up a rim); the pool's plane, and so the light's vertical fall-off, stay put
+            float zl = dir.y < -0.9f ? w : len, reachY = 1.9f;
+            for (int k = 0; k < 8; k++)
+            {
+                float a = k * Mathf.PI * 0.25f; var q = c + rot * new Vector3(Mathf.Sin(a) * w * 0.48f, 0f, Mathf.Cos(a) * zl * 0.48f);
+                reachY = Mathf.Max(reachY, Mathf.Abs(GroundY(q.x, q.z) - (gy + 0.35f)) + 0.9f);
+            }
+            f.PoolT.localScale = new Vector3(w, 2f * Mathf.Min(reachY, 12f), zl);
             float d = Mathf.Max(1f, (c - origin).magnitude);
             f.StaticPoolE = f.Intensity / (d * d);
         }
@@ -869,6 +877,7 @@ namespace OpenZ
                     {
                         if (f.Damage >= 2 || !f.LampGO || !f.LampGO.activeInHierarchy) continue;
                         var hp = f.Head.position;
+                        if (at.y > hp.y + 3f) continue;                                                       // K337: a blast high over the lamp (up at the flying shuttle) does not reach it
                         float d = Mathf.Min(Flat(f.Foot - at).magnitude, Flat(hp - at).magnitude);
                         if (d > reach) continue;
                         float sev = 1f - d / reach;

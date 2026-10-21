@@ -100,7 +100,18 @@ namespace OpenZ.Sim
 
         /// <summary>Gate side-step hysteresis: once a unit side-stepped to one side it does not side-step to the other for SideCommit s
         /// (Zod layer: the side is only preferred for 1 s, the other side is still tried and units weave left-right).</summary>
-        internal bool SideCommitted(ZObject a, ZPathState s, double deg) => SettleFor(a) && W.Time < s.sideUntil && Math.Sign(deg) != s.sideSign;
+        internal bool SideCommitted(ZObject a, ZPathState s, double deg) => (SettleFor(a) || ZoneVehicleCommit(a)) && W.Time < s.sideUntil && Math.Sign(deg) != s.sideSign;
+
+        /// <summary>Version 1.1 fix (no rule of the original game: Zod has no unit spacing). The live rules (zones: river banks,
+        /// bridges, bottlenecks, and every group order that ends at one) only PREFER the last side for 1 s and still try the other
+        /// one. A vehicle held between another unit's spacing and a shore (water is a wall for vehicles: the box test refuses the
+        /// step) then took a sideways step to the right, the next tick one to the left, and so on: it shook in place, up to 100
+        /// reversals a second in the counted check. Vehicles now keep the side for that second in the zones too, exactly as outside
+        /// them: a vehicle that cannot go on on its side stands (the gate's hold or queue) and the stuck guard decides. Robots wade,
+        /// a shore never holds them: unchanged.</summary>
+        bool ZoneVehicleCommit(ZObject a) => CommitOn && ZoneSideCommit && a.Kind == ZKind.Vehicle;
+        /// <summary>Switch (code; on). Off = the rule before version 1.1.</summary>
+        public static bool ZoneSideCommit = true;
 
         /// <summary>Gate: a unit of the same group order (same clicked point) standing or held ahead of this one on its way: queue
         /// behind it (a shortened step or a wait), no side-step weave round it; the stuck guard's detour goes round it if it stays.</summary>
@@ -166,7 +177,7 @@ namespace OpenZ.Sim
         bool InLaneZone(ZObject o)
         {
             double lx = o.LocX + o.XOver, ly = o.LocY + o.YOver;
-            foreach (var L in Lanes) if (BoxInZone(L, lx, ly, o.WidthPix, o.HeightPix)) return true;
+            foreach (var L in LanesAt(o)) if (BoxInZone(L, lx, ly, o.WidthPix, o.HeightPix)) return true;
             return false;
         }
 
@@ -298,6 +309,7 @@ namespace OpenZ.Sim
             var taken = new List<(int x, int y, int r)>();
             var cands = new Dictionary<(bool robot, bool nr, int comp), List<(int x, int y, long d)>>();
             var doors = new Dictionary<(bool robot, bool nr, int comp), bool[]>();              // (spots in a building's door: only when nothing else)
+            var inWay = new Dictionary<(bool robot, bool nr, int comp), int[]>();                // (per spot: the taken spot last found in its way, tried first; -1 none yet)
             foreach (var (_, _, u, ix0, iy0) in order)
             {
                 bool robot = u.IsRobot, nr = NoRocks(u); double ix = ix0, iy = iy0;
@@ -307,21 +319,26 @@ namespace OpenZ.Sim
                 {
                     cands[(robot, nr, comp)] = list = Candidates(px, py, robot, nr, comp);
                     GroupWalkPenalty(list, px, py, robot, nr, comp);                              // A/B fix 1: spots far by foot last (ZPathV3.Owner.cs)
-                    var dl = new bool[list.Count]; for (int i = 0; i < list.Count; i++) dl[i] = InBuildingDoor(list[i].x, list[i].y);
+                    DoorWays();                                                                   // (once for the whole list, not once per spot)
+                    var dl = new bool[list.Count]; for (int i = 0; i < list.Count; i++) dl[i] = InDoorWay(list[i].x, list[i].y);
                     doors[(robot, nr, comp)] = dl;
+                    var wl = new int[list.Count]; for (int i = 0; i < wl.Length; i++) wl[i] = -1;
+                    inWay[(robot, nr, comp)] = wl;
                 }
-                var door = doors[(robot, nr, comp)];
+                var door = doors[(robot, nr, comp)]; var way = inWay[(robot, nr, comp)];
                 int r = SlotRadius(u); int best = -1; double bestC = double.MaxValue; long ringLimit = -1;
                 for (int i = 0; i < list.Count; i++)
                 {
                     var (sx, sy, d) = list[i];
                     if (d >= (1L << 40) || door[i]) continue;                                    // (a building's margin or door: only when nothing else)
                     if (ringLimit >= 0 && d > ringLimit) break;                                  // review round 3: the live ring rule (innermost free ring + 2.5 tiles)
-                    bool free = true;
-                    foreach (var t in taken) if ((long)(t.x - sx) * (t.x - sx) + (long)(t.y - sy) * (t.y - sy) < (long)(t.r + r) * (t.r + r)) { free = false; break; }
+                    double c = (sx - ix) * (sx - ix) + (sy - iy) * (sy - iy);
+                    if (ringLimit >= 0 && c >= bestC) continue;                                  // (the ring is set and this spot is no nearer its place than the best free one: taken or free, it changes nothing)
+                    bool free = true; int wi = way[i];
+                    if (wi >= 0 && (long)(taken[wi].x - sx) * (taken[wi].x - sx) + (long)(taken[wi].y - sy) * (taken[wi].y - sy) < (long)(taken[wi].r + r) * (taken[wi].r + r)) free = false;   // (the one found in its way before still is)
+                    else for (int j = 0; j < taken.Count; j++) { var t = taken[j]; if ((long)(t.x - sx) * (t.x - sx) + (long)(t.y - sy) * (t.y - sy) < (long)(t.r + r) * (t.r + r)) { free = false; way[i] = j; break; } }
                     if (!free) continue;
                     if (ringLimit < 0) { double rd = Math.Sqrt(d) + RingSlack; ringLimit = (long)(rd * rd); }
-                    double c = (sx - ix) * (sx - ix) + (sy - iy) * (sy - iy);
                     if (c >= bestC) continue;
                     bestC = c; best = i;
                 }
@@ -351,11 +368,23 @@ namespace OpenZ.Sim
         /// <summary>A spot in a building's door: closer than DoorClear px to the way a new unit leaves it (its creation point -> the
         /// exit point it force-moves to, Zod's GetBuildingCreationPoint / GetBuildingCreationMovePoint). A group parked there blocked
         /// the building's output (the new unit pressed into it every second); its spots go elsewhere, the door only as a last resort.</summary>
-        bool InBuildingDoor(int x, int y)
+        bool InBuildingDoor(int x, int y) { DoorWays(); return InDoorWay(x, y); }
+        /// <summary>The door way (creation point, exit point) of every standing building that has one, in object order: read once for
+        /// a whole list of spots (SpreadGroupCommit), not once per spot.</summary>
+        readonly List<(int cx, int cy, int ex, int ey)> doorWays = new List<(int, int, int, int)>();
+        void DoorWays()
         {
+            doorWays.Clear();
             foreach (var b in W.Objects)
             {
                 if (b.Kind != ZKind.Building || b.Destroyed || !b.GetCreationPoint(out int cx, out int cy) || !b.GetCreationMovePoint(out int ex, out int ey)) continue;
+                doorWays.Add((cx, cy, ex, ey));
+            }
+        }
+        bool InDoorWay(int x, int y)
+        {
+            foreach (var (cx, cy, ex, ey) in doorWays)
+            {
                 double dx = ex - cx, dy = ey - cy, l2 = dx * dx + dy * dy, t = l2 < 1e-9 ? 0 : Math.Max(0, Math.Min(1, ((x - cx) * dx + (y - cy) * dy) / l2));
                 double qx = cx + t * dx - x, qy = cy + t * dy - y;
                 if (qx * qx + qy * qy < DoorClear * DoorClear) return true;

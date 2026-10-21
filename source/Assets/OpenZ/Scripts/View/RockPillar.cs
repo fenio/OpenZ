@@ -141,8 +141,13 @@ namespace OpenZ
     public class RockChunkLife : MonoBehaviour
     {
         public float lifeMin;                                                  // > 0: loose stones on the spot linger longer
+        public bool floats;                                                    // wood (the Jungle bridge's planks): it rests half under the surface instead of going under
         float age, life; Rigidbody rb; bool frozen, popping;
-        void Start() { rb = GetComponent<Rigidbody>(); life = lifeMin > 0f ? Random.Range(lifeMin, lifeMin + 8f) : Random.Range(6f, 10f); }
+        void Start()
+        {
+            rb = GetComponent<Rigidbody>(); life = lifeMin > 0f ? Random.Range(lifeMin, lifeMin + 8f) : Random.Range(6f, 10f);
+            OzWaterLanding.Watch(transform, name == "RockChunk" ? "rock chunk" : name == "BaseChunk" ? "prop chunk" : "bridge chunk", rb, false, false, floats);   // b27: the shared water landing rule
+        }
         void Update()
         {
             age += Time.deltaTime;

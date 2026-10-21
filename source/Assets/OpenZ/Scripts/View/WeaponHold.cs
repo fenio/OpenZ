@@ -120,10 +120,10 @@ namespace OpenZ
             aim = Quaternion.AngleAxis(4f, Vector3.Cross(Vector3.up, aim)) * aim;            // a touch muzzle-down, like a ready carry
             if (!gunAim) gunAim = GetComponent<UnitAim>();
             if (gunAim && gunAim.TryAimDirection(out var onTarget)) aim = onTarget;          // combatview: the barrel on the target (yaw + pitch)
-            aim = WeaponsV2.HoldAim(this, aim);                                             // weapons_v2: Tough carry / raise / recoil climb, MG kick, sniper sway
+            var aimBeforeV2 = aim; aim = WeaponsV2.HoldAim(this, aim);                                             // weapons_v2: Tough carry / raise / recoil climb, MG kick, sniper sway
             if (shoulderHold)
             {   // robot_models_v2: carry pitch (BS01Stance / weapons_v2) capped for the v2 Tough, the tube lifted on its cushion by the pitch
-                aim = CarryAim(aim, out float pitchUp); float up0 = bazookaRestUp;
+                aim = CarryAim(ToughAimEase.Ease(this, gunAim, aimBeforeV2, aim), out float pitchUp); float up0 = bazookaRestUp;   // K324: the Tough's drawn aim holds through a kill and eases onto a new target (View/ToughAimEase.cs)
                 bazookaRestUp = up0 + carryLift * Mathf.Sin(Mathf.Max(0f, pitchUp) * Mathf.Deg2Rad);
                 ShoulderHold(aim); bazookaRestUp = up0; return;
             }

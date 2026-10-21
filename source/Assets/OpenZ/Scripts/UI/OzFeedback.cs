@@ -9,7 +9,7 @@ namespace OpenZ
     /// </summary>
     public static class OzFeedback
     {
-        public const string Url = "https://docs.google.com/forms/d/e/1FAIpQLSfMuZs9-p1pCsRm59CQy4PBuZwE8VbOAJj_2TeER6gD3sf9ag/viewform?usp=sharing";
+        public static string Url => OzLinks.Get(OzLinks.FeedbackForm);                                    // the one links file holds the address
         public const string Line = "Share your ideas, report bugs, request features";
         public const string Button = "BUG REPORTS & SUGGESTIONS";
 

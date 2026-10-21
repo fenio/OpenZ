@@ -21,7 +21,7 @@ namespace OpenZ
                             TeamGlowId = Shader.PropertyToID("_OZTeamGlow");
         static MaterialPropertyBlock mpb;
 
-        float t0; int step = -1; bool paintOnly; static bool nextPaintOnly;
+        float t0; int step = -1, deadStep = -1; bool paintOnly; static bool nextPaintOnly;
         TeamPaint paint; Light[] lights; float[] light0;
         /// <summary>1 = as alive, 0 = dark.</summary>
         public float Level { get; private set; } = 1f;
@@ -51,9 +51,20 @@ namespace OpenZ
 
         void Update()
         {
-            float k = 1f - Mathf.Clamp01((Time.time - t0) / Seconds);
+            float age = Time.time - t0;
+            // item 228: the dead colour drains in slowly, OzDeadTint.Seconds from the death in OzDeadTint.Steps steps (robot figures only:
+            // the body through its TeamPaint, a figure without one on its renderers; a vehicle / gun wreck (paintOnly) keeps its colours)
+            int ds = Mathf.Min(OzDeadTint.Steps, Mathf.FloorToInt(Mathf.Clamp01(age / OzDeadTint.Seconds) * OzDeadTint.Steps));
+            if (!paintOnly && ds != deadStep)
+            {
+                deadStep = ds; float dl = ds / (float)OzDeadTint.Steps;
+                if (paint) paint.DeadLevel = dl;
+                else foreach (var r in GetComponentsInChildren<Renderer>(true)) OzDeadTint.Set(r, dl);
+            }
+            bool deadDone = paintOnly || ds >= OzDeadTint.Steps;
+            float k = 1f - Mathf.Clamp01(age / Seconds);
             int s = Mathf.CeilToInt(k * Steps);
-            if (s == step) return;
+            if (s == step) { if (s == 0 && deadDone) enabled = false; return; }
             step = s; Level = s / (float)Steps;
             if (paint) paint.GlowLevel = Level;
             else if (!paintOnly) foreach (var r in GetComponentsInChildren<Renderer>(true)) Dim(r, Level);
@@ -63,7 +74,7 @@ namespace OpenZ
                 lights[i].intensity = light0[i] * Level;
                 if (s == 0) lights[i].enabled = false;
             }
-            if (s == 0) enabled = false;                                                                // dark: nothing left to do
+            if (s == 0 && deadDone) enabled = false;                                                    // dark and dead-coloured: nothing left to do
         }
 
         /// <summary>A glow part: an unlit material named as a glow, or an unlit one brighter than white.</summary>

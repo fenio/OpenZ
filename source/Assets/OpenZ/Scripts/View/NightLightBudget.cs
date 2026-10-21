@@ -64,7 +64,7 @@ namespace OpenZ
             // shadows first; explosion lights have their own pools and no longer eat the night budget.
             int max = HeatLevel == 2 ? Mathf.RoundToInt(MaxLights * 0.7f) : HeatLevel == 1 ? Mathf.RoundToInt(MaxLights * 0.85f) : MaxLights;
             max = Mathf.RoundToInt(max * Mathf.Max(0.75f, perfScale));
-            EffectiveMax = Mathf.Clamp(max, 16, MaxLights);
+            EffectiveMax = OzLite.Active ? OzLite.NightMax(max, MaxLights) : Mathf.Clamp(max, 16, MaxLights);   // version 1.1, the lighter presets: on HIGH the old line, unchanged
             EffectiveShadows = HeatLevel == 2 ? 0 : HeatLevel == 1 ? Mathf.Min(1, MaxShadowed) : perfScale < 0.7f ? Mathf.Min(1, MaxShadowed) : MaxShadowed;
             if (NightShadows.Mode == 0) EffectiveShadows = 0;
 
@@ -119,6 +119,7 @@ namespace OpenZ
                 nearCand.Add(f);
             }
             for (int i = nearHeld.Count - 1; i >= 0; i--) if (!nearCand.Contains(nearHeld[i])) nearHeld.RemoveAt(i);
+            if (OzLite.Active) OzLite.TrimNearby(nearHeld);                                       // version 1.1, the lighter presets: on HIGH this reads one flag and calls nothing
             nearCand.Sort(ByShadow);
             for (int i = 0; i < nearCand.Count; i++)
             {

@@ -391,6 +391,7 @@ namespace OpenZ
         public void SetBoardLevel(string level)
         {
             if (string.IsNullOrEmpty(level)) level = "L02";
+            JungleSetting(level);                                                                         // level 16: the jungle round the stage instead of the room's walls
             if (level == BoardLevel || !boardMat) return;
             BoardLevel = level;
             Texture2D tex = null;

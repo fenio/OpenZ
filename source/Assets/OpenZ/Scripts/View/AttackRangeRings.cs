@@ -21,7 +21,7 @@ namespace OpenZ
     /// units added to the selection outside a box drag (HUD alert tab, minimap). Dots use the team's ground-disc colour (HDR, blooms).
     /// </summary>
     [DefaultExecutionOrder(75)]
-    public class AttackRangeRings : MonoBehaviour
+    public partial class AttackRangeRings : MonoBehaviour   // a gun's ring and the gun being placed: AttackRangeRings.Placement.cs (this same ring); its blind sectors: AttackRangeRings.BlindSectors.cs
     {
         public static AttackRangeRings I { get; private set; }
         /// <summary>Adds itself next to PlayerInput in every loaded scene (set false to add it by hand).</summary>
@@ -92,6 +92,7 @@ namespace OpenZ
             foreach (var r in rings) if (r.mesh) Destroy(r.mesh);
             foreach (var r in pool) if (r.mesh) Destroy(r.mesh);
             foreach (var kv in mats) if (kv.Value) Destroy(kv.Value);
+            BlindDestroy();                                                                                // the blind sectors' meshes and material (AttackRangeRings.BlindSectors.cs)
             if (I == this) I = null;
         }
 
@@ -145,27 +146,9 @@ namespace OpenZ
                 bool done = age >= life || (r.dropAt >= 0f && now - r.dropAt >= dropFade);
                 if (done) { Recycle(r); rings.RemoveAt(i); continue; }
                 if (r.units.Count > 0) r.center = Middle(r.units);
-                float k = Mathf.Clamp01(age / Mathf.Max(0.01f, expandTime));
-                float ease = 1f - Mathf.Pow(1f - k, 3f);                                                   // out-cubic: bursts out, settles
-                r.curR = r.radius * (0.1f + 0.9f * ease);
-                float a = Mathf.Clamp01(age / Mathf.Max(0.01f, expandTime * 0.5f));                                        // fade in with the burst
-                float fadeK = Mathf.Clamp01((age - expandTime - holdTime) / Mathf.Max(0.01f, fadeTime));
-                a *= 1f - fadeK * fadeK;
-                if (r.dropAt >= 0f) a *= 1f - Mathf.Clamp01((now - r.dropAt) / Mathf.Max(0.01f, dropFade));
-                r.a = a * alpha;
-                r.live = true;
+                Timing(r, age, now);                                                                          // the one burst / hold / fade of every ring (Timing)
             }
-            for (int i = 0; i < rings.Count; i++)
-            {
-                var r = rings[i];
-                float camDist = cam ? Vector3.Distance(cam.transform.position, r.center) : 40f;
-                float zs = Mathf.Clamp(camDist / 40f, zoomScale.x, zoomScale.y);
-                float age = now - r.t0;
-                float ping = 1f + 0.45f * (1f - Mathf.Clamp01((age - expandTime * 0.6f) / 0.3f)) * Mathf.Clamp01(age / Mathf.Max(0.01f, expandTime * 0.6f));   // dots swell as the ring lands
-                Build(r, now, zs * ping);
-                var m = Mat(r.team);
-                if (m) Graphics.DrawMesh(r.mesh, Matrix4x4.identity, m, 0, null, 0, null, ShadowCastingMode.Off, false);
-            }
+            for (int i = 0; i < rings.Count; i++) Draw(rings[i], now, now - rings[i].t0, cam);                 // the one drawing of every ring (Draw)
         }
 
         Vector3 Middle(List<ZObject> us)
@@ -185,7 +168,7 @@ namespace OpenZ
             foreach (var o in sel)
             {
                 if (o == null || o.Destroyed || o.AttackRadius <= 0) continue;                                // zobject.cpp:716: no radius, no ring (crane, empty APC)
-                if (OzGunRange.Owns(o)) continue;                                                             // an own gun keeps a steady range ring while selected (OzGunRange): one ring, not two
+                // a gun (own or not) gets this very ring, as every unit: one ring for all (the gun being placed: Placement)
                 var p = game.Views.TryGetValue(o.Id, out var v) && v ? v.transform.position : game.CenterWorld(o, false); p.y = 0f;
                 Ring best = null; float bd = mergeDistance * mergeDistance;
                 foreach (var r in rings)
@@ -196,15 +179,50 @@ namespace OpenZ
                 }
                 if (best != null) { best.units.Add(o); continue; }
                 var n = pool.Count > 0 ? pool.Pop() : new Ring();
-                n.type = o.Type; n.team = o.Owner; n.radiusPx = o.AttackRadius;
-                n.radius = (o.AttackRadius + 3) / 8f;                                                          // zobject.cpp:739-740 (attack_radius + 3) px, 8 px = 1 m
-                n.units.Clear(); n.units.Add(o);
-                n.t0 = now; n.dropAt = -1f; n.hR = -1f; n.live = false;
-                int want = Mathf.Clamp(Mathf.RoundToInt(2f * Mathf.PI * n.radius / Mathf.Max(0.2f, dotSpacing) / 4f) * 4, minDots, maxDots);
-                Alloc(n, want);
+                Begin(n, o.Type, o.Owner, o.AttackRadius, now);                                                // the one set-up of every ring (Begin)
+                n.units.Add(o);
                 rings.Add(n);
             }
             foreach (var r in rings) r.center = Middle(r.units);
+        }
+
+        // ------------------------------------------------------------------ one ring (every ring: a selected unit's, a selected gun's, the gun being placed)
+        /// <summary>A ring's set-up: radius = the range + 3 px, the dots about dotSpacing apart.</summary>
+        void Begin(Ring n, string type, Team team, int radiusPx, float now)
+        {
+            n.type = type; n.team = team; n.radiusPx = radiusPx;
+            n.radius = (radiusPx + 3) / 8f;                                                                    // zobject.cpp:739-740 (attack_radius + 3) px, 8 px = 1 m
+            n.units.Clear();
+            n.t0 = now; n.dropAt = -1f; n.hR = -1f; n.live = false;
+            int want = Mathf.Clamp(Mathf.RoundToInt(2f * Mathf.PI * n.radius / Mathf.Max(0.2f, dotSpacing) / 4f) * 4, minDots, maxDots);
+            Alloc(n, want);
+        }
+
+        /// <summary>A ring's burst, hold and fade at age (s): the radius grows out of the middle, the alpha follows.</summary>
+        void Timing(Ring r, float age, float now)
+        {
+            float k = Mathf.Clamp01(age / Mathf.Max(0.01f, expandTime));
+            float ease = 1f - Mathf.Pow(1f - k, 3f);                                                       // out-cubic: bursts out, settles
+            r.curR = r.radius * (0.1f + 0.9f * ease);
+            float a = Mathf.Clamp01(age / Mathf.Max(0.01f, expandTime * 0.5f));                            // fade in with the burst
+            float fadeK = Mathf.Clamp01((age - expandTime - holdTime) / Mathf.Max(0.01f, fadeTime));
+            a *= 1f - fadeK * fadeK;
+            if (r.dropAt >= 0f) a *= 1f - Mathf.Clamp01((now - r.dropAt) / Mathf.Max(0.01f, dropFade));
+            r.a = a * alpha;
+            r.live = true;
+        }
+
+        /// <summary>A ring's dots this frame: sized by the zoom, swelling as the ring lands, in the team's material.</summary>
+        void Draw(Ring r, float now, float age, Camera cam)
+        {
+            float camDist = cam ? Vector3.Distance(cam.transform.position, r.center) : 40f;
+            float zs = Mathf.Clamp(camDist / 40f, zoomScale.x, zoomScale.y);
+            float ping = 1f + 0.45f * (1f - Mathf.Clamp01((age - expandTime * 0.6f) / 0.3f)) * Mathf.Clamp01(age / Mathf.Max(0.01f, expandTime * 0.6f));   // dots swell as the ring lands
+            DrawBlind(r, age, zs);                                                                         // a gun's blind sectors, with this ring (AttackRangeRings.BlindSectors.cs); first, so the dots over a blind arc are dimmed (K333b)
+            Build(r, now, zs * ping);
+            var m = Mat(r.team);
+            if (m) Graphics.DrawMesh(r.mesh, Matrix4x4.identity, m, 0, null, 0, null, ShadowCastingMode.Off, false);
+            DrawBlindGreyDots(r);                                                                          // K333c: the grey dots over the blind arcs, right after the ring (AttackRangeRings.BlindClearer.cs)
         }
 
         void DropAll() { float now = Time.unscaledTime; foreach (var r in rings) if (r.dropAt < 0f) r.dropAt = now; }
@@ -276,7 +294,7 @@ namespace OpenZ
                 p.y = hc + up;
                 byte a = core;
                 if (unionSameType && Covered(r, p)) a = 0;
-                var ca = new Color32(255, 255, 255, a);
+                var ca = BlindRingDotGrey(r, d, ang, a);                                                   // K333b / K333c: over a blind arc of its gun the dot fades out for its grey twin (AttackRangeRings.BlindClearer.cs)
                 int b = d * V;
                 r.v[b] = p; r.c[b] = ca;
                 for (int i = 0; i < 6; i++)
@@ -286,7 +304,7 @@ namespace OpenZ
                     GridH(r.h, ang + Hex[i].x * dAng, out float hl, out _);
                     float y = Mathf.Max(hc, hl) + up;
                     var q = p + o * 0.62f; q.y = y; r.v[b + 1 + i] = q; r.c[b + 1 + i] = ca;                   // solid core
-                    q = p + o * 1.15f; q.y = y; r.v[b + 7 + i] = q; r.c[b + 7 + i] = c0;                       // soft rim (blooms softly)
+                    q = p + o * 1.15f; q.y = y; r.v[b + 7 + i] = q; r.c[b + 7 + i] = BlindRim(ca, c0);         // soft rim (blooms softly; K333b: in the dot's own colour)
                 }
             }
             r.mesh.vertices = r.v; r.mesh.colors32 = r.c;

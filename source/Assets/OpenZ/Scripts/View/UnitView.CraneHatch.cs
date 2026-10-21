@@ -12,7 +12,7 @@ namespace OpenZ
         bool CraneMuzzle(out Vector3 p)
         {
             p = default;
-            return Obj != null && Obj.Type == "crane" && Obj.Kind == ZKind.Vehicle && BoardingView.TryCrewMuzzle(Obj.Id, out p);
+            return Obj != null && (Obj.Type == "crane" || Obj.Type == "apc") && Obj.Kind == ZKind.Vehicle && BoardingView.TryCrewMuzzle(Obj.Id, out p);   // DV87: + the APC's lone driver while he is up in the roof hatch
         }
     }
 }

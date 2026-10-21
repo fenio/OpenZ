@@ -272,12 +272,12 @@ namespace OpenZ.Sim
         void FortDefenderSpawn(double time, int ring)
         {
             FortDefenderRingCentre(ring, out int x, out int y);
-            var m = World.CreateObject("robot", "grunt", x - 8, y - 8, Owner);
+            var m = World.CreateObject("robot", ZWorld.FortSniperDeviation ? "sniper" : "grunt", x - 8, y - 8, Owner);   // DV111: a sniper of the fort's team (ZWorld.Kc5Rules.cs); off = the grunt
             m.DefenderFortId = Id;
             m.fdWalkMps = m.MoveSpeed / 8.0;
             m.MoveSpeed = 0; m.RealMoveSpeed = 0;                                                  // no Zod movement: no pathing, no dodging
             m.CanSnipe = ZWorld.FortDefenderSnipes;
-            m.Damage *= ZWorld.CrewRifleMul;
+            if (!ZWorld.FortSniperDeviation) m.Damage *= ZWorld.CrewRifleMul;
             if (fdHealth > 0) m.Health = Math.Min(m.MaxHealth, fdHealth);
             m.fdScan = time;
             m.fdFrom = m.fdTo = m.fdGoal = ring; m.fdEdgeS = 0; m.fdLastT = time;                  // deck node `ring` = the ring's nest centre
@@ -463,7 +463,7 @@ namespace OpenZ.Sim
             int px = (int)Math.Floor(pxd), py = (int)Math.Floor(pyd);
             if (!Within(px, py, o.CenterX, o.CenterY, AttackRadius)) return false;
             if (!FortDefenderLineClear(sx, sz, tx, tz)) return false;
-            if (!o.IsDestroyableImpass && World.EngageBarrierBetween(px, py, o.CenterX, o.CenterY)) return false;
+            if (!o.IsDestroyableImpass && !o.ShuttleAirborne && World.EngageBarrierBetween(px, py, o.CenterX, o.CenterY)) return false;   // DV118: not for the flying shuttle
             return !LosActive || World.Sight.ClearFrom(px, py, DefenderFortId, o);
         }
 
@@ -645,7 +645,7 @@ namespace OpenZ.Sim
             if (!EstimateMissileTarget(t, MissileSpeed, out int tx, out int ty)) { tx = t.CenterX; ty = t.CenterY; }
             tx += World.Rng.Next(48) - 24; ty += World.Rng.Next(48) - 24;
             var m = new ZMissile { team = Owner, attackerId = Id, targetId = t.Id, playerGiven = false, grenade = true };
-            m.damage = (int)(World.S.grenade_damage * ZConst.MAX_UNIT_HEALTH); m.radius = World.S.grenade_damage_radius;
+            m.damage = World.ThrownGrenadeDamage; m.radius = World.ThrownGrenadeRadius;   // DV104: as a squad's grenade (ZWorld.GrenadeBoost.cs); Zod's damage and radius, as the summary above says, only with the rule off
             m.x = tx; m.y = ty; m.CalcExplodeTime(CenterX, CenterY, World.S.grenade_missile_speed, time);
             fdNades--; FortDefenderLobs++;
             fdNextNade = nextDamageTime = time + World.S.grenade_attack_speed;

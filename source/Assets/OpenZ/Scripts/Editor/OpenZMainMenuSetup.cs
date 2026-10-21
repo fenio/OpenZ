@@ -25,7 +25,7 @@ namespace OpenZ.EditorTools
         public const string MenuScene = ScenesDir + "/MainMenu.unity";
         public const string MenuResources = "Assets/OpenZ/Resources/OpenZ/Menu";
         public const string CreditsAsset = MenuResources + "/credits.txt";
-        static readonly string[] Order = { MenuScene, ScenesDir + "/L02_Desert.unity", ScenesDir + "/L17_CarPark.unity" };
+        static readonly string[] Order = { MenuScene, ScenesDir + "/L02_Desert.unity", ScenesDir + "/L16_Jungle.unity", ScenesDir + "/L17_CarPark.unity" };
 
         [MenuItem("OpenZ/Menu/Build Main Menu Scene", false, 1)]
         public static void BuildMainMenuScene()

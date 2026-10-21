@@ -196,7 +196,7 @@ namespace OpenZ
                 {
                     var s = Subject(); var c = s != null ? G.CenterWorld(s) : ZGame.PxToWorld(W.Map.WidthPix / 2, W.Map.HeightPix / 2);
                     float u = Mathf.Clamp01(modeT / 20f); u = u * u * (3 - 2 * u);
-                    float h = Mathf.Lerp(1.6f, rts ? rts.maxHeight : 200f, u), back = Mathf.Lerp(14f, 90f, u);
+                    float h = Mathf.Lerp(1.6f, rts ? RtsCamera.SpanWidest : 200f, u), back = Mathf.Lerp(14f, 90f, u);   // the old overview height 230 m, as before the new zoom limits (RtsCamera.ZoomLimits.cs)
                     pos = c + new Vector3(0, h, -back); look = c;
                     break;
                 }

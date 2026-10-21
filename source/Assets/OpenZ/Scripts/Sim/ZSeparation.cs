@@ -38,9 +38,11 @@ namespace OpenZ.Sim
             double sx = nx - ox, sy = ny - oy, len = Math.Sqrt(sx * sx + sy * sy);
             if (len < 1e-9) return true;
             double hw = a.WidthPix * 0.5, hh = a.HeightPix * 0.5;
+            CalmFollow(a, ox, oy, ref nx, ref ny, ref sx, ref sy, ref len); if (len < 1e-9) return true;   // DV109: behind a slower unit going its way it eases to that pace at a steady gap (ZPathing.CalmFollow.cs; switch off: nothing changes)
 
+            if (FallInHold(a)) return false;                                                // DV105: after a pass that failed it stands until it can fall in behind the slow unit (ZOvertake.cs)
             if (!BridgeGate(a, ox, oy, nx, ny)) return false;                              // bridge decks: one direction at a time (ZBridges.cs)
-            if (W.Time < s.ghostUntil) return true;                                        // passing through (FORCE_MOVE out of a factory, a dead jam), never onto a deck out of turn
+            if (W.Time < s.ghostUntil) return !ShuttleRingBlocks(a, ox + hw, oy + hh, nx + hw, ny + hh);   // passing through (FORCE_MOVE out of a factory, a dead jam), never onto a deck out of turn; K256e: never into a landed shuttle (ZWorld.ShuttleGround.cs)
             if (LaneConflict(a, ox, oy, nx, ny, true, out var laneBy)) { Hold(a, ZPathWait.Lane, laneBy); return false; }
             if (ResumeHold(a)) return false;                                               // pathing v3: a zoned unit held behind a unit walks again once the gap has opened (ZPathV3.cs)
 
@@ -65,13 +67,13 @@ namespace OpenZ.Sim
             if (!following) TryShove(a, b, hx, hy);
             // sidestep budget: 1.5 s of sidestepping without getting on = stop weaving for 2 s (hold, so a real deadlock shows)
             if (s.sideSince >= 0 && W.Time - s.sideSince > 1.5 && W.Time - s.lastProgress > 1.5) { s.noSideUntil = W.Time + 2; s.sideSince = -1; }
-            if (!following && W.Time >= s.noSideUntil)
+            if (W.Time >= s.noSideUntil && (following ? MayPass(a, b, hx, hy) : !CalmQueues(a, b)))   // b49: close to its own team it queues, it does not weave (ZCalm.cs); DV105: a faster unit goes round a slower one going its way (ZOvertake.cs; switch off: b49's condition)
             {
                 int side = W.Time < s.sideUntil ? s.sideSign : 1;                         // keep going round the same side (no left/right jitter)
                 foreach (double deg0 in SideAngles)
                 {
                     double deg = deg0 * side;
-                    if (SideCommitted(a, s, deg)) continue;                                         // DV44: no left-right weave (ZCommit.Settle.cs)
+                    if (SideCommitted(a, s, deg) || PassKeepsSide(a, deg)) continue;                // DV44: no left-right weave (ZCommit.Settle.cs); DV105: a pass keeps its side (ZOvertake.cs)
                     double r = deg * Math.PI / 180, c = Math.Cos(r), sn = Math.Sin(r);
                     double tx = sx * c - sy * sn, ty = sx * sn + sy * c, cx = ox + tx, cy = oy + ty;
                     if (!BoxClear(a, cx, cy)) continue;
@@ -111,7 +113,7 @@ namespace OpenZ.Sim
                 if (b.Leader == a && b.InFormation) continue;                                 // DV24: the leader walks on, its minions in the V make room
                 if (MatesPass(a, b) && (MateStepOk(a, b, ncx, ncy) || MateWaitsFor(a, b, ncx, ncy))) continue;   // DV44: the squad's follow keeps its members apart (ZCommit.Follow.cs); A/B fix 8: not a mate that waits for it (ZPathV3.Owner.cs)
                 if (b.Leader == a && a.HumanDirectOrder) continue;                            // DV16: a squad on a direct order: the leader never queues behind its own minion
-                double min = GateSpacing(a, b), bx = CX(b), by = CY(b);
+                double min = GateSpacing(a, b) * CloseShare(a, b), bx = CX(b), by = CY(b);     // b49: two units of one team on an order, in a tight place or after pressing each other: closer (ZCalm.cs)
                 double dnx = ncx - bx, dny = ncy - by, dn2 = dnx * dnx + dny * dny;
                 if (dn2 >= min * min) continue;
                 double dox = ocx - bx, doy = ocy - by, do2 = dox * dox + doy * doy;
@@ -123,7 +125,7 @@ namespace OpenZ.Sim
                     {                                                                     // ahead / behind along the pair's mean heading (a merge)
                         double mx = sx / sl + b.Dx / bl, my = sy / sl + b.Dy / bl, ml = Math.Sqrt(mx * mx + my * my);
                         double along = ((bx - ocx) * mx + (by - ocy) * my) / ml;
-                        double hard = MinSpacing(a, b);
+                        double hard = MinSpacing(a, b) * CloseShare(a, b);                 // b49 (ZCalm.cs)
                         if (dn2 >= hard * hard)
                         {                                                                 // (never below the hard minimum)
                             if (along < -4) continue;                                     // b is behind: a walks on, b queues
@@ -236,7 +238,7 @@ namespace OpenZ.Sim
         {
             double lx = nbx - b.WidthPix * 0.5, ly = nby - b.HeightPix * 0.5;
             if (!BoxAllowed(b, b.LocX, b.LocY, (int)Math.Floor(lx), (int)Math.Floor(ly))) return false;
-            foreach (var L in Lanes)
+            foreach (var L in LanesAt(b, b.LocX + b.XOver, b.LocY + b.YOver, lx, ly))
                 if (BoxInCorridor(L, lx, ly, b.WidthPix, b.HeightPix) && !BoxInCorridor(L, b.LocX + b.XOver, b.LocY + b.YOver, b.WidthPix, b.HeightPix)) return false;
             Near((int)nbx, (int)nby, MaxQuery, near3);
             var around = new List<ZObject>(near3);
@@ -274,6 +276,7 @@ namespace OpenZ.Sim
         /// lane zone it walks to the lane end. Enemies that are fighting are not moved.</summary>
         void TryShove(ZObject a, ZObject b, double hx, double hy)
         {
+            if (CalmGoesRound(a, b)) return;                                                   // b49: a waiting unit of its own team is gone round first (ZCalm.cs)
             if (b.PS.wait == ZPathWait.Lane && OnLaneMoving(a)) { MakeWay(a, b, hx, hy); return; }   // a lane waiter blocks traffic leaving the lane
             if (b.PS.wait == ZPathWait.Bridge && BridgeParked(b)) { MakeWay(a, b, hx, hy); return; }   // a unit waiting for a bridge turn steps aside
             if (b.Waypoints.Count > 0 || Static(b) || !b.CanMove || W.Time < b.PS.nextShove) return;
@@ -485,7 +488,7 @@ namespace OpenZ.Sim
                 {
                     if (b.Id <= a.Id || !Separable(a) || !Separable(b) || PairExempt(a, b)) continue;
                     if (MinionsTogether(a, b) && !MatesOverlap(a, b)) continue;                // DV44: spaced by the squad's follow (MateCap); a real overlap is still pushed
-                    double min = MinSpacing(a, b), dx = CX(a) - CX(b), dy = CY(a) - CY(b), d2 = dx * dx + dy * dy;
+                    double min = MinSpacing(a, b) * CloseShare(a, b), dx = CX(a) - CX(b), dy = CY(a) - CY(b), d2 = dx * dx + dy * dy;   // b49 (ZCalm.cs)
                     double lim = PushStart(a, b, min);                                       // DV44: dead-band + hysteresis (ZCommit.Settle.cs); off: min - 0.25
                     if (d2 >= lim * lim) continue;
                     double wa = PushShare(a, b), wb = PushShare(b, a);
@@ -568,7 +571,7 @@ namespace OpenZ.Sim
             foreach (var c in near2)
             {
                 if (c == o || !Separable(c) || PairExempt(o, c)) continue;
-                double min = MinSpacing(o, c), cx = CX(c), cy = CY(c);
+                double min = MinSpacing(o, c) * CloseShare(o, c), cx = CX(c), cy = CY(c);     // b49 (ZCalm.cs)
                 double dn = (nx - cx) * (nx - cx) + (ny - cy) * (ny - cy);
                 if (dn >= min * min) continue;
                 double dd = (ox - cx) * (ox - cx) + (oy - cy) * (oy - cy);
@@ -607,7 +610,7 @@ namespace OpenZ.Sim
             if (Static(a) || W.Time < a.PS.pinnedUntil) return 0;
             if (PassesOwn(a, b) || (OwnHull(a, b) && !InNarrowArea(a))) return 0;         // vehicles first: a vehicle takes no push from robots of its own team: on an order anywhere, standing outside bridges / gaps (ZYield.cs)
             if (Static(b) || W.Time < b.PS.pinnedUntil) return 1;
-            if (ArrivedHolds(a, b)) return 0; if (ArrivedHolds(b, a)) return 1;             // DV44: arrived vehicles are never nudged by traffic (ZCommit.Settle.cs)
+            if (ArrivedHolds(a, b)) return 0; if (ArrivedHolds(b, a)) return 1; if (ZObject.SniperHoldsAgainst(a, b)) return 0; if (ZObject.SniperHoldsAgainst(b, a)) return 1;   // DV120: a firing sniper is not pushed about by robots of its team (ZObject.SniperSteady.cs)             // DV44: arrived vehicles are never nudged by traffic (ZCommit.Settle.cs)
             bool wa = Walking(a), wb = Walking(b);
             if (wa != wb) return wa ? 0 : 1;                                              // a standing unit makes room for a walking one
             if (b.Leader == a) return 0;                                                  // a leader is never pushed by its own minions

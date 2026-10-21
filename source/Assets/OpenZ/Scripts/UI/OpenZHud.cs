@@ -56,10 +56,11 @@ namespace OpenZ
         public ZWorld W => game ? game.World : null;
         public Team Player => game ? game.player : Team.Red;
         /// <summary>The pause menu or the end screen owns the mouse and keyboard.</summary>
-        public bool Modal => (Pause && Pause.IsOpen) || (EndScreen && EndScreen.IsShown);
+        public bool Modal => (Pause && Pause.IsOpen) || (EndScreen && EndScreen.IsShown) || Arranging || ArrangeHeld;   // ARRANGE INTERFACE owns the mouse too, also for the moment it waits for the pause menu to close (OpenZHud.Arrange.cs)
 
         /// <summary>Who owns the current left press: nobody (PlayerInput), a HUD panel, the armed rally tool, or an own
-        /// fort / factory (Zod opens its production window on the press and KEEPS the selection, zplayer.cpp:3327-3331).</summary>
+        /// fort / factory (Zod opens its production window on the press and KEEPS the selection, zplayer.cpp:3327-3331; b30: here
+        /// the window opens when that press is let go as a click, and a press that travels becomes PlayerInput's box, see Update).</summary>
         public enum Capture { None, Ui, Rally, Building }
         public Capture PressCapture { get; private set; }
         /// <summary>The own producer the current press landed on (Capture.Building).</summary>
@@ -68,6 +69,16 @@ namespace OpenZ
         /// it sends: a Z-order that drops the last selected unit must not also set a rally point).</summary>
         public int SelectionCountBeforeInput { get; private set; }
         public Vector2 PressPos { get; private set; }
+        /// <summary>b30: how far the pointer may travel between the press and the release on an own fort / factory and still be
+        /// the click that opens its build menu; further, the press is a box-select. In px at 1080 lines, scaled with the screen
+        /// height like the pick boxes of PlayerInput (6 px at 1080p, 8.9 px at 1600p, 12 px at 4K); never under PlayerInput's
+        /// own box threshold (2 px). 6 px: a pressed touchpad or a quick wrist click slips a few pixels, and a click that
+        /// turned into a 3 px box would close nothing, open nothing and drop the selection; a box drawn on purpose is far longer.
+        /// Set it to 0 for the bare box threshold.</summary>
+        public static float BuildingClickSlop = 6f;
+        public static float BuildingClickSlopPx => Mathf.Max(Mathf.Sqrt(PlayerInput.BoxSqr), BuildingClickSlop * Mathf.Max(0.75f, Screen.height / 1080f));
+        /// <summary>Checks (b30): presses on an own fort / factory that became a box-select since the game started.</summary>
+        public static int BuildingDrags;
         public Vector2 Pointer { get; private set; }
         public bool PointerOverUi { get; private set; }
         public HudButton HotButton { get; private set; }
@@ -198,6 +209,7 @@ namespace OpenZ
             BuildFactoryList();
             BuildStoredCannons();
             BuildMenuButton();
+            BuildTouchKeys();                                                                          // touch and gamepad: the on-screen keys and their help card (OpenZHud.TouchKeys.cs)
             BuildToasts();
             Production.Build(this);
             Rally.Build(this);
@@ -208,6 +220,7 @@ namespace OpenZ
             EndScreen.Build(this);
             Help.Build(this);
             BuildLowerPanels();                                                                        // the lower panels and the minimap step aside for the production window (OpenZHud.LowerPanels.cs)
+            BuildArrange();                                                                            // ARRANGE INTERFACE: outlines, grips, RESET LAYOUT / DONE (OpenZHud.Arrange.cs)
             ApplyUiScale();
             return true;
         }
@@ -230,6 +243,16 @@ namespace OpenZ
             if (Overlay) Overlay.SetScale(s);
         }
 
+        /// <summary>The screen changed size (RESOLUTION, FULLSCREEN, a dragged window): a HUD scale the player never set follows
+        /// the default of the new size (OzSettings.DefaultHudScale), as it would after a restart. A saved one stays as it is.</summary>
+        public void FollowScreenSize()
+        {
+            if (PlayerPrefs.HasKey("oz_ui_scale")) return;
+            float s = OzText.SavedScale;
+            if (Mathf.Abs(s - OzText.UiScale) < 0.0005f) return;
+            OzText.UiScale = s; ApplyUiScale();
+        }
+
         // ================================================================== input + gating
         void Update()
         {
@@ -242,6 +265,7 @@ namespace OpenZ
             if (!modal && kb != null && OzBindings.Pressed(OzAction.FactoryList) && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) FactoryListKey();   // the list is a lower panel: with the production window up the key closes the window and shows the list
             if (!modal && kb != null && OzBindings.Pressed(OzAction.ExitCrew) && !kb.ctrlKey.isPressed && !kb.altKey.isPressed && input.Selection.Count > 0) ExitSelected();   // EXIT CREW
             if (!modal && kb != null && OzBindings.Pressed(OzAction.LastMessage)) SpaceEvent();                 // Zod: space = the last computer message's action
+            if (kb != null && OzBindings.Pressed(OzAction.MinimalUi) && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) MinimalUiKey();   // the MINIMAL UI key (default U): the OPTIONS switch in a match, never under a menu (OpenZHud.MinimalKey.cs)
 
             ScanEvents();
 
@@ -268,7 +292,7 @@ namespace OpenZ
                 if (PointerOverUi) PressCapture = Capture.Ui;
                 else if (input.Placing != null) PressCapture = Capture.None;                             // placement owns the mouse
                 else if (Rally && Rally.Armed) PressCapture = Capture.Rally;
-                else if (hudVisible && Production && (PressBuilding = Production.ProducerUnder(Pointer)) != null && !OwnUnitUnder(Pointer)) PressCapture = Capture.Building;
+                else if (hudVisible && Production && (PressBuilding = Production.ProducerUnder(Pointer)) != null && (OpenZUnitOverlay.PressOnBadge(W, Player, Pointer) || !OwnUnitUnder(Pointer))) PressCapture = Capture.Building;   // K429: a press on its badge wins over an own unit hidden behind the badge
                 else { PressCapture = Capture.None; PressBuilding = null; }
                 leftDown = PointerOverUi ? over : null;
                 if (leftDown != null) { leftDown.Pressed = true; leftDown.Refresh(); }
@@ -286,10 +310,25 @@ namespace OpenZ
                 if (b == over && b.Interactable && b.OnRightClick != null) { b.OnRightClick(Click(kb, true)); UiClickSound(); }
             }
 
+            // b30 (a player of 1.0): a press on an own fort / factory
+            // is held back from PlayerInput only while it can still be the click that opens the build menu (OpenZProductionWindow
+            // opens it when the button comes up). Once the pointer is further than BuildingClickSlopPx from where the button went
+            // down, also on the frame the button comes up, that press is a box-select that began on the building: it goes to
+            // PlayerInput with its start point, an open build menu closes as on any other press on the map, and no menu opens.
+            if (PressCapture == Capture.Building && !modal && (m.leftButton.isPressed || lr) && (Pointer - PressPos).sqrMagnitude > BuildingClickSlopPx * BuildingClickSlopPx)
+            {
+                PressCapture = Capture.None; PressBuilding = null; BuildingDrags++;
+                if (Production && Production.IsOpen) Production.Close();
+                bool heldBack = gatedByUs;                                                                 // PlayerInput never saw this press (gatePlayerInput off: it has it already)
+                if (gatedByUs) { input.enabled = true; gatedByUs = false; }
+                if (heldBack && input.isActiveAndEnabled) input.BoxFromHeldPress(PressPos, Pointer, kb != null && kb.shiftKey.isPressed, lr);
+            }
             bool captured = PressCapture != Capture.None && (m.leftButton.isPressed || lr);
             bool gate = modal || captured || (PointerOverUi && (rr || rp));
             if (gatePlayerInput && gate && input.enabled) { input.enabled = false; gatedByUs = true; }
+            TickArrange(m, kb);                                                                            // ARRANGE INTERFACE: its key, the drag, a changed canvas (OpenZHud.Arrange.cs)
 
+            TickTouchKeys();                                                                               // touch and gamepad: the on-screen keys show while a finger or a gamepad drives (OpenZHud.TouchKeys.cs)
             TickMinimal();
             RefreshTopBar();
             RefreshUnitPanel();
@@ -408,7 +447,7 @@ namespace OpenZ
 
         void TickMinimal()
         {
-            bool want = OzSettingTips.MinimalUi;
+            bool want = OzSettingTips.MinimalUi && !Arranging;                                                 // every panel shows while the player arranges them
             float target = want ? 0f : 1f, dur = OzMotion.Dur(0.18f, true);
             minK = dur <= 0f ? target : Mathf.MoveTowards(minK, target, Time.unscaledDeltaTime / dur);
             bool on = minK > 0.001f;
@@ -471,6 +510,7 @@ namespace OpenZ
                     }
                     case ZEventType.Hitscan:
                     case ZEventType.MissileFired:
+                    case ZEventType.DriverShot:                                                               // DV87: shot at by a tank's hatch driver (objId the tank, otherId the target, like the two above)
                     {
                         var a = W.GetAny(e.objId); var t = W.GetAny(e.otherId);
                         if (t != null && a != null && t.Owner == Player && a.Owner != Player && t.IsUnit) UnderAttack(t.Leader ?? t);
@@ -550,7 +590,7 @@ namespace OpenZ
 
         void BuildTopBar()
         {
-            top = Hud.Node("TopStrip", Root).Place(OzLayout.TopStrip);
+            top = Hud.Node("TopStrip", Root).Place(OzHudLayout.At(OzPanel.Status, OzLayout.TopStrip));
             AddBlocker(top);
             if (OzKit.GetSprite("Panels/topbar") != null)
             {
@@ -584,7 +624,7 @@ namespace OpenZ
             Hotspot(top, "BlueHot", new OzRect(480, 4, 280, 56), TeamColors.Name(Team.Blue) + " FORCE|Units on the field (robots count one by one). At 70 the factories pause.|");
 
             // territory tab: one segment per zone, red packed from the left, blue from the right, neutral between
-            terr = Hud.Node("Territory", Root).Place(OzLayout.TerrTab);
+            terr = Hud.Node("Territory", Root).Place(OzHudLayout.At(OzPanel.Status, OzLayout.TerrTab));
             AddBlocker(terr);
             if (OzKit.GetSprite("Panels/territory_tab") != null)
             {
@@ -702,7 +742,7 @@ namespace OpenZ
         HudButton menuBtn;
         void BuildMenuButton()
         {
-            var r = OzLayout.MenuButton;
+            var r = OzHudLayout.At(OzPanel.Menu, OzLayout.MenuButton);
             menuBtn = HudButton.Make(Root, "MenuButton", "MENU", r.Size, HudButtonKind.Small, 13, 0.14f, HudButtonStyle.Normal, true, OzH.L);
             menuBtn.Rt.Place(r);
             menuBtn.Label.FillParent(OzH.L, 16, 0, 0, 0);
@@ -761,7 +801,7 @@ namespace OpenZ
         }
 
         /// <summary>Guide 8.1: 12 u left of the minimap; above it on canvases narrower than 1620 u (4:3).</summary>
-        OzRect PanelRect() => OzLayout.UnitPanelFor(CanvasWidth);                                         // menu_exe_v1: wide / raised (left of the minimap) / above it
+        OzRect PanelRect() => OzHudLayout.At(OzPanel.Unit, OzLayout.UnitPanelFor(CanvasWidth));                                         // menu_exe_v1: wide / raised (left of the minimap) / above it
         int panelMode = -1;
 
         /// <summary>The HUD shows a random member of the selection (zplayer.cpp:3018-3027), re-picked when the selection changes.</summary>
@@ -775,7 +815,7 @@ namespace OpenZ
         }
 
         HudButton exitBtn; float panelHide;
-        bool CanExit(ZObject o) => o != null && !o.Destroyed && o.Owner == Player && o.CanEjectCrew() && !W.GameOver;   // apc_v1 (DV15): an APC exits its passengers only
+        bool CanExit(ZObject o) => o != null && !o.Destroyed && o.Owner == Player && OzShuttleAirOffers.Exit(o) && !W.GameOver;   // apc_v1 (DV15): an APC exits its passengers only; K430b: the button, its key, the touch key, the gamepad: never a shuttle up in the air (UI/OzShuttleAirOffers.cs)
         public void ExitSelected()
         {
             bool any = false;
@@ -838,14 +878,14 @@ namespace OpenZ
             nextUnit = now + 0.1f; shownUnit = u;
             bool robot = u.Kind == ZKind.Robot;
             // face only if that art is missing; an empty vehicle keeps its icon
-            Texture crewArt = !robot && u.Drivers.Count > 0 ? UnitArt.VehiclePortrait(u.Type, u.Owner) : null;
+            Texture crewArt = OzHeroSquadView.PortraitOr(u, !robot && u.Drivers.Count > 0 ? UnitArt.VehiclePortrait(u.Type, u.Owner) : null);   // DV108: a hero squad's own picture of both
             string face = robot ? u.Type : u.Drivers.Count > 0 && crewArt == null ? u.DriverType : null;
             portrait.Show(face, u.Type, u.Owner, robot ? null : "cockpit", crewArt);
             int g = GroupOf(u);
             groupBadge.gameObject.SetActiveFast(g >= 0);
             if (g >= 0) Hud.Dress(groupBadge, "Badges/badge_" + g, OzKit.Available ? (Color?)null : OzUi.GM950, Image.Type.Simple);
 
-            string name = UnitInfo.Name(u.Type);
+            string name = OzHeroSquadView.NameOr(u, UnitInfo.Name(u.Type));                    // DV108: ALAN & BRAD
             uName.Set(name); uName.color = OzUi.Ink;
             uName.FontSize = OzLayout.UnitNameSize;
             if (uName.preferredWidth > OzLayout.UnitNameMaxW) uName.FontSize = OzLayout.UnitNameSmall;
@@ -854,8 +894,8 @@ namespace OpenZ
             string more = sel.Count > 1 ? $" · +{sel.Count - 1} MORE SELECTED" : "";
             var hu = PanelHealthOf(u);                                                                     // the squad member under the pointer, else the unit itself
             string sub = robot ? (squad > 1 ? $"{(hu != u ? "SQUAD MEMBER" : "SQUAD LEADER")} · {squad} ROBOTS" : "1 ROBOT")
-                       : u.Drivers.Count > 0 ? $"{(u.Kind == ZKind.Cannon ? "GUNNER" : "DRIVER")} · {UnitInfo.Name(u.DriverType)}{(u.Drivers.Count > 1 ? " ×" + u.Drivers.Count : "")}"
-                         + (u.IsApc && ZWorld.ApcCrewDeviation ? (u.Passengers.Count > 0 ? $" · PASSENGERS {UnitInfo.Name(u.PassengerType)} ×{u.Passengers.Count}" : " · ROOM FOR ONE SQUAD") : "")   // apc_v1 DV15
+                       : u.IsShuttle ? OzShuttleHud.Line(u) : u.Drivers.Count > 0 ? $"{(u.Kind == ZKind.Cannon ? "GUNNER" : "DRIVER")} · {OzHeroSquadView.CrewNameOr(u, false, UnitInfo.Name(u.DriverType))}{(u.Drivers.Count > 1 ? " ×" + u.Drivers.Count : "")}"
+                         + (u.IsApc && ZWorld.ApcCrewDeviation ? (u.Passengers.Count > 0 ? $" · PASSENGERS {OzHeroSquadView.CrewNameOr(u, true, UnitInfo.Name(u.PassengerType))} ×{u.Passengers.Count}" : " · ROOM FOR ONE SQUAD") : "")   // apc_v1 DV15
                        : "EMPTY · ANY ROBOT CAN CAPTURE";
             uSub.Set(sub + more);
             typeIcon.Rt.gameObject.SetActiveFast(true); typeWell.gameObject.SetActiveFast(true);
@@ -864,7 +904,7 @@ namespace OpenZ
             uWeapon.Set(UnitInfo.Weapon(u));
             weaponIcon.enabled = true; Hud.SetIcon(weaponIcon, UnitInfo.WeaponGlyph(u), OzLayout.UnitWeaponIconSize);
             bool nades = robot && u.Type != "tough";                                                       // Zod: robots except Tough (zhud.cpp:794-819)
-            if (nades) { uNadeLabel.Set("GRENADES"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "grenade", 24); nadeIcon.color = OzUi.Amber; uNades.Set(OzText.Tab($"{u.Grenades:00}")); }
+            if (nades) { uNadeLabel.Set("GRENADES"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "grenade", 24); nadeIcon.color = OzUi.Amber; uNades.Set(OzText.Tab($"{u.SquadGrenades:00}")); }   // KH: + a hero member's own (Alan's)
             else if (!robot) { uNadeLabel.Set("CREW"); nadeIcon.enabled = true; Hud.SetIcon(nadeIcon, "robot", 24); nadeIcon.color = OzUi.Ink2; uNades.Set(OzText.Tab($"{u.CrewAboard:00}"));   /* apc_v1 DV15: driver + passengers */ }
             else { uNadeLabel.Set(""); nadeIcon.enabled = false; uNades.Set(""); }
             // Zod's absolute scale (zhud.cpp:948-1016): green = health / 10000, lost colour up to max health / 10000
@@ -872,6 +912,7 @@ namespace OpenZ
             uHp.Set(OzText.Tab($"{Mathf.CeilToInt(hp * 100)}%"));
             uHp.color = hp < 0.3f ? (Color)OzUi.Alert : (Color)OzUi.Ink;
             uHealth.SetKind(hp < 0.3f ? "health_low" : "health");
+            HeroRegenLine(hu);                                                                             // DV112: a hero's self-repair on the health label (UI/OpenZHud.HeroRegen.cs)
             AnimateUnit();
         }
 
@@ -970,10 +1011,10 @@ namespace OpenZ
                 CallShows++;
             }
             bool robot = o.Kind == ZKind.Robot;
-            Texture crewArt = !robot && o.Drivers.Count > 0 ? UnitArt.VehiclePortrait(o.Type, o.Owner) : null;
+            Texture crewArt = OzHeroSquadView.PortraitOr(o, !robot && o.Drivers.Count > 0 ? UnitArt.VehiclePortrait(o.Type, o.Owner) : null);   // DV108: a hero squad's own picture of both
             string face = robot ? o.Type : o.Drivers.Count > 0 && crewArt == null ? o.DriverType : null;
             portrait.Show(face, o.Type, o.Owner, robot ? null : "cockpit", crewArt);
-            uName.Set("LIVE · " + UnitInfo.Name(o.Type));
+            uName.Set("LIVE · " + OzHeroSquadView.NameOr(o, UnitInfo.Name(o.Type)));     // DV108: ALAN & BRAD
             uName.FontSize = OzLayout.UnitNameSize;
             if (uName.preferredWidth > OzLayout.UnitNameMaxW) uName.FontSize = OzLayout.UnitNameSmall;
             uName.Alpha = 1f;
@@ -1119,7 +1160,7 @@ namespace OpenZ
                 idle = false;
                 string b = bg ?? levelBg;
                 if (b != shownBg) { shownBg = b; Hud.Dress(backdrop, "Portrait/portrait_bg_" + b, null, Image.Type.Simple); }
-                string key = (face ?? "-") + "|" + unitType + "|" + team + (crewArt != null ? "|crew" : "");
+                string key = (face ?? "-") + "|" + unitType + "|" + team + (crewArt != null ? "|crew|" + crewArt.name : "");   // the crew picture by name: a hero squad's picture changes (both -> one alone) with the same face and type
                 if (key == shownKey) return;
                 shownKey = key;
                 Texture tex = crewArt != null ? crewArt : face != null ? UnitArt.Portrait(face, team) : UnitArt.Icon(unitType, team);
@@ -1271,7 +1312,7 @@ namespace OpenZ
 
         void BuildBottomBar()
         {
-            cmdBar = Hud.Node("CommandBar", Root).Place(OzLayout.CommandBar);
+            cmdBar = Hud.Node("CommandBar", Root).Place(OzHudLayout.At(OzPanel.Command, OzLayout.CommandBar));
             AddBlocker(cmdBar);
             if (OzKit.GetSprite("Panels/cmdbar") != null)
             {
@@ -1419,12 +1460,12 @@ namespace OpenZ
         }
 
         /// <summary>Top edge of the open factory list in canvas units from the bottom (0 = closed); the production window keeps clear of it.</summary>
-        public float FactoryListTop => factoryShown && factoryPanel ? OzLayout.RefH - OzLayout.FactoryBottom + factoryPanel.sizeDelta.y : 0f;
+        public float FactoryListTop => factoryShown && factoryPanel ? FactoryTop(factoryPanel.sizeDelta.y) : 0f;
 
         void PlaceFactoryPanel(int rows)
         {
             float h = 40 + OzLayout.FactoryRowStep * Mathf.Max(1, rows);
-            factoryPanel.Place(new OzRect(OzAnchor.BL, OzLayout.FactoryX, OzLayout.FactoryBottom - h, OzLayout.FactoryW, h));
+            factoryPanel.Place(FactoryRect(h));                                                           // 12 u above the command bar, wherever the bar stands (OpenZHud.Arrange.cs)
         }
 
         void RefreshFactoryList()
@@ -1453,11 +1494,11 @@ namespace OpenZ
                 foreach (var r in factoryRows) r.btn.Kill();
                 factoryRows.Clear();
                 // rows that fit under the top limit of the CURRENT canvas (UI scale 125 % makes it 864 u tall)
-                int maxRows = Mathf.Max(1, Mathf.FloorToInt((CanvasSize.y - (OzLayout.RefH - OzLayout.FactoryBottom) - OzLayout.FactoryMinY - 40) / OzLayout.FactoryRowStep));
+                int maxRows = FactoryMaxRows();
                 for (int i = 0; i < list.Count && i < maxRows; i++) factoryRows.Add(MakeFactoryRow(list[i], i));
                 PlaceFactoryPanel(factoryRows.Count);
-                factoryPanel.pivot = new Vector2(0, 0);                                                 // grows from its bottom-left anchor side
-                factoryPanel.anchoredPosition = new Vector2(OzLayout.FactoryX, OzLayout.RefH - OzLayout.FactoryBottom);
+                FactoryPivot();                                                                         // grows from its bottom-left anchor side
+                // (pivot and place: FactoryPivot, OpenZHud.Arrange.cs)
                 if (list.Count == 0) factoryRows.Add(MakeFactoryRow(null, 0));
             }
             foreach (var r in factoryRows) RefreshFactoryRow(r);
@@ -1517,7 +1558,7 @@ namespace OpenZ
 
         void BuildStoredCannons()
         {
-            var r = OzLayout.StoredCannon;
+            var r = OzHudLayout.At(OzPanel.Cannons, OzLayout.StoredCannon);
             for (int j = 0; j < (int)OzLayout.StoredCannonMax; j++)
             {
                 var p = new CannonPlate();
@@ -1561,6 +1602,7 @@ namespace OpenZ
             public RectTransform rt; public CanvasGroup cg; public Image bg, icon, bar; public OzText text; public HudButton hot; public RectTransform key;
             public float t0 = -100f, slot, slotFrom, slotAt; public bool alert, used; public System.Action action; public float hold;
             public string baseText; public int count;
+            public bool keep;                                                                              // drawn in MINIMAL UI too: the MINIMAL UI key's own note (OpenZHud.MinimalKey.cs)
         }
         readonly List<ToastView> toasts = new List<ToastView>();
         ToastView fortToast; float fortLast = -100f, fortCheck, fortDangerSince = -100f; bool fortDanger; ZObject dangerFort; int fortSeen;
@@ -1609,6 +1651,13 @@ namespace OpenZ
         public void Toast(string text, string glyph, bool alert, System.Action action, bool feedback = false, float hold = 5f)
         {
             if (!hudVisible || exited) return;
+            if (BuildMenuShowing)
+            {   // the build menu is open: no plate over it and none waiting for it to close; the event is still known to the last-message key
+                OzSoundLog.Add("hud", "toast", text, "held back (build menu open)"); PlatesHeldBack++;
+                if (action != null) { lastAction = action; NoteEvent(action, text); }
+                if (alert && feedback) OzSfx.Ui("ui_error");                                              // a refused click keeps its buzz
+                return;
+            }
             float now = OzMotion.Now;
             foreach (var x in toasts)
                 if (x.used && x.baseText == text && now - x.t0 < x.hold)
@@ -1624,7 +1673,7 @@ namespace OpenZ
             ShowToast(text, glyph, alert, action, feedback, hold);
         }
 
-        void ShowToast(string text, string glyph, bool alert, System.Action action, bool feedback, float hold)
+        void ShowToast(string text, string glyph, bool alert, System.Action action, bool feedback, float hold, bool keep = false)
         {
             float now0 = OzMotion.Now; toastLast[text] = now0; toastNextAt = now0 + ToastGap;
             OzSoundLog.Add("hud", "toast", text, alert ? "shown (alert)" : "shown");
@@ -1642,7 +1691,23 @@ namespace OpenZ
             if (t.bar) t.bar.color = alert ? (Color)OzUi.Alert : (Color)OzUi.AmberHi;
             if (t.key) t.key.gameObject.SetActive(action != null);
             t.hot.Interactable = action != null; t.hot.Tooltip = action != null ? text + "|Click or press " + OzBindings.Cap(OzAction.LastMessage) + " to go there.|" + OzBindings.Cap(OzAction.LastMessage) : null;
-            t.cg.alpha = 0f; t.rt.gameObject.SetActive(minK > 0.001f); t.rt.SetAsLastSibling();
+            t.keep = keep;                                                                               // the MINIMAL UI key's own note is drawn in MINIMAL UI too
+            t.cg.alpha = 0f; t.rt.gameObject.SetActive(keep || minK > 0.001f); t.rt.SetAsLastSibling();
+        }
+
+        /// <summary>At a large interface scale the unit panel stands above the minimap and its left end reaches under the message
+        /// plates (top centre). A plate that would lie on the panel is moved left until it is PlateGap clear of it (never off the
+        /// screen). Where the two do not meet, and for a layout the player arranged himself, the plate stays where it is.</summary>
+        const float PlateGap = 8f;
+        OzRect ClearOfUnitPanel(OzRect r)
+        {
+            if (OzHudLayout.Moved(OzPanel.Messages) || OzHudLayout.Moved(OzPanel.Unit) || !unitPanel || !unitPanel.gameObject.activeInHierarchy) return r;
+            OzHudLayout.CanvasSize(out float cw, out float ch);
+            var tl = OzHudLayout.TopLeft(r, cw, ch); var u = OzHudLayout.BoxNow(OzPanel.Unit);
+            bool meet = tl.x < u.xMax && tl.x + r.w > u.xMin && tl.y < u.yMax && tl.y + r.h > u.yMin;
+            if (!meet) return r;
+            float shift = Mathf.Min(tl.x + r.w - (u.xMin - PlateGap), Mathf.Max(0f, tl.x - PlateGap));       // left, at most to the screen's edge
+            return shift > 0f ? r.Move(-shift, 0f) : r;
         }
 
         float CurrentSlot(ToastView t) => Mathf.Lerp(t.slotFrom, t.slot, OzEase.OutCubic(OzMotion.T(t.slotAt, OzMotion.Dur(OzMotion.Short))));
@@ -1675,15 +1740,30 @@ namespace OpenZ
             Debug.Log($"[OpenZ HUD] SPACE: event {spaceIdx + 1} / {recentEvents.Count}: {e.text}");
         }
 
+        /// <summary>Seconds the message plates take to fade out when the build menu opens.</summary>
+        public const float PlateQuietFade = 0.18f;
+        /// <summary>Checks: plates held back because the build menu was open; message plates drawn right now.</summary>
+        public static int PlatesHeldBack;
+        public int PlatesShowing { get { int n = 0; foreach (var x in toasts) if (x.used && x.rt.gameObject.activeInHierarchy && x.cg.alpha > 0.01f) n++; return n; } }
+        float plateQuiet;                                                                                   // 0 = plates as usual .. 1 = faded out under the open build menu
+
         void RefreshToasts()
         {
             float now = OzMotion.Now;
+            bool quiet = BuildMenuShowing;
+            plateQuiet = Mathf.MoveTowards(plateQuiet, quiet ? 1f : 0f, Time.unscaledDeltaTime / PlateQuietFade);
+            if (quiet)
+            {
+                toastQueue.Clear();                                                                        // nothing floods in when the menu closes
+                if (plateQuiet >= 1f) foreach (var x in toasts) if (x.used) { x.used = false; x.rt.gameObject.SetActive(false); }   // faded out: gone for good
+            }
             if (toastQueue.Count > 0 && now >= toastNextAt && hudVisible && !exited)
             {
                 var q = toastQueue[0]; toastQueue.RemoveAt(0);
                 if (q.alert || !toastLast.TryGetValue(q.text, out var lq) || now - lq >= ToastCalm) ShowToast(q.text, q.glyph, q.alert, q.action, q.feedback, q.hold);
             }
             float offset = fortToast.used ? (OzLayout.FortAlert.h + 8f) : 0f;
+            offset += SlowTipTick(now, offset);                                                            // the one-time slow-computer plate stands above the message plates (OpenZHud.SlowTip.cs)
             foreach (var t in toasts)
             {
                 if (!t.used) continue;
@@ -1691,10 +1771,11 @@ namespace OpenZ
                 if (age > life || t.slot >= OzLayout.ToastMax || !hudVisible) { t.used = false; t.rt.gameObject.SetActive(false); continue; }
                 float kIn = OzEase.OutCubic(OzMotion.T(t.t0, OzMotion.Dur(OzMotion.Short)));
                 float kOut = age > t.hold ? OzMotion.T(t.t0 + t.hold, OzMotion.Dur(0.4f, true)) : 0f;
-                t.cg.alpha = kIn * (1f - kOut) * minK;
-                t.rt.gameObject.SetActiveFast(minK > 0.001f);
+                float mk = t.keep ? 1f : minK;                                                                // the MINIMAL UI key's own note is drawn in both states
+                t.cg.alpha = kIn * (1f - kOut) * mk * (1f - plateQuiet);
+                t.rt.gameObject.SetActiveFast(mk > 0.001f);
                 float y = OzLayout.Toast.y + offset + CurrentSlot(t) * OzLayout.ToastStep - 12f * (1f - kIn);
-                t.rt.Place(new OzRect(OzAnchor.TC, OzLayout.Toast.x, y, OzLayout.Toast.w, OzLayout.Toast.h));
+                t.rt.Place(ClearOfUnitPanel(OzHudLayout.At(OzPanel.Messages, new OzRect(OzAnchor.TC, OzLayout.Toast.x, y, OzLayout.Toast.w, OzLayout.Toast.h))));
                 bool blink = age < 1.8f && !OzMotion.Reduced;                                             // bar + icon blink 300 ms x 6
                 bool on = !blink || OzMotion.Blink(OzMotion.BlinkSlow);
                 if (t.icon.enabled != on) t.icon.enabled = on;
@@ -1711,7 +1792,7 @@ namespace OpenZ
                     float kOut = age > 5f ? OzMotion.T(fortToast.t0 + 5f, OzMotion.Dur(0.4f, true)) : 0f;
                     fortToast.cg.alpha = kIn * (1f - kOut) * minK;
                     fortToast.rt.gameObject.SetActiveFast(minK > 0.001f);
-                    fortToast.rt.Place(OzLayout.FortAlert.Move(0, -12f * (1f - kIn)));
+                    fortToast.rt.Place(OzHudLayout.At(OzPanel.Messages, OzLayout.FortAlert.Move(0, -12f * (1f - kIn))));
                     bool blink = age < 1.8f && !OzMotion.Reduced;
                     fortToast.text.color = blink && !OzMotion.Blink(OzMotion.BlinkSlow) ? (Color)OzUi.AlertText : (Color)OzUi.Ink;
                 }
@@ -1762,7 +1843,7 @@ namespace OpenZ
             bannerCg = banner.gameObject.AddComponent<CanvasGroup>(); bannerCg.blocksRaycasts = false;
             if (OzKit.Available) Hud.Shadow(banner, "Panels/panel_lg_mask");
             Hud.Kit(banner, "Plate", "Panels/mission_banner", new OzRect(0, 0, r.w, r.h), null);
-            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L02" ? "L02 · DESERT" : game.level;
+            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : game.level;
             string enemy = TeamColors.Name(Player == Team.Red ? Team.Blue : Team.Red);
             Hud.Label(banner, "Eyebrow", "OPERATION " + lvl, 11, OzUi.Amber, 0.3f).At(OzLayout.BannerTextX, OzLayout.BannerEyebrowY);
             Hud.Label(banner, "Line", $"CAPTURE THE FLAGS · DESTROY THE {enemy} FORT", 20, OzUi.Ink, 0.08f).At(OzLayout.BannerTextX, OzLayout.BannerLineY, OzH.L, false, 600);

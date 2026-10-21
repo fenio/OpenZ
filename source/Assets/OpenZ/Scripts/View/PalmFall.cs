@@ -36,7 +36,7 @@ namespace OpenZ
         static readonly string[] LeafRustle = { "DetailsV2/dv2_tumbleweed_rustle_a", "DetailsV2/dv2_tumbleweed_rustle_b" };
         static readonly string[] SegThud = { "sd_seat_thud_a", "sd_seat_thud_b" };
         static readonly string[] CocoBounce = { "sd_debris_plop_small_a", "sd_debris_plop_small_b", "sd_debris_plop_small_c" };
-        static readonly string[] Splash = { "sd_debris_splash_a", "sd_debris_splash_b" };
+        // b27: the splash sound of a part that falls into water comes from the shared water landing rule (OzWaterLanding)
         static PhysicsMaterial woodMat, crownMat, cocoMat;
 
         internal enum Kind { Seg, Crown, Coco }
@@ -132,7 +132,7 @@ namespace OpenZ
                 if (!hit && crown != null)
                 {
                     var b = Bounds(crown); var c = b.center;
-                    float g = Ground(c); if (OpenZFxPlayer.IsWaterTile(c)) g = Mathf.Max(g, DetailKit.WaterY(game ? game.level : "L02"));
+                    float g = Ground(c); if (OpenZFxPlayer.IsWaterTile(c)) g = Mathf.Max(g, OzWaterLevel.At(game ? game.level : "", c.x, c.z, DetailKit.WaterY(game ? game.level : "L02")));
                     hit = b.min.y <= g + 0.25f * s;
                 }
                 if (hit) break;
@@ -192,6 +192,7 @@ namespace OpenZ
                 q.rb = rb;
                 q.sinkAt = now + Random.Range(life.x, life.y);
                 var relay = q.t.gameObject.AddComponent<PalmPartContact>(); relay.part = q;
+                OzWaterLanding.Watch(q.t, q.kind == Kind.Crown ? "palm crown" : q.kind == Kind.Coco ? "coconut" : "palm trunk", rb, false, q.kind == Kind.Crown, q.kind != Kind.Crown && q.kind != Kind.Coco);   // b27: the shared water landing rule; the crown rests as it came down (4.7 m of fronds never turn over on the spot)
             }
             Log("release " + ps.Count + " parts at " + (th * Mathf.Rad2Deg).ToString("0") + " deg", pivot);
             // rest, then sink and fade
@@ -205,11 +206,11 @@ namespace OpenZ
                     if (!q.t) continue;
                     any = true;
                     var pos = q.t.position;
-                    if (!q.sinking && !q.wet && pos.y < wy && OpenZFxPlayer.IsWaterTile(pos) && Ground(pos) < wy - 0.05f)
-                    {   // into the water: splash, then sink slowly
-                        q.wet = true; q.sinkAt = t;
-                        DetailProp.Play("", Splash, pos, 0.5f, Random.Range(0.85f, 1.1f), -1, 0f); Log("splash", pos);
-                        if (fx) { fx.Splash(new Vector3(pos.x, wy, pos.z), q.kind == Kind.Crown ? 0.8f : 0.45f); fx.Ripple(new Vector3(pos.x, wy, pos.z), 0.8f); }
+                    float wyq = OzWaterLevel.At(game ? game.level : "", pos.x, pos.z, wy);
+                    if (!q.sinking && !q.wet && OzWaterLanding.InWater(q.t))
+                    {   // b27: the shared water landing rule made the splash, the rings and the sound; the part now lies partly under the
+                        // surface until its normal time (a coconut floats too), then it sinks away as before
+                        q.wet = true; Log("splash", pos);
                     }
                     if (!q.sinking && pos.y < Ground(pos) - 2f) q.sinkAt = t;                    // fell through a hole: go now
                     if (!q.sinking && t >= q.sinkAt)
@@ -242,6 +243,7 @@ namespace OpenZ
             if (q.hits >= (q.kind == Kind.Coco ? 4 : 3)) return;
             q.hits++; q.nextHit = Time.time + 0.16f;
             var at = c.contactCount > 0 ? c.GetContact(0).point : q.t.position;
+            if (OzWaterLanding.UnderSurface(at)) return;                                               // b27: it touched the bed under a drawn water surface: no thud and no dust there (its splash is made at the surface)
             float vol = Mathf.Clamp(v / 7f, 0.2f, 1f);
             var fx = OpenZFxPlayer.I;
             switch (q.kind)

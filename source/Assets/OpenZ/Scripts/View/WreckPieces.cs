@@ -52,6 +52,7 @@ namespace OpenZ
                 bool wheel = WheeledBreakup.IsWheelName(mr.name);
                 if (wheel) RollingWheel.BurnTyre(mr.transform);
                 var frag = wheel ? null : mr.transform.Find("OZ_WreckFragments");
+                if (frag && OzTankWreck.Pieces(view, mr, mf, frag, groups, charred)) continue;                 // item 378: a tank's own broken pieces instead of the bins (OzTankWreck.cs)
                 if (frag)
                 {   // baked fragments of a one-piece model: each its own piece
                     mr.enabled = false; frag.gameObject.SetActive(true);
@@ -67,6 +68,7 @@ namespace OpenZ
                 if (!byKey.TryGetValue(key, out var g)) { g = new List<Transform>(); byKey[key] = g; groups.Add(g); }
                 g.Add(mr.transform);
             }
+            OzTankWreck.Regroup(view, groups);                                                            // item 378: torn track lengths, wheels and lamps ride on the piece they sit in
             if (groups.Count == 0) return 0;
             // largest first, the smallest merged into the largest until the budget holds
             groups.Sort((a, b) => Verts(b).CompareTo(Verts(a)));
@@ -106,6 +108,7 @@ namespace OpenZ
                 if (whooshes < 2 && Launchers.IsMatch(names)) { whooshes++; AudioDirector.Fire("dst_turret_toss", b.center, id); }   // the big parts whoosh up
                 made.Add((p, mass));
                 live.Add(p);
+                OzRockBody.Add(go, body, OzRockBody.Kind.WreckPiece, b.size, p.life - 1f, () => p && p.Fading);   // items 331 + 332: a big piece meets the rocks
             }
             made.Sort((a, b) => b.mass.CompareTo(a.mass));
             for (int i = 0; i < made.Count && i < 3; i++) made[i].p.burnUntil = 3.5f + ((RobotDeathRule.Hash(id, i, 21u) & 255u) / 255f) * 2.5f;   // burnPieces
@@ -139,6 +142,7 @@ namespace OpenZ
             foreach (var r in go.GetComponentsInChildren<Renderer>()) r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
             var p = go.AddComponent<WreckPieces>();
             p.rb = body; p.id = id; p.life = Lifetime(id, 20); p.massKg = mass;
+            OzRockBody.Add(go, body, OzRockBody.Kind.WreckPiece, b.size, p.life - 1f, () => p && p.Fading);       // items 331 + 332
             live.Add(p);
             while (live.Count > MaxLive) { var old = live[0]; live.RemoveAt(0); if (old) old.Retire(); }
             return true;
@@ -651,7 +655,7 @@ namespace OpenZ
             {   // burning debris: fire + light, then smoke that fades
                 bool burning = age < burnUntil; smokeT = burning ? 0.3f : 0.6f;
                 var fxp = OpenZFxPlayer.I;
-                if (fxp && fxp.isActiveAndEnabled) fxp.WreckSmoke(transform.position + Vector3.up * 0.3f, burning ? 0.6f : 0.35f, burning);
+                if (fxp && fxp.isActiveAndEnabled) smokeT = OzFireDesync.PieceBurn(fxp, id, life, massKg, age, smokeT, transform.position + Vector3.up * 0.3f, burning);   // item 400: each piece its own beat
             }
             if (!frozen && rb && (rb.IsSleeping() || age > life - 1.5f || age > 8f))
             {   // settled: stop simulating (sleeps), keep the pose
@@ -672,7 +676,8 @@ namespace OpenZ
             var b = new Bounds(transform.position, Vector3.zero); bool any = false;
             foreach (var r in GetComponentsInChildren<Renderer>()) { if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds); }
             sinkFrom = transform.position; sinkDepth = Mathf.Max(0.3f, b.size.y * 1.05f); fadeT = 0f;
-            if (WreckFx.OnScreen(transform.position)) FxManager.I?.Dust(transform.position, 0.25f);
+            if (OzRockBody.PopIfOnRock(gameObject, null, true)) sinkDepth = 0f;                                   // items 331 + 332: on a rock it pops away, never sinks through it
+            if (!OzWaterLanding.InWater(transform) && WreckFx.OnScreen(transform.position)) FxManager.I?.Dust(transform.position, 0.25f);   // b27: no dust puff on the water for a piece that lies in it or went under
         }
 
         void OnCollisionEnter(Collision c)
@@ -681,6 +686,7 @@ namespace OpenZ
             lastContact = age; contacts++;
             float sp = c.relativeVelocity.magnitude;
             var at = c.contactCount > 0 ? c.GetContact(0).point : transform.position;
+            if (OzWaterLanding.UnderSurface(at)) return;                                               // b27: it touched the bed under a drawn water surface: no clang and no dust there (its splash is made at the surface)
             if (!landed && massKg > 12f && sp > 3f && WreckFx.OnScreen(at))
             {   // a heavy part lands: metal crash + dust (only on screen)
                 CombatAudio.I?.Play("turret", at, Mathf.Clamp01(0.5f + sp * 0.05f), 0, GetInstanceID(), OzSoundV3.BankMetalHeavy);   // sound_v3
@@ -689,6 +695,15 @@ namespace OpenZ
             else AudioDirector.Fire("dst_debris_metal", at, id, Mathf.Clamp01(0.35f + sp * 0.06f));
             landed = true;
         }
+
+        /// <summary>b27: every wreck piece is handed to the shared water landing rule when it is made (OzWaterLanding).</summary>
+        void Start() { OzWaterLanding.Watch(transform, "wreck piece", rb); }
+        /// <summary>b27: still burning (one of a break's three heaviest pieces).</summary>
+        public bool OzBurning => burnUntil > 0f && age < burnUntil;
+        /// <summary>b27, OzWaterLanding: the piece is in the water, its fire and its smoke stop. True = it was burning or smoking.</summary>
+        public bool OzDouse() { bool was = burnUntil > 0f && age < burnUntil + 3f; burnUntil = 0f; return was; }
+        /// <summary>b27, counted check only: sets this piece alight for `seconds`, like one of a break's three heaviest.</summary>
+        public void OzIgnite(float seconds) { burnUntil = age + Mathf.Max(0.5f, seconds); smokeT = 0f; }
 
         void OnDestroy() { live.Remove(this); }
     }

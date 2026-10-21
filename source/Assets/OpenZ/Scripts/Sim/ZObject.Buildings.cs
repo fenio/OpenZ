@@ -223,6 +223,7 @@ namespace OpenZ.Sim
             RepairCrew = unit.CrewOf();                                                                    // veterancy_v1 DV12
             RepairWaypoints.Clear(); RepairWaypoints.AddRange(unit.Waypoints);
             StoreRepairPassengers(unit);                                                                   // apc_v1 DV15: the passengers ride along
+            HeroSeatsStore(unit);                                                                          // DV108: and who of a hero squad sits where (Sim/ZHeroSquad.cs)
             RepairingUnit = true; RepairTime = World.Time + 5;
             return true;
         }

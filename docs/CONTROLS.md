@@ -16,6 +16,7 @@ A team with no robots, vehicles or guns left also loses its fort.
 | Esc / Backspace | Back |
 | ← / → (level select) | Pick the level |
 | Enter (level select) | Deploy |
+| T (level select) | HIGH SCORES: your ten best victories per level and difficulty |
 | C (level select) | Difficulty: **Easy** (every unit unlocked; the CPU waits 45 s, thinks slower and attacks with smaller groups), **Medium** (the default: the Zod CPU, your factories two tech levels up) or **Hard** (the Zod CPU, Z's build lists, and a missile cannon on a front tower of each fort) |
 | H (level select) | Head start on/off (off by default): level 2 adds 2 light tanks, 2 jeeps and a medium tank at your fort, level 17 an MLRS and a heavy tank. This is an OpenZ addition. |
 
@@ -70,6 +71,7 @@ fullscreen, edge scroll, health bars, screen shake, calm screen, graphics qualit
 | C | Place a stored gun (Esc or right click cancels) |
 | Space | Jump to the last message's event |
 | F10 | Hide or show the HUD |
+| U | Hide or show the lower interface panels |
 | - / + | Game speed: slower / faster |
 | Esc | Pause menu (resume, options, controls, restart, quit). It also closes the production window or cancels a tool |
 

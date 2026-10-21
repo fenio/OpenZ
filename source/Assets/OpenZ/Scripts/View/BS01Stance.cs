@@ -28,7 +28,7 @@ namespace OpenZ
     /// here in its exact text (its apply.py reports them "already"); the v3 Tough carries its tube at 8 deg (menu: carryPitch).
     /// </summary>
     [DisallowMultipleComponent]
-    public class BS01Stance : MonoBehaviour
+    public partial class BS01Stance : MonoBehaviour
     {
         public enum Kind { None, Sniper, Tough, Psycho }
         public Kind kind = Kind.None;
@@ -130,7 +130,7 @@ namespace OpenZ
             t += dt * Mathf.Max(0.1f, anim.speed);
             switch (kind)
             {
-                case Kind.Sniper: return DriveSniper(engaged, walking, throwing, ref viewState, animMul);
+                case Kind.Sniper: if (RulesDraw) return RuleSniper(throwing, ref viewState, animMul, dt); return SteadySniper(engaged, walking, throwing, ref viewState, animMul, dt);   // K248b: the stance holds through a fight (BS01Stance.Steady.cs); DV122: the rules' stance, drawn (BS01Stance.Rules.cs)
                 case Kind.Psycho: return DrivePsycho(engaged, walking, throwing, ref viewState, animMul);
                 default:
                     bool own = DriveTough(engaged, walking, throwing, ref viewState, animMul, dt);
@@ -156,7 +156,7 @@ namespace OpenZ
                     return true;
                 case St.Aim:
                     if (walking || throwing) return GetUp(walking);
-                    if (!engaged && Time.time - lastEngaged > linger) return GetUp(false);
+                    if (!engaged && Time.time - lastEngaged > SteadyLinger) return GetUp(false);   // K248b: down until the fight is over (BS01Stance.Steady.cs)
                     return true;
                 case St.Fire:
                     if (walking || throwing) return GetUp(walking);

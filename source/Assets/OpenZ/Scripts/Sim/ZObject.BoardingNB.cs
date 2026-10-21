@@ -55,6 +55,7 @@ namespace OpenZ.Sim
             fortRush = ZWorld.FortRushDeviation && IsRobot && t != null && t.CanEnterFort(Owner) &&
                        (cur.stage == Stage.EnterBuilding || Within(CenterX, CenterY, cur.exitX, cur.exitY, FortRushRadius));
             if (fortRush) FortRushTicks++;
+            FortRunStep(t);                                                               // DV102: the wide ring of a human team's robot: run, own team passes through, no dodge, a clear straight line (ZObject.FortRun.cs)
         }
 
         // ================================================================== DV35 nearest robot boards
@@ -98,7 +99,7 @@ namespace OpenZ.Sim
             parked.Clear();
             foreach (var u in units)
             {
-                if (u == o || !Separable(u) || u.Id == skipId) continue;
+                if (u == o || !Separable(u) || (u.Id == skipId && !u.IsShuttle)) continue;   // DV118: a squad ordered into the shuttle plans round its hull to the back
                 if ((Static(u) && !u.Stunned) || (standingToo && (u.Waypoints.Count == 0 || BridgeParked(u))) ||
                     (RobotParkedPaths(o) && !u.Stunned && IdleHull(u))) parked.Add(u);   // electrobot_v1 DV45: a stunned unit moves on; DV66: robots also go round idle vehicles
             }

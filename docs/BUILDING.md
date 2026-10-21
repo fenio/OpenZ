@@ -1,25 +1,27 @@
 # Building OpenZ from source
 
-The [`source`](../source) folder of this repository holds the game code (C# and shaders) for reading. The complete Unity project, with every model,
-texture, sound and scene (about 2 GB), is attached to each release as two source zips.
+The [`source`](../source) folder of this repository holds the game code (C# and shaders) for reading. The complete
+Unity project, with every model, texture, sound and scene, is attached to each release as source zips.
 
 ## Requirements
 
 - **Unity 6.3 LTS** (6000.3.25f1 or a later 6000.3 patch) with the **Universal Render Pipeline** (URP 17.3). The
   packages in `Packages/manifest.json` are resolved automatically.
 - Windows 10/11 with a DirectX 11/12 GPU. The game targets 60 fps. It was developed and tested on Windows only.
+- EXPERIMENTAL, provided as they are: a Mac build (Intel 64-bit, unsigned, never run on a real Mac) and touch screen and
+  gamepad input (not tried on real devices).
 
 ## Open, play and build
 
-1. Download **OpenZ_1.0_source_part1.zip** and **OpenZ_1.0_source_part2.zip** from the
+1. Download **OpenZ_1.1_source_part1.zip** and **OpenZ_1.1_source_part2.zip** from the
    [latest release](https://github.com/playopenz/OpenZ/releases/latest) and unzip both into the same place (they merge
-   into one `OpenZ_1.0_source` folder). In **Unity Hub** choose **Add → Add project from disk** and select that
+   into one `OpenZ_1.1_source` folder). In **Unity Hub** choose **Add → Add project from disk** and select that
    folder (the one that holds `Assets/`, `Packages/` and `ProjectSettings/`). The first open rebuilds `Library/` and
    takes a while.
-2. Open `Assets/OpenZ/Scenes/MainMenu.unity` and press **Play**. Both levels are also playable directly:
-   `L02_Desert.unity` and `L17_CarPark.unity`.
+2. Open `Assets/OpenZ/Scenes/MainMenu.unity` and press **Play**. All three levels are also playable directly:
+   `L02_Desert.unity`, `L16_Jungle.unity` and `L17_CarPark.unity`.
 3. To make a standalone game, open **File → Build Profiles**, choose **Windows** and click **Build**. The scene list is
-   already set: MainMenu, L02_Desert, L17_CarPark. **OpenZ → Menu → Set Build Order (MainMenu first)** restores it if
+   already set: Intro, MainMenu, L02_Desert, L16_Jungle, L17_CarPark. **OpenZ → Menu → Set Build Order (MainMenu first)** restores it if
    needed.
 
 Parity checks against the Zod Engine are under the **OpenZ** menu: *Run Parity Report*, *Run Bot Checks*,

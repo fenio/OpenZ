@@ -13,7 +13,7 @@ namespace OpenZ.EditorTools
     public static class OpenZGateBattery
     {
         const string QueueKey = "oz_gate_queue";
-        static readonly string[] Scenes = { "Assets/OpenZ/Scenes/L02_Desert.unity", "Assets/OpenZ/Scenes/L17_CarPark.unity", "Assets/OpenZ/Scenes/MainMenu.unity" };
+        static readonly string[] Scenes = { "Assets/OpenZ/Scenes/L02_Desert.unity", "Assets/OpenZ/Scenes/L16_Jungle.unity", "Assets/OpenZ/Scenes/L17_CarPark.unity", "Assets/OpenZ/Scenes/MainMenu.unity" };
 
         static OpenZGateBattery()
         {

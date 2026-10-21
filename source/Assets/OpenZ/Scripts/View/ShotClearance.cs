@@ -86,6 +86,7 @@ namespace OpenZ
         {
             w = default;
             if (!Enabled || !ZGame.I) return false;
+            if (OzK394RoofShots.OverParapet(from, to, margin, out w)) { RoundsBent++; return true; }   // K394: a fort roof man's round: over his fort's real parapet only where it must
             var d = to - from; if (d.x * d.x + d.z * d.z < 4f) return false;
             float best = Gaps(from, to, margin, out int wi);
             if (best <= 0.02f || wi <= 0) return false;

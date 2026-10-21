@@ -57,6 +57,7 @@ namespace OpenZ.Sim
             {
                 if (!EstimateMissileTarget(t, MissileSpeed, out tx, out ty)) { tx = t.CenterX; ty = t.CenterY; }
                 tx += World.Rng.Next(32) - 16; ty += World.Rng.Next(32) - 16;                 // Zod's scatter (zobject.cpp:2150-2151)
+                ShellOverCover(t, ref tx, ref ty);                                              // DV122: the second shell too may skim over a kneeling / lying sniper (Sim/ZObject.ProneTarget.cs)
             }
             else { t = null; tx = hpTx; ty = hpTy; }                                         // target gone: the barrel was already laid
             var m = new ZMissile { team = Owner, attackerId = Id, targetId = t != null ? t.Id : hpTargetId, playerGiven = hpPlayerGiven,
@@ -104,7 +105,7 @@ namespace OpenZ.Sim
             if (time < cgNextShot) return;
             var t = cgTarget;
             cgNextShot = time + u.attack_speed; cgLastShot = time;
-            if (World.Rng.Roll() > u.attack_damage_chance) { World.Emit(ZEventType.Hitscan, this, t, t.CenterX, t.CenterY, 0, 0, false); return; }   // miss
+            if (CoverMiss(t, World.Rng.Roll(), u.attack_damage_chance)) { World.Emit(ZEventType.Hitscan, this, t, t.CenterX, t.CenterY, 0, 0, false); return; }   // miss (DV122: a kneeling / lying sniper is a smaller target, Sim/ZObject.ProneTarget.cs)
             t.DamageHealth(u.Damage * ZWorld.CrewRifleMul);
             World.UpdateObjectHealth(t, Id);
             World.Emit(ZEventType.Hitscan, this, t, t.CenterX, t.CenterY, 0, 0, true, false);
@@ -119,7 +120,7 @@ namespace OpenZ.Sim
             if (!threat && o.Waypoints.Count > 0) { var w = o.Waypoints[0]; threat = (w.mode == WpMode.Attack || w.mode == WpMode.Agro) && w.refId == Id; }
             if (!threat) return false;
             if (!Within(CenterX, CenterY, o.CenterX, o.CenterY, radius)) return false;
-            if (World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) return false;
+            if (!o.ShuttleAirborne && World.EngageBarrierBetween(CenterX, CenterY, o.CenterX, o.CenterY)) return false;   // DV118: no ground tile stops a shot at the flying shuttle
             return HasLineOfSight(o);
         }
     }

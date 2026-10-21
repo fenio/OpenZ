@@ -86,7 +86,7 @@ namespace OpenZ
         public static string LevelOf(Scene s)
         {
             if (ZGame.I && ZGame.I.gameObject.scene == s && !string.IsNullOrEmpty(ZGame.I.level)) return ZGame.I.level;
-            return s.name.StartsWith("L17") ? "L17" : "L02";
+            return s.name.StartsWith("L17") ? "L17" : s.name.StartsWith("L16") ? "L16" : "L02";
         }
 
         /// <summary>Installation + gate for a hut tile; unknown tiles (another map) get a stable pick.</summary>
@@ -141,6 +141,7 @@ namespace OpenZ
             foreach (var g in s.GetRootGameObjects()) if (g.name == "ZodObjects") { root = g.transform; break; }
             if (!root) return 0;
             string level = LevelOf(s);
+            if (level == "L16") return 0;                                                 // level 16: its huts are the jungle huts placed in the scene (L16Hut): no installation, no base decor
             int n = 0;
             foreach (Transform hut in root)
             {

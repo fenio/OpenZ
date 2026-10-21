@@ -32,7 +32,7 @@ namespace OpenZ.EditorTools
         static string Parts => OzFinalGateRunner.PartsDir;
         static readonly Dictionary<string, string> SceneOf = new Dictionary<string, string>
         {
-            ["L02"] = "Assets/OpenZ/Scenes/L02_Desert.unity", ["L17"] = "Assets/OpenZ/Scenes/L17_CarPark.unity", ["MENU"] = "Assets/OpenZ/Scenes/MainMenu.unity"
+            ["L02"] = "Assets/OpenZ/Scenes/L02_Desert.unity", ["L16"] = "Assets/OpenZ/Scenes/L16_Jungle.unity", ["L17"] = "Assets/OpenZ/Scenes/L17_CarPark.unity", ["MENU"] = "Assets/OpenZ/Scenes/MainMenu.unity"
         };
 
         static OzFinalGate()
@@ -46,16 +46,18 @@ namespace OpenZ.EditorTools
         static string[] Stages => SessionState.GetString(KStages, "").Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
 
         // ------------------------------------------------------------------ menus
-        [MenuItem("OpenZ/Final Gate/Run capture set (L02 + L17)", false, 1)]
-        public static void RunAll() { SessionState.EraseString(OzFinalGateRunner.ChainKey); Begin("L02|L17|MENU", true); }
+        [MenuItem("OpenZ/Final Gate/Run capture set (L02 + L16 + L17)", false, 1)]
+        public static void RunAll() { SessionState.EraseString(OzFinalGateRunner.ChainKey); Begin("L02|L16|L17|MENU", true); }
 
         /// <summary>
         /// instead of three (about 10 min each here). No read checks (run them with the menu below).</summary>
-        [MenuItem("OpenZ/Final Gate/Run capture set in ONE Play (L02 -> L17 -> menu)", false, 0)]
-        public static void RunChain() { SessionState.SetString(OzFinalGateRunner.ChainKey, "L17|MENU"); Begin("L02", false); }
+        [MenuItem("OpenZ/Final Gate/Run capture set in ONE Play (L02 -> L16 -> L17 -> menu)", false, 0)]
+        public static void RunChain() { SessionState.SetString(OzFinalGateRunner.ChainKey, "L16|L17|MENU"); Begin("L02", false); }
 
         [MenuItem("OpenZ/Final Gate/Run capture set, L02 only", false, 2)]
         static void RunL02() { SessionState.EraseString(OzFinalGateRunner.ChainKey); Begin("L02", false); }
+        [MenuItem("OpenZ/Final Gate/Run capture set, L16 only", false, 3)]
+        public static void RunL16() { SessionState.EraseString(OzFinalGateRunner.ChainKey); Begin("L16", false); }
         [MenuItem("OpenZ/Final Gate/Run capture set, L17 only", false, 3)]
         static void RunL17() { SessionState.EraseString(OzFinalGateRunner.ChainKey); Begin("L17", false); }
         [MenuItem("OpenZ/Final Gate/Run capture set, main menu only", false, 4)]
@@ -418,7 +420,7 @@ namespace OpenZ.EditorTools
 
             // shots
             var rows = new List<string[]>();
-            foreach (var job in new[] { "L02", "L17", "MENU" })
+            foreach (var job in new[] { "L02", "L16", "L17", "MENU" })
             {
                 var f = Path.Combine(Parts, job + "_shots.tsv");
                 if (File.Exists(f)) rows.AddRange(File.ReadAllLines(f).Where(l => l.Trim().Length > 0).Select(l => l.Split('\t')));
@@ -433,7 +435,7 @@ namespace OpenZ.EditorTools
                 var worst = ms.OrderByDescending(x => x.worst).First();
                 sb.AppendLine($"- Frame time over the shot windows (60 fps cap): average of averages {ms.Average(x => x.avg):0.0} ms, worst single frame {worst.worst:0.0} ms ({worst.name}); shots with an average over 16.9 ms: {ms.Count(x => x.avg > 16.9f)}.");
             }
-            foreach (var job in new[] { "L02", "L17", "MENU" })
+            foreach (var job in new[] { "L02", "L16", "L17", "MENU" })
             {
                 var c = Path.Combine(Parts, job + "_console.tsv");
                 if (!File.Exists(c)) { sb.AppendLine($"- {job}: no Play result (not run, or stopped before the runner finished)."); continue; }
@@ -452,7 +454,7 @@ namespace OpenZ.EditorTools
             sb.AppendLine("|---|---|---|---|---|---|---|---|---|");
             foreach (var r in rows) { var p = r.Concat(Enumerable.Repeat("", 9)).ToArray(); sb.AppendLine($"| {p[0]} | {p[1]} | {p[2]} | {p[3]} | {p[4]} | {p[5]} | {p[6]} | {p[7]} | {Esc(p[8])} |"); }
             sb.AppendLine();
-            foreach (var job in new[] { "L02", "L17", "MENU" })
+            foreach (var job in new[] { "L02", "L16", "L17", "MENU" })
             {
                 var md = Path.Combine(Parts, job + ".md");
                 sb.AppendLine($"## Play job {job}");

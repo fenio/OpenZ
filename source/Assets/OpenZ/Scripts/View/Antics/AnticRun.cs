@@ -13,7 +13,7 @@ namespace OpenZ
     /// selection or hit cancels it at once (UnitView.AnticCancel -> Finish: props pop off, the weapon pops back, the normal
     /// state machine cross-fades out of the clip on that same frame). View only: nothing here writes the sim.
     /// </summary>
-    public sealed class AnticRun
+    public sealed partial class AnticRun
     {
         public readonly UnitView View;
         public readonly AnticKind Kind;
@@ -106,11 +106,11 @@ namespace OpenZ
         public bool Tick(Animator anim, float dt)
         {
             if (Finished) return false;
-            if (step < 0) { Enter(anim, 0, 0.12f); }
+            if (step < 0) { if (!HeroStart(anim)) Enter(anim, 0, FirstFade(0.12f)); }                  // KH2: a hero's slower fade into a standing antic (AnticRun.Hero2.cs)                     // DV108: the level-start lounger begins lying (AnticRun.Hero.cs)
             else
             {
                 stepT += dt;
-                if (stepT >= steps[step].len)
+                if (stepT >= steps[step].len && !(Hold && steps[step].loop))                     // DV108: a held lie loops until a click, an order or a threat cancels it
                 {
                     FireUpTo(step, float.MaxValue);
                     if (step + 1 >= steps.Count) { Finish(false, false, "done"); return false; }
@@ -341,6 +341,7 @@ namespace OpenZ
         {
             var g = ZGame.I; if (!g) return "rob_step_sand";
             if (g.level == "L17") return "rob_step_concrete";
+            if (g.level == "L16") { string jg = AudioDirector.JungleGround(Pos); return jg == "road" ? "rob_step_concrete" : jg == "mud" && AudioDirector.Has("rob_step_mud") ? "rob_step_mud" : AudioDirector.Has("rob_step_grass") ? "rob_step_grass" : "rob_step_sand"; }
             return OpenZFxPlayer.ClassAt(Pos) == ZClass.Road ? "rob_step_concrete" : "rob_step_sand";
         }
 
@@ -352,6 +353,7 @@ namespace OpenZ
             if (!weapon) return;
             weaponScale = weapon.localScale; weaponHidden = true;
             weaponOff.Clear(); foreach (var r in weapon.GetComponentsInChildren<Renderer>(true)) if (!r.enabled) weaponOff.Add(r);
+            if (quiet) AnticFx.Snap(weapon, weaponScale, false); else                            // DV108: at the level start the weapon is simply away
             AnticFx.PopOut(weapon, false, true, "weapon_stow_pop", id);
         }
 
@@ -550,13 +552,13 @@ namespace OpenZ
             if (bed)
             {
                 bed.SetPositionAndRotation(spot.bed, spot.bedRot);
-                AnticFx.PopIn(bed, new Vector3(k * spot.bedWidth, k, k), true, "sunbed_pop_in", id);    // wider for the wider robot types
+                Appear(bed, new Vector3(k * spot.bedWidth, k, k), "sunbed_pop_in");                  // wider for the wider robot types; DV108: at the level start without the pop (AnticRun.Hero.cs)
             }
             parasol = AnticFx.Make(pm, "AnticParasol", kit.propMat);
             if (parasol)
             {
                 parasol.SetPositionAndRotation(spot.parasol + Vector3.down * (0.05f * k), spot.parasolRot);    // leaning away from the camera, its foot planted
-                AnticFx.PopIn(parasol, Vector3.one * k, true, "parasol_pop_in", id);
+                Appear(parasol, Vector3.one * k, "parasol_pop_in");                                 // DV108: at the level start without the pop
             }
         }
 

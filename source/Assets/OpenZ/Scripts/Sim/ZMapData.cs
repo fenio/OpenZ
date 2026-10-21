@@ -15,6 +15,9 @@ namespace OpenZ.Sim
         public sealed class Obj
         {
             public int x, y; public string owner, kind; public int ot, oid, blevel, extra_links, health_percent;
+            /// <summary>DV108 (Sim/ZHeroSquad.cs), entries of <see cref="ZMapData.heroes"/> only: the hero squad kind, its members' start
+            /// tiles (x0, y0, x1, y1, ...), how the view starts it ("lounger") and the tile of the campfire beside them; empty in every Zod entry.</summary>
+            public string squad, start; public int[] at, camp;
             public string Category => kind.Split(':')[0];
             public string Type => kind.Split(':')[1];
         }
@@ -24,6 +27,8 @@ namespace OpenZ.Sim
         public int[] classes, tiles;
         public List<Zone> zones;
         public List<Obj> objects;
+        /// <summary>DV108 (Sim/ZHeroSquad.cs): extra hero squads placed on top of <see cref="objects"/> while the switch is on (Zod's maps: none).</summary>
+        public List<Obj> heroes;
 
         public int WidthPix => width * ZConst.TILE;
         public int HeightPix => height * ZConst.TILE;

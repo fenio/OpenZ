@@ -51,6 +51,62 @@ namespace OpenZ.EditorTools
             return $"bridge kit imported, {n} prefabs";
         }
 
+        /// <summary>Level 16: the plank bridge. Reads Models/Environment/BRG_jungle.fbx (children BRG_jungle_intact, _damaged,
+        /// _destroyed; vertex colours; 8 x 22 m, deck along its long axis) and builds only its three prefabs. No other bridge,
+        /// prefab or material is touched.</summary>
+        [MenuItem("OpenZ/Bridges: Import jungle bridge (L16)")]
+        public static string ImportJungle()
+        {
+            string p = $"{Env}/BRG_jungle.fbx";
+            var imp = AssetImporter.GetAtPath(p) as ModelImporter;
+            if (imp == null) return "missing " + p;
+            imp.importCameras = false; imp.importLights = false; imp.materialImportMode = ModelImporterMaterialImportMode.ImportStandard; imp.bakeAxisConversion = true;
+            imp.isReadable = true;
+            foreach (var m in AssetDatabase.LoadAllAssetsAtPath(p).OfType<Material>())
+                imp.AddRemap(new AssetImporter.SourceAssetIdentifier(typeof(Material), m.name), Mat("M_BRGJ_" + m.name.Replace(' ', '_').Replace('.', '_')));
+            imp.SaveAndReimport();
+            int n = 0;
+            var fbx = AssetDatabase.LoadAssetAtPath<GameObject>(p);
+            foreach (var state in new[] { "intact", "damaged", "destroyed" })
+            {
+                var child = fbx.transform.Cast<Transform>().FirstOrDefault(t => t.name == "BRG_jungle_" + state);
+                if (!child) { Debug.LogWarning("missing jungle " + state); continue; }
+                var root = new GameObject("Z_bridge_jungle_" + state);
+                var inst = Object.Instantiate(child.gameObject, root.transform, false); inst.name = "Model"; inst.transform.localPosition = Vector3.zero;
+                var rs = inst.GetComponentsInChildren<Renderer>(); var b = rs[0].bounds; foreach (var r in rs) b.Encapsulate(r.bounds);
+                inst.transform.localPosition = new Vector3(-b.center.x, 0, -b.center.z);
+                foreach (var r in rs) { r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; r.receiveShadows = true; }
+                root.AddComponent<TeamPaint>();
+                PrefabUtility.SaveAsPrefabAsset(root, $"{Pref}/Z_bridge_jungle_{state}.prefab"); Object.DestroyImmediate(root); n++;
+            }
+            // the collapse pieces (BRG_jungle_chunk_0..7) in the form of Z_bridge_desert_chunks / Z_bridge_city_chunks
+            var chunks = new GameObject("Z_bridge_jungle_chunks"); int nc = 0;
+            for (int i = 0; i < 8; i++)
+            {
+                var ch = fbx.transform.Cast<Transform>().FirstOrDefault(t => t.name == "BRG_jungle_chunk_" + i);
+                if (!ch) { Debug.LogWarning("missing jungle chunk " + i); continue; }
+                var piece = Object.Instantiate(ch.gameObject, chunks.transform, false); piece.name = ch.name; piece.transform.localPosition = Vector3.zero; nc++;
+            }
+            if (nc > 0) PrefabUtility.SaveAsPrefabAsset(chunks, $"{Pref}/Z_bridge_jungle_chunks.prefab");
+            Object.DestroyImmediate(chunks);
+            AssetDatabase.SaveAssets();
+            // The scene's run-time prefab list is filled once, when the scene is built. A level 16 scene built before these
+            // prefabs existed gets what its list lacks here (run this menu with that scene open): no scene rebuild.
+            int added = 0;
+            var zg = Object.FindFirstObjectByType<ZGame>();
+            if (zg && zg.level == "L16")
+            {
+                var have = (zg.unitPrefabs ?? new GameObject[0]).Where(g => g).ToList();
+                foreach (var part in new[] { "intact", "damaged", "destroyed", "chunks" })
+                {
+                    var pf = AssetDatabase.LoadAssetAtPath<GameObject>($"{Pref}/Z_bridge_jungle_{part}.prefab");
+                    if (pf && !have.Contains(pf)) { have.Add(pf); added++; }
+                }
+                if (added > 0) { zg.unitPrefabs = have.ToArray(); EditorUtility.SetDirty(zg); EditorSceneManager.MarkSceneDirty(zg.gameObject.scene); EditorSceneManager.SaveOpenScenes(); }
+            }
+            return $"jungle bridge imported, {n} prefabs, {nc} collapse pieces, {added} added to the open level's run-time list";
+        }
+
         /// <summary>README look: TeamLit, vertex colours (sRGB), TeamMode 0, stylized flat shading, steel a bit glossier.</summary>
         static Material Mat(string name)
         {

@@ -14,7 +14,7 @@ namespace OpenZ
     [ExecuteAlways]
     public class Atmosphere : MonoBehaviour
     {
-        public enum Preset { Desert, City }
+        public enum Preset { Desert, City, Jungle }
         public Preset preset = Preset.Desert;
         public DayNight dayNight;
         [Tooltip("Parent of DEC_*lamp* objects (the environment root)")] public Transform lampRoot;
@@ -152,6 +152,7 @@ namespace OpenZ
                 lampK = night * 0.6f;
                 UpdateDesertParticles(1 - night * 0.7f);
             }
+            else if (preset == Preset.Jungle) lampK = OzJungleAir.Apply(this, t, night, golden, blue);   // level 16: its own air (OzJungleAir.cs)
             else
             {
                 Shader.SetGlobalColor(IdColor, Color.Lerp(new Color(0.86f, 0.88f, 0.9f), new Color(0.62f, 0.68f, 0.8f), night));
@@ -278,7 +279,7 @@ namespace OpenZ
                 var d = devils[i]; if (!d) continue;
                 var p = d.transform.position + devilDir[i] * (2.5f * Time.deltaTime);
                 if (p.x < 10 || p.x > 134 || p.z > -10 || p.z < -170) devilDir[i] = -devilDir[i];
-                if (Physics.Raycast(new Vector3(p.x, 200, p.z), Vector3.down, out var hit, 400)) p.y = hit.point.y;
+                if (Physics.Raycast(new Vector3(p.x, 200, p.z), Vector3.down, out var hit, 400, Physics.DefaultRaycastLayers & ~OzRockSolid.Mask)) p.y = hit.point.y;
                 d.transform.position = p;
                 var e = d.emission; e.rateOverTime = 50 * strength;
             }

@@ -234,7 +234,7 @@ namespace OpenZ
                 var from = bb.center + Vector3.Scale(n, bb.extents) + n * 1.5f
                          + Vector3.Scale(u, bb.extents) * Random.Range(-0.7f, face == 0 ? 0.7f : 0.2f) + Vector3.Scale(w, bb.extents) * Random.Range(-0.7f, 0.7f);
                 float reach = Vector3.Scale(n, bb.size).magnitude + 1.5f;
-                if (!Physics.Raycast(from, -n, out var hit, reach, ~0, QueryTriggerInteraction.Ignore)) continue;
+                if (!Physics.Raycast(from, -n, out var hit, reach, ~OzRockSolid.Mask, QueryTriggerInteraction.Ignore)) continue;
                 var big = bb; big.Expand(0.1f);
                 if (!big.Contains(hit.point) || hit.point.y < bb.min.y + 0.3f) continue;               // the ground or a neighbour, not this part
                 var tg = Vector3.Cross(hit.normal, Random.onUnitSphere); if (tg.sqrMagnitude < 1e-4f) tg = Vector3.Cross(hit.normal, Vector3.right);

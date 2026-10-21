@@ -30,6 +30,16 @@ namespace OpenZ
         public const float Jitter = 0.09f;
         /// <summary>Longest total delay (s) (the last ripple rocket lands ~1.1 s after rocket 1).</summary>
         public const float MaxDelay = 1.6f;
+        /// <summary>Version 1.1 item 169: on = a robot killed by a blast is thrown on the explosion's own frame (the sim kills it on the
+        /// blast's tick; the front delay of 16 m/s + 0-0.09 s per robot held it standing 0.1-0.9 s while the blast played); it gets its
+        /// own push from the blast point (CombatView.BlastPower: power by distance, seeded scatter, spin), so a squad never flies alike.
+        /// An MLRS kill still waits for its ripple rocket when one lands nearer, but never inside rocket 1's core. Off = the old front
+        /// (for the before / after check).</summary>
+        public static bool ImpactFrame = true;
+        /// <summary>Item 169: inside this share of the MLRS splash radius round the sim's own rocket (rocket 1) a robot flies with it.</summary>
+        public const float RippleCoreShare = 0.5f;
+        /// <summary>Item 169 statistics: robot blast deaths thrown on the impact frame.</summary>
+        public static int OnImpactFrame { get; private set; }
 
         struct Entry { public int frame; public float delay; public Vector3 from; public bool ripple; }
         static readonly Dictionary<int, Entry> cache = new Dictionary<int, Entry>();
@@ -72,13 +82,16 @@ namespace OpenZ
             float wait = 0f;
             var killer = g.World.GetAny(e.otherId);
             if (killer != null && killer.Kind == ZKind.Vehicle && killer.Type == "missile_launcher" &&
+                (!ImpactFrame || Flat(p, at) > RippleCoreShare * best.radius / 8f) &&                // item 169: inside rocket 1's core it flies with rocket 1
                 MlrsSalvo.NearestLanding(g, killer.Id, p, best.radius / 8f + 1f, 2.5f, out float landIn, out var landAt) &&
                 Flat(p, landAt) + 0.5f < Flat(p, at))
             { wait = landIn; at = landAt; ripple = true; }                                             // a ripple rocket lands next to it: that one throws it
-            float delay = Mathf.Min(MaxDelay, wait + Flat(p, at) / WaveSpeed + Jitter * Hash01(o.Id));
+            float delay = ImpactFrame ? Mathf.Min(MaxDelay, wait)                                     // item 169: on the explosion's own frame (an MLRS ripple rocket's: its landing frame)
+                                      : Mathf.Min(MaxDelay, wait + Flat(p, at) / WaveSpeed + Jitter * Hash01(o.Id));
             from = at;
             cache[o.Id] = new Entry { frame = Time.frameCount, delay = delay, from = at, ripple = ripple };
             if (delay > 0.015f) { Delayed++; if (ripple) ByRipple++; if (delay > MaxSeen) MaxSeen = delay; }
+            else OnImpactFrame++;
             return delay;
         }
 
@@ -133,7 +146,7 @@ namespace OpenZ
         /// <summary>The drawing code: its killing round from `killer` reaches `victim` `flight` s from now.</summary>
         public static void NoteDrawn(int killer, ZObject victim, float flight)
         {
-            if (victim == null || victim.Kind != ZKind.Robot) return;
+            if (victim == null || (victim.Kind != ZKind.Robot && victim.Kind != ZKind.Vehicle && victim.Kind != ZKind.Cannon)) return;   // version 1.1 item 202: vehicles and guns wait for their killing round too (VehicleDeathSync)
             DrawnKills.Add(new DrawnKill { killer = killer, victim = victim.Id, frame = Time.frameCount, at = Time.time + flight });
             if (DrawnKills.Count > 64) DrawnKills.RemoveAt(0);
         }
@@ -156,7 +169,7 @@ namespace OpenZ
         }
 
         /// <summary>HitReactions: the knock-down / stagger of a survivor starts when the front reaches it.</summary>
-        public static float SurvivorDelay(float distanceM) => Enabled ? distanceM / WaveSpeed : 0f;
+        public static float SurvivorDelay(float distanceM) => Enabled && !ImpactFrame ? distanceM / WaveSpeed : 0f;   // item 169: knocked on the blast's frame too
 
         static float Flat(Vector3 a, Vector3 b) { a.y = 0f; b.y = 0f; return Vector3.Distance(a, b); }
         static float Hash01(int id) { uint h = (uint)id * 2654435761u; h ^= h >> 15; return (h & 1023u) / 1023f; }

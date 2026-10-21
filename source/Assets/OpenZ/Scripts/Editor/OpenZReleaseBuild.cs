@@ -28,8 +28,11 @@ namespace OpenZ.EditorTools
     {
         public const string Define = "OZ_RELEASE";
         public const string ReleaseCompany = "OpenZ";
-        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L17_CarPark" };
+        static readonly string[] RequiredScenes = { "Intro", "MainMenu", "L02_Desert", "L16_Jungle", "L17_CarPark" };
         internal static bool Building;
+        /// <summary>A letter after the day tag for a second private test build on one day (release\OpenZ_&lt;tag&gt;&lt;suffix&gt;); empty by
+        /// default. Only the folder names change: bundleVersion stays the day tag, so the in-game version text still reads the build day.</summary>
+        public static string FolderSuffix = "";
 
         static string JobRoot => Path.GetFullPath(Path.Combine(Application.dataPath, "../../../.."));
 
@@ -43,7 +46,7 @@ namespace OpenZ.EditorTools
             // ---- pre-flight
             var scenes = Array.ConvertAll(Array.FindAll(EditorBuildSettings.scenes, e => e.enabled), e => e.path);
             var missing = RequiredScenes.Where(r => !scenes.Any(s => Path.GetFileNameWithoutExtension(s) == r)).ToArray();
-            if (missing.Length > 0) return Fail("Build Settings scenes miss " + string.Join(", ", missing) + " (Intro, MainMenu, L02_Desert, L17_CarPark must be enabled)");
+            if (missing.Length > 0) return Fail("Build Settings scenes miss " + string.Join(", ", missing) + " (Intro, MainMenu, L02_Desert, L16_Jungle, L17_CarPark must be enabled)");
             string introSrc = Path.Combine(Application.dataPath, "OpenZ/Scripts/Intro/OzIntroData.cs");
             if (File.Exists(introSrc) && !File.ReadAllText(introSrc).Contains("PlayerPrefs.GetInt(Pref, 0) == 1"))
                 return Fail("the intro default is not OFF in OzIntroData.cs (expected PlayerPrefs.GetInt(Pref, 0) == 1)");
@@ -51,7 +54,7 @@ namespace OpenZ.EditorTools
             DateTime now = DateTime.Now;
             string tag = OzVersion.Tag(now);
             string relRoot = Path.Combine(JobRoot, "release");
-            string dir = Path.Combine(relRoot, "OpenZ_" + tag);
+            string dir = Path.Combine(relRoot, "OpenZ_" + tag + FolderSuffix);
             Directory.CreateDirectory(relRoot);
             string kept = null;
             if (Directory.Exists(dir))
@@ -106,7 +109,7 @@ namespace OpenZ.EditorTools
             if (rep == null) return Fail("BuildPlayer returned no report");
             var s = rep.summary;
             var info = new StringBuilder();
-            info.AppendLine($"OpenZ release build {OzVersion.Display(now)}  (tag {tag})");
+            info.AppendLine($"OpenZ release build {OzVersion.Display(now)}  (tag {tag}{(string.IsNullOrEmpty(FolderSuffix) ? "" : ", folder OpenZ_" + tag + FolderSuffix)})");
             info.AppendLine($"result: {s.result}");
             info.AppendLine($"time: {now:yyyy-MM-dd HH:mm}  duration: {s.totalTime}");
             info.AppendLine($"errors: {s.totalErrors}, warnings: {s.totalWarnings}");
@@ -121,7 +124,7 @@ namespace OpenZ.EditorTools
             }
 
             // ---- post-build: nothing debug ships
-            string sym = Path.Combine(relRoot, "_symbols", "OpenZ_" + tag + (kept != null ? "_" + now.ToString("HHmm") : ""));
+            string sym = Path.Combine(relRoot, "_symbols", "OpenZ_" + tag + FolderSuffix + (kept != null ? "_" + now.ToString("HHmm") : ""));
             if (Directory.Exists(sym)) sym += "_" + now.ToString("HHmmss");
             try
             {
@@ -148,6 +151,9 @@ namespace OpenZ.EditorTools
             string lic = Path.Combine(dir, "OpenZ_Data", "StreamingAssets", "LICENSES.txt");
             if (File.Exists(lic)) File.Copy(lic, Path.Combine(dir, "LICENSES.txt"), true);
             else info.AppendLine("WARNING: OpenZ_Data/StreamingAssets/LICENSES.txt missing (the licence texts must ship)");
+            string licAssets = Path.Combine(dir, "OpenZ_Data", "StreamingAssets", "LICENSE_ASSETS.txt");
+            if (File.Exists(licAssets)) File.Copy(licAssets, Path.Combine(dir, "LICENSE_ASSETS.txt"), true);
+            else info.AppendLine("WARNING: OpenZ_Data/StreamingAssets/LICENSE_ASSETS.txt missing (the assets licence text must ship)");
 
             int n2 = WriteSha256(dir, out long bytes);
             info.AppendLine($"SHA256SUMS.txt: {n2} files, {bytes / (1024.0 * 1024.0):F0} MB");
@@ -248,7 +254,7 @@ namespace OpenZ.EditorTools
 $@"{OzVersion.Display(d)}
 ==============================
 A faithful fan tribute remake of Z by The Bitmap Brothers (1996), made for its 30th anniversary.
-Free and non-commercial. Two maps: Z level 2 (desert) and Z level 17 ""Car Park"" (city).
+Free and non-commercial. Three maps: Z level 2 (desert), Z level 16 (jungle) and Z level 17 ""Car Park"" (city).
 
 START
 - Run OpenZ.exe. The game opens full screen at your screen's resolution (Alt+Enter or OPTIONS > FULLSCREEN for a window).
@@ -257,21 +263,51 @@ START
 - CONTROLS in the main menu lists every key and lets you change them. OPTIONS holds music, screen and game settings.
 
 SYSTEM
-- Windows 10 / 11, 64-bit, a DirectX 12 graphics card. About 3 GB on disk.
+- Windows 10 / 11, 64-bit, a DirectX 12 graphics card. About 4 GB on disk.
 - Settings are stored per Windows user. A log for bug reports is written to
   %USERPROFILE%\AppData\LocalLow\OpenZ\OpenZ\Player.log
 - If the game crashes or is closed by force, the log of that session is kept at the next start (the last 10) in
   %USERPROFILE%\AppData\LocalLow\OpenZ\OpenZ\CrashLogs
   Please attach the newest file from there to a bug report. The game itself sends nothing anywhere.
 
+NEW IN 1.1
+- A third map: Z level 16, the Jungle. Swamps only robots can cross, crocodiles, rain, ruins, rope bridges and trees you can shoot down.
+- The Jungle has its own spoken briefing on the sun loungers and its own win and lose scenes.
+- Alan & Brad join your army on the Jungle as a hero squad of two: tough, self-repairing, with grenades.
+- Sniper headshots: now and then a Sniper's hit kills a robot at once.
+- Grenades: a slightly wider blast and 15% more damage.
+- Pyros set buildings and bridges on fire: hold Ctrl when you order the attack.
+- The shuttle: on the Jungle (Easy and Medium), Alan and Brad's shuttle flies one squad over swamps, cliffs and trees and lands on any clear spot.
+- Jeeps drive at big robots to run them over, then drive back; your orders always come first.
+- No more empty vehicles blocking a bridge or a door: drivers can't be shot out there.
+- FRIENDLY UNITS OVERLAP (OPTIONS, off by default): units pass through each other, as in the original.
+- FAST UNITS PASS SLOW ONES (OPTIONS, off by default): faster units overtake slower ones.
+- The CPU can gather a strike group and attack with it as one body (OPTIONS switches it off), and builds a wider mix of units.
+- HIGH SCORES (key T on the map screen): your ten best victories per map and difficulty, each with a score and an army rank. Kept on your computer only.
+- Finished guns wait as READY icons beside their building: click to place, or drag onto the map.
+- A selected gun's range ring shows where it cannot hit behind rocks, cliffs and buildings.
+- Drag the panels of the in-game interface where you want them; the U key hides and shows the lower panels.
+- FREE CAMERA (OPTIONS, off by default): hold the middle mouse button to turn and tilt the camera.
+- OPTIONS has a RESOLUTION setting for slower computers. The default is still your screen's own resolution.
+- MEDIUM and LOW graphics quality are lighter on slower computers; HIGH, the default, is unchanged.
+- A FRAME RATE LIMIT option (30 or 60), and a one-time tip when the game runs slowly.
+- CHANGES & UPDATES in the main menu lists every change.
+
+EXPERIMENTAL (provided as is, not tried on real devices: tell us how it works for you)
+- Touch screen and gamepad input (the TOUCH and GAMEPAD row on the ADVANCED tab of OPTIONS).
+- A Mac build, as a separate download.
+
 FILES
 - LICENSES.txt: the licence texts (GPL-3.0, the Zod Engine notices, the SIL Open Font License of the Inter Tight font).
+- LICENSE_ASSETS.txt: the licence of the art, sound and all other assets (CC BY-NC-SA 4.0).
 - SHA256SUMS.txt: a checksum of every file. Check one in PowerShell: Get-FileHash OpenZ.exe -Algorithm SHA256
 
 NOTES
 - OpenZ is an unofficial, free, non-commercial fan remake, not affiliated with or endorsed by Rebellion.
   Z (c) Rebellion. Originally created by The Bitmap Brothers (1996).
 - No copyrighted material is used: every asset was made from scratch. The game rules follow the open-source Zod Engine (GPL-3.0).
+- The program code is under the GNU GPL v3; the art, sound and all other assets are under the Creative Commons
+  Attribution-NonCommercial-ShareAlike 4.0 International licence (CC BY-NC-SA 4.0). See LICENSES.txt and LICENSE_ASSETS.txt.
 ";
         }
     }

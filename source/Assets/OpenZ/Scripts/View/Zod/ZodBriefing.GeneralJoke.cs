@@ -47,7 +47,7 @@ namespace OpenZ
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void JokeBoot() { SceneManager.sceneLoaded -= JokeScene; SceneManager.sceneLoaded += JokeScene; }
-        static void JokeScene(Scene s, LoadSceneMode m) { if (m == LoadSceneMode.Single) ZodComms.General = false; }   // a new mission: he is a commander again until the joke
+        static void JokeScene(Scene s, LoadSceneMode m) { if (m == LoadSceneMode.Single) { ZodComms.General = false; ZodComms.Host = null; } }   // a new mission: he is a commander again until the joke
 
         /// <summary>Extra preroll for the start-of-mission briefing (0 when the joke cannot or should not play).</summary>
         float JokeLead(Kind kind)

@@ -9,7 +9,7 @@ namespace OpenZ
 {
     [Serializable] public class ZodWord { public string word; public float start, end; }
     [Serializable] public class ZodCue { public string text; public float start, end; }
-    [Serializable] public class ZodLine { public string id, group, trigger, text; public float duration; public ZodCue[] cues; public ZodWord[] words; }
+    [Serializable] public class ZodLine { public string id, group, trigger, text, host; public float duration; public ZodCue[] cues; public ZodWord[] words; }
     [Serializable] public class ZodLineGroups { public string[] menu, map_select, briefing, victory, defeat, idle, nuke; }
     [Serializable] public class ZodLineFile { public string project; public ZodLineGroups groups; public ZodLine[] lines; }
 

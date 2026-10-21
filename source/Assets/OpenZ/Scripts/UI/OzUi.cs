@@ -389,7 +389,7 @@ namespace OpenZ
             Time.timeScale = 1f;
             int i = SceneManager.GetActiveScene().buildIndex, n = SceneManager.sceneCountInBuildSettings;
             string next = null;
-            for (int k = i + 1; k < n; k++) { var p = SceneUtilityPath(k); if (p.Contains("L17") || p.Contains("L02")) { next = p; break; } }
+            for (int k = i + 1; k < n; k++) { var p = SceneUtilityPath(k); if (p.Contains("L17") || p.Contains("L16") || p.Contains("L02")) { next = p; break; } }
             if (next != null) SceneManager.LoadScene(next);
             else { PlayerPrefs.SetInt("oz_menu_open_select", 1); MainMenu(); }   // after the last level: back to the level select (guide 9.13)
         }

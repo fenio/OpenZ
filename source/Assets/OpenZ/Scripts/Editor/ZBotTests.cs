@@ -69,6 +69,7 @@ namespace OpenZ.EditorTools
             S = settingsText; M = mapText;
             bool snipeDeviation = ZWorld.SnipeDeviation; ZWorld.SnipeDeviation = false;   // DC2: the Zod CPU checks run Zod exact
             bool vetDev = ZWorld.VeteranDeviation; ZWorld.VeteranDeviation = false;         // veterancy_v1 DV12: Zod has no ranks
+            using var strikeGroupsHold = ZWorld.StrikeGroupsOff();                          // DV107: the computer's own checks measure the engine's computer, no strike groups (a Play session leaves the switch on); put back when this method ends
             var rows = new List<Row>();
             void Guard(string name, Action<List<Row>> a)
             {

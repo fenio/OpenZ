@@ -50,6 +50,8 @@ namespace OpenZ.Sim
                 for (int tx = 0; tx < w; tx++)
                     if (world.Map.ClassAt(tx, ty) == ZClass.Impassable) tileObj[ty * w + tx] = -1;
             foreach (var o in world.Objects) Add(o);
+            world.L16ShuttleSightTiles(tileObj, blockers);                                      // level 16 DV95 (ZWorld.L16Shuttle.cs): the standing shuttle's square under its own id, as the hut it replaces blocked on its tile
+            world.L16SightTiles(tileObj, blockers);                                             // level 16 DV89 (ZWorld.L16Pyramids.cs): a pyramid's square under its own id (it blocks direct fire while it stands and can be fired at); the tiles under the level's low pieces never block
         }
 
         /// <summary>Register a building / map item as a sight blocker (map load; ZWorld.CreateObject for later objects).</summary>
@@ -135,7 +137,7 @@ namespace OpenZ.Sim
         /// <summary>Clear line from a to b (their centres).</summary>
         public bool Clear(ZObject a, ZObject b) => ClearFrom(a.CenterX, a.CenterY, ExemptOf(a), b);
         /// <summary>Clear line from the point (x, y) (exempting object exA's tiles) to b's centre.</summary>
-        public bool ClearFrom(int x, int y, int exA, ZObject b) => Clear(x, y, exA, b.CenterX, b.CenterY, ExemptOf(b));
+        public bool ClearFrom(int x, int y, int exA, ZObject b) => b.ShuttleAirborne || Clear(x, y, exA, b.CenterX, b.CenterY, ExemptOf(b));
 
         public bool Clear(int ax, int ay, int exA, int bx, int by, int exB)
         {
@@ -221,7 +223,7 @@ namespace OpenZ.Sim
                 int cur = queue[head++], cx = cur % w, cy = cur / w;
                 var (px, py) = ZReach.FootCentre(cx, cy, robot);
                 long dx = px - t.CenterX, dy = py - t.CenterY;
-                if (dx * dx + dy * dy <= r2 && (t.IsDestroyableImpass || !W.EngageBarrierBetween(px, py, t.CenterX, t.CenterY)) &&
+                if (dx * dx + dy * dy <= r2 && (t.IsDestroyableImpass || t.ShuttleAirborne || !W.EngageBarrierBetween(px, py, t.CenterX, t.CenterY)) &&   // DV118: the flying shuttle over any ground tile
                     Clear(px, py, 0, t.CenterX, t.CenterY, exT))
                 { sx = px; sy = py; return true; }
                 for (int k = 0; k < 8; k++)

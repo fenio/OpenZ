@@ -65,7 +65,7 @@ namespace OpenZ
         Perf perf;
         bool punchDone, idleDone, skipped;
         float idleT, lastBusyAt = -100f, endSeenAt = -1f, menuStartAt, lastMarker = -10f, nextDuck, focusSince; int lastFocus = -1;
-        FieldInfo fView, fSide, fFocus;
+        FieldInfo fView, fSide, fFocus, fClick, fClickAt, fViewAt;                                            // owner item 243: the card click
 
         sealed class Perf
         {
@@ -122,7 +122,7 @@ namespace OpenZ
         /// <summary>AudioDirector.HoldStartLines: true until the briefing has handed the level to the player.</summary>
         static bool HoldingStart() => I && I.mode == Mode.Level && I.phase != Phase.Play;
         /// <summary>AudioDirector.ExternalVoiceBusy: Zod's window is up and his line is not over (paused = not speaking).</summary>
-        static bool ZodSpeaking() => I && I.perf != null && !I.perf.done && I.perf.t < I.perf.voiceEnd + 0.15f && !AudioListener.pause;
+        static bool ZodSpeaking() => I && I.perf != null && !I.perf.done && I.perf.t < I.SpeakingUntil(I.perf) + 0.15f && !AudioListener.pause;   // K439: on the win line until the boys' last giggle (ZodBriefing.WinSoda.cs)
         /// <summary>True while Commander Zod has the floor (his window is up and the line is not over).</summary>
         public static bool Speaking => ZodSpeaking();
         /// <summary>True while the level-start briefing owns the game (sim waiting, camera flying).</summary>
@@ -161,10 +161,12 @@ namespace OpenZ
         void PlayStatic(AudioSource src, string name, float db)
         {
             if (!src) return;
-            if (!statics.TryGetValue(name, out var c)) statics[name] = c = Resources.Load<AudioClip>("OpenZ/Zod/Sfx/comms_static_" + name);
+            var c = OzRadioMumbles.Pick(name);                                                          // the window's open / close call: a random radio take, never the same twice in a row
+            if (!c && !statics.TryGetValue(name, out c)) statics[name] = c = Resources.Load<AudioClip>("OpenZ/Zod/Sfx/comms_static_" + name);
             if (!c) return;
             src.Stop(); src.clip = c; src.pitch = UnityEngine.Random.Range(0.93f, 1.07f);
             src.volume = Mathf.Clamp01(VoiceGain() * Mathf.Pow(10f, db / 20f)); src.Play();
+            if (OzRadioMumbles.Owns(name)) OzRadioMumbles.Log(name, c, src.volume);
         }
 
         bool Bots => game && ((game.blueBot && game.redBot) || PlayerPrefs.GetInt("oz_botmatch", 0) == 1);
@@ -212,6 +214,7 @@ namespace OpenZ
                 menuStartAt = Time.unscaledTime;
                 var t = typeof(OpenZMainMenu); const BindingFlags F = BindingFlags.NonPublic | BindingFlags.Instance;
                 fView = t.GetField("view", F); fSide = t.GetField("side", F); fFocus = t.GetField("focusCard", F);
+                fClick = t.GetField("lastCardClick", F); fClickAt = t.GetField("lastCardClickAt", F); fViewAt = t.GetField("viewAt", F);
                 if (fView == null) Debug.LogWarning("[ZodCameo] OpenZMainMenu.view not found: greeting only, no level-select quips");
                 StartCoroutine(Prebuild(0.3f));
             }
@@ -363,10 +366,12 @@ namespace OpenZ
             var line = lib.Line(id); var clip = lib.Clip(id);
             if (line == null || !clip) { Debug.LogWarning("[ZodCameo] line " + id + " missing (voice clip or lines.json)"); return false; }
             var beats = lib.Beats(id);
-            float jokeLead = JokeLead(kind); preroll += jokeLead;
+            float jokeLead = kind == Kind.Briefing && mode == Mode.Level && game && ZodShotList.QuietOpening(game.level) ? 0f : JokeLead(kind); preroll += jokeLead;
             var p = new Perf { kind = kind, id = id, line = line, beats = beats, clip = clip, layout = layout, preroll = preroll };
             p.voiceEnd = Mathf.Min(clip.length, line.duration > 0f ? line.duration : clip.length);
             p.end = p.voiceEnd + beats.tail;
+            WinSodaBegin(p);                                                                            // K439: the win line's can and giggles; the window waits for the last giggle (ZodBriefing.WinSoda.cs)
+            if (kind == Kind.Briefing && mode == Mode.Level && game) { ZodShotList.BriefingRoom(game.level, line, ref preroll, p.voiceEnd, ref p.end); p.preroll = preroll; }   // ZodFlyover.L16.cs: the flyover's quiet opening and its last shot's room
             Collect(p.gestures, line, beats.gestures, id);
             Collect(p.shots, line, beats.shots, id);
             Collect(p.fx, line, beats.fx, id);
@@ -378,9 +383,13 @@ namespace OpenZ
             stage.EnsureFeed(px.x, px.y);
             stage.SetLive(true);
             stage.SetFraming(beats.framing); stage.SnapFraming();
-            StartBoys(kind, line, preroll);                                                             // zod_briefings_v3: the two soldiers' backs, then the push-in
-            AddAlanCueFx(p);
-            stage.GazeBoys = BoysFor(kind, line);
+            bool boysHost = BoysHost(kind, line) && BoysHostBegin(p);                                   // level 16: the two robots hold the briefing on their loungers
+            if (!boysHost)
+            {
+                StartBoys(kind, line, preroll);                                                         // zod_briefings_v3: the two soldiers' backs, then the push-in
+                AddAlanCueFx(p);
+            }
+            stage.GazeBoys = !boysHost && BoysFor(kind, line);
             if (!hqHooked) { hqHooked = true; stage.HqBlasted += OnHqBlast; }
             stage.HqFire(kind == Kind.Defeat);
             stage.Alarm(kind == Kind.Nuke);
@@ -479,6 +488,7 @@ namespace OpenZ
                 }
                 while (p.si < p.shots.Count && p.shots[p.si].t <= p.t) { var s = p.shots[p.si++].s; if (fly != null && fly.Active) fly.SetShot(s.shot, s.smooth); }
                 while (p.fi < p.fx.Count && p.fx[p.fi].t <= p.t) DoFx(p.fx[p.fi++].f);
+                WinSodaTick(p);                                                                         // K439: the can after "can't hurt...", the giggles after his last word
                 TickSlam(p);                                                                                    // voice_lines_v3: clunk + launch on the hit
                 if (stage) stage.KlaxonUnderWords = p.voiceOn && ZodLibrary.CueAt(p.line, p.t, 0.05f) != null;
                 if (p.fadeSpeed > 0f)
@@ -491,7 +501,7 @@ namespace OpenZ
             voice.volume = VoiceGain() * p.fade;
             StartLineTick(p);                                                                           // the announcer line in the quiet start of the level briefing
             comms.SetCue(p.voiceOn && p.fadeSpeed <= 0f ? ZodLibrary.CueAt(p.line, p.t) : null);
-            comms.SetVu(stage ? Mathf.Max(stage.Mouth01, stage.AlanMouth01) : 0f);
+            comms.SetVu(Mathf.Max(LoungerMouth01, stage ? Mathf.Max(stage.Mouth01, stage.AlanMouth01) : 0f));
             if (stage) stage.Push = p.t / Mathf.Max(1f, p.voiceEnd);
             if (p.kind == Kind.Briefing) comms.SetProgress((p.t + p.preroll) / Mathf.Max(1f, p.end + p.preroll));
             if (voice.isPlaying && !paused && Time.unscaledTime >= nextDuck)
@@ -568,7 +578,7 @@ namespace OpenZ
             {
                 idleDone = true;
                 var es = hud ? hud.EndScreen : null;
-                if (Bots || W.Winner == Team.Neutral || !es || Automated) punchDone = true;             // no human, a draw, no end screen, a check
+                if (Bots || W.Winner == Team.Neutral || !es || Automated || EndingCommanderSilent(W.Winner == game.player)) punchDone = true;             // no human, a draw, no end screen, a check
                 else if (es.IsShown)
                 {
                     if (endSeenAt < 0f) endSeenAt = now;
@@ -576,7 +586,7 @@ namespace OpenZ
                     {
                         punchDone = true;
                         bool won = W.Winner == game.player;
-                        string id = won ? PickVictory() : lib.Pick("defeat");
+                        string id = EndingCommanderLine(won) ?? (won ? PickVictory() : lib.Pick("defeat"));
                         if (id != null) { EnsureComms(1f); StartPerf(won ? Kind.Victory : Kind.Defeat, id, ZodLayout.EndScreen(comms.CanvasWidth), linePreroll); }
                     }
                 }
@@ -600,6 +610,12 @@ namespace OpenZ
         string MenuView() { try { return fView?.GetValue(menu)?.ToString() ?? "Main"; } catch (Exception) { return "Main"; } }
         string MenuSide() { try { return fSide?.GetValue(menu)?.ToString() ?? "None"; } catch (Exception) { return "None"; } }
         int MenuFocus() { try { return fFocus != null ? (int)fFocus.GetValue(menu) : -1; } catch (Exception) { return -1; } }
+        /// <summary>Owner item 243: the level line only after the player clicked that card since the battlefield screen opened (never on its own).</summary>
+        bool ClickedSinceOpen(int f)
+        {
+            if (fClick == null || fClickAt == null || fViewAt == null) return false;
+            try { return (int)fClick.GetValue(menu) == f && (float)fClickAt.GetValue(menu) >= (float)fViewAt.GetValue(menu); } catch (Exception) { return false; }
+        }
 
         void MenuRules(float now)
         {
@@ -626,7 +642,7 @@ namespace OpenZ
                 if (f != lastFocus) { lastFocus = f; focusSince = now; }
                 if (f < 0 || f >= OzLevelDef.All.Length) return;
                 string lvl = OzLevelDef.All[f].Id;
-                if (quipped.Contains(lvl) || now - focusSince < quipFocus || !Quiet(0.3f)) return;
+                if (quipped.Contains(lvl) || !ClickedSinceOpen(f) || now - focusSince < quipFocus || !Quiet(0.3f)) return;
                 string id = "zod_select_" + lvl;
                 if (lib.Line(id) == null) { quipped.Add(lvl); return; }
                 quipped.Add(lvl);

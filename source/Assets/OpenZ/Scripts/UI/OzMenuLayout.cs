@@ -41,6 +41,9 @@ namespace OpenZ
         public const float CardLevelX = 30, CardLevelY = 22, CardNameX = 28, CardNameY = 42, CardNameSize = 42;
         public const float CardMoodRX = 28, CardMoodY = 24, CardChipsY = 66, CardChipH = 22, CardChipGap = 6, CardFadeH = 150;
         public const float CardProgInset = 16, CardProgH = 3;
+        // three or more operations: narrower gutters, a 3:2 picture, the row centred between the header and the deploy bar
+        public const float CardSideN = 96, CardGapN = 36, CardAspectN = 2f / 3f, CardBandTop = 186, CardBandPad = 24, CardRowBottomMax = 792;   // 792: the quip strip under the cards begins at 804
+        public const float CardNameSmall = 34, CardNameFullW = 520;
         // deploy bar (full width, 118 u at the bottom)
         public const float DeployBarH = 118, ObjX = 120, ObjLabelY = 996, ObjLineY = 1016, ObjFootY = 1044, ObjSize = 16;
         public static readonly OzRect Deploy = new OzRect(OzAnchor.BR, 1500, 991, 300, 60);

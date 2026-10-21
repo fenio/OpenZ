@@ -140,7 +140,7 @@ namespace OpenZ.Sim
             if (!ExitLanesDeviation) return;
             foreach (var v in Objects)
             {
-                if (v.Kind != ZKind.Vehicle || v.Destroyed) continue;
+                if (v.Kind != ZKind.Vehicle || v.Destroyed || v.IsShuttle) continue;   // DV118 (K256f): a shuttle keeps the place its rules gave it (the landing spot rule; it moves only by its own flight)
                 int ox = v.LocX >> 4, oy = v.LocY >> 4;
                 if (!InExitLane(v.CenterX, v.CenterY, ZPathing.VehicleRadiusOf(v.Type)) && !TightSlot(v) &&
                     !NearGateFace(v.LocX, v.LocY, v.LocX + v.WidthPix, v.LocY + v.HeightPix, ParkRing * 16)) continue;

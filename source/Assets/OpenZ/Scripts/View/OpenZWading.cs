@@ -48,7 +48,7 @@ namespace OpenZ
         static readonly int AccentLoId = Shader.PropertyToID("_AccentLo"), AccentHiId = Shader.PropertyToID("_AccentHi");   // UnitView.cs:28
         static readonly int WadePointsId = Shader.PropertyToID("_OZWadePoints"), WadeCountId = Shader.PropertyToID("_OZWadeCount");
         readonly Vector4[] wadePoints = new Vector4[OpenZFxCatalog.WadeShaderPoints];
-        float waterY = float.NegativeInfinity, cleanT;
+        float waterY = float.NegativeInfinity, flatWaterY = float.NegativeInfinity, cleanT;
         ZGame game;
 
         void Awake() { if (I && I != this) { Destroy(gameObject); return; } I = this; }
@@ -61,7 +61,7 @@ namespace OpenZ
             float y = float.NegativeInfinity;
             foreach (var r in FindObjectsByType<Renderer>(FindObjectsSortMode.None))
                 if (r.name.StartsWith("WAT_") && r.gameObject.activeInHierarchy) y = Mathf.Max(y, r.bounds.min.y + 0.02f);
-            waterY = y;
+            waterY = flatWaterY = y;
         }
 
         void Bind(Wader w)
@@ -97,6 +97,7 @@ namespace OpenZ
             {
                 if (!v || !v.isActiveAndEnabled || v.Obj == null || v.Obj.Kind != ZKind.Robot) continue;
                 if (!waders.TryGetValue(v, out var w)) { w = new Wader { v = v }; Bind(w); waders[v] = w; }
+                waterY = OzWaterLevel.At(game.level, v.transform.position.x, v.transform.position.z, flatWaterY);
                 Step(w, dt, fx, cam);
                 if (w.wet > 0.01f)
                 {
@@ -108,6 +109,7 @@ namespace OpenZ
                     }
                 }
             }
+            waterY = flatWaterY;
             Wading = wading;
             for (int i = points; i < wadePoints.Length; i++) wadePoints[i] = Vector4.zero;
             if (shaderHook) { Shader.SetGlobalVectorArray(WadePointsId, wadePoints); Shader.SetGlobalFloat(WadeCountId, points); }
@@ -134,12 +136,16 @@ namespace OpenZ
             float targetWet = depth > OpenZFxCatalog.WadeMinDepth ? Mathf.Clamp01((depth - OpenZFxCatalog.WadeMinDepth) / OpenZFxCatalog.WadeRampDepth) : 0f;
             // sits at the water surface (no carved bed under the robot) the depth reads ~0 and nothing sank. On a water tile a
             // robot is always wading: full wet, and the sink below brings the water line to half body (eased over .3 s).
-            if (waterTile && depth < OpenZFxCatalog.WadeMinDepth + OpenZFxCatalog.WadeRampDepth) targetWet = 1f;
+            // A level with its own water height per tile (level 16) has a walk surface cut 0.75 m under every pool: there the real
+            // depth decides, so a dry bank inside a swamp tile stays dry and shallow water wets by its depth. The forced "always
+            // wading" below and the "feet above the surface" sink are for levels with one flat surface and no carved bed.
+            bool ownTable = OzWaterLevel.Has(game.level);
+            if (!ownTable && waterTile && depth < OpenZFxCatalog.WadeMinDepth + OpenZFxCatalog.WadeRampDepth) targetWet = 1f;
             float k = 1f - Mathf.Exp(-dt * 3f / OpenZFxCatalog.WadeBlendTime);           // ~95 % in .3 s
             w.wet = Mathf.Lerp(w.wet, targetWet, k);
             if (w.wet > 0.01f && w.height < 0f) w.height = MeasureHeight(w);
             float H = w.height > 0f ? w.height : fallbackHeight;
-            float extra = Mathf.Max(0f, sinkFraction * H - Mathf.Max(0f, depth) + Mathf.Max(0f, -depth));   // water line at sinkFraction x height (feet above the surface: sink that too)
+            float extra = Mathf.Max(0f, sinkFraction * H - Mathf.Max(0f, depth) + (ownTable ? 0f : Mathf.Max(0f, -depth)));   // water line at sinkFraction x height (feet above the surface: sink that too)
             w.sink = Mathf.Lerp(w.sink, targetWet * extra, k);
             if (w.sink > 0.001f)
             {

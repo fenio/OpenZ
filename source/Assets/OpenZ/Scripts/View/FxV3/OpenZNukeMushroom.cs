@@ -20,7 +20,7 @@ namespace OpenZ
     /// (away from the sun / underneath darker). Two particle systems so the puffs on the far side draw BEFORE the glowing mesh and
     /// the near side AFTER it (sorted back to front on the CPU). Lives Life s (longer than NukeFx's 8.5 s), thinning into wisps.
     /// </summary>
-    public sealed class OpenZNukeMushroom : MonoBehaviour
+    public sealed partial class OpenZNukeMushroom : MonoBehaviour
     {
         public static bool Enabled = true;
         public static float Life = 14f, PuffScale = 1.4f, AlphaScale = 0.85f,
@@ -34,6 +34,9 @@ namespace OpenZ
         /// outside shade (darker rolling ring) and the stem's extra heat.</summary>
         public static Color StemBright = new Color(0.93f, 0.8f, 0.62f), UnderLit = new Color(0.86f, 0.42f, 0.16f);
         public static float RingDark = 0.58f, StemHeat = 1.25f;
+        /// <summary>The whole cloud times this about its foot (rise and cap radius; the stem, the ring and every puff follow them). 1 = the
+        /// game's own. Only the level 16 ending scene sets it, at its cut to the loungers (ZodBriefing.EndingMushroomScale); every new cloud starts at 1.</summary>
+        public static float SceneScale = 1f;
         public static OpenZNukeMushroom Current { get; private set; }
         public int PuffCount => puffs != null ? puffs.Length : 0;
         public float Age => t;
@@ -64,6 +67,7 @@ namespace OpenZ
             var fxp = OpenZFxPlayer.I;
             var mat = fxp ? fxp.CloneChannelMaterial("blast_smoke") : null;
             if (!mat) { Debug.LogWarning("[OpenZ] nuke mushroom: no blast_smoke channel material (OpenZFxPlayer): the mesh mushroom only"); return null; }
+            SceneScale = 1f;
             if (Current) Destroy(Current.gameObject);
             var go = new GameObject("NukeMushroom");
             var m = go.AddComponent<OpenZNukeMushroom>();
@@ -83,12 +87,13 @@ namespace OpenZ
                 m.SetFloat("_HeatTime", 0.62f); m.SetVector("_AgeColor", new Vector4(0.74f, 0.7f, 0.66f, 1f));
                 m.SetFloat("_SoftFade", 2.6f); m.SetFloat("_Spin", 0.35f); m.SetFloat("_Boil", 0.55f); m.SetFloat("_Lit", 1f);
                 m.SetFloat("_Wrap", 0.32f); m.SetFloat("_SelfShadow", 0.85f); m.SetFloat("_FlipRate", 1f);
-                m.SetFloat("_Smear", OzFxSmooth.SmearBigPuff); m.SetFloat("_SmearPath", 2f);   // MOTION BLUR option: each puff is blurred along its own path (the copy came with _Smear 0); 2 = no fade-in at birth, a puff's age here is its heat
+                m.SetFloat("_Smear", Smear /* item 210: 0.42 s, OpenZNukeMushroom.Kd.cs */); m.SetFloat("_SmearPath", 2f);   // MOTION BLUR option: each puff is blurred along its own path (the copy came with _Smear 0); 2 = no fade-in at birth, a puff's age here is its heat
             }
             backMat.renderQueue = 3006;   // before the NukeFx meshes (OpenZ/Nuke, Transparent+10 = 3010)
             frontMat.renderQueue = 3021;  // after them, before the additive glow layers (3100)
             back = MakeSystem("NukeMushroom_Back", backMat, out backR);
             front = MakeSystem("NukeMushroom_Front", frontMat, out frontR);
+            KdBuild();                                                                    // item 211: the base surge as ground fog (OpenZNukeMushroom.Kd.cs)
             var list = new List<Puff>();
             uint seed = (uint)(Mathf.Abs(origin.x * 13.1f + origin.z * 7.7f) * 10f) + 1u;
             System.Func<float> R = () => { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; return (seed & 0xFFFFFF) / 16777216f; };
@@ -144,7 +149,7 @@ namespace OpenZ
             Vector3 camPos = cam.transform.position, up = Vector3.up;
             var sun = RenderSettings.sun; Vector3 toSun = sun ? -sun.transform.forward : new Vector3(0.3f, 0.8f, 0.2f).normalized;
             float night = NightGrade.NightK;
-            float capR = Mathf.Max(0.6f, CapR(t)), rise = Mathf.Max(1.2f, Rise(t));
+            float capR = Mathf.Max(0.6f, CapR(t)) * SceneScale, rise = Mathf.Max(1.2f, Rise(t)) * SceneScale;
             float torR = capR * 0.62f, torA = capR * 0.40f;
             Vector3 capC = origin + up * rise;                                                        // the cap centre (NukeFx cap position)
             float stemR = capR * 0.24f, stemTop = rise - torA * 0.6f;
@@ -168,7 +173,7 @@ namespace OpenZ
                     {
                         float layer = q.k == Kind.Inner ? 0.72f : 1f;
                         float boil = 1f + 0.06f * Mathf.Sin(t * (1.1f + q.rnd) + q.c * 6.28f);
-                        float ang = q.a + spinBase * (0.6f + q.rnd * 0.8f), pol = q.b * 1.45f;     // 0 top .. ~83 deg
+                        float ang = q.a + spinBase * (0.6f + q.rnd * 0.8f), pol = KdCrownB(q, ref alpha) * 1.45f;     // 0 top .. ~83 deg
                         float rx = (torR + torA * 0.55f) * layer * boil, ry = capR * 0.5f * layer * boil;
                         axisPt = capC + up * (capR * 0.06f);
                         pos = axisPt + new Vector3(Mathf.Sin(pol) * Mathf.Cos(ang) * rx, Mathf.Cos(pol) * ry, Mathf.Sin(pol) * Mathf.Sin(ang) * rx);
@@ -244,6 +249,7 @@ namespace OpenZ
                         break;
                     }
                 }
+                if (q.k == Kind.Crown || q.k == Kind.Inner || q.k == Kind.Torus) pos += KdChurn(q, size, i);   // item 210: the cap rolls (KdCrownB above) and each puff churns: real motion the blur follows
                 // the puff's own velocity from its last place (m/s): the puff shader blurs it along that path (MOTION BLUR option). A puff
                 // that jumps (a stem puff wrapping from the top to the base, faded out there) gets none; a frozen frame keeps the last one
                 if (dtv > 1e-5f)
@@ -273,10 +279,11 @@ namespace OpenZ
                     rotation = q.rnd * 360f + t * (q.rnd - 0.5f) * 14f, angularVelocity = 0f, randomSeed = q.seed, startColor = (Color32)c,
                 };
                 float key = -(pos - camPos).sqrMagnitude;                                                 // back to front
-                if (isFront) { fArr[nf] = pt; fKey[nf] = key; nf++; } else { bArr[nb] = pt; bKey[nb] = key; nb++; }
+                if (q.k == Kind.Dust && KdToFog(pt)) { } else if (isFront) { fArr[nf] = pt; fKey[nf] = key; nf++; } else { bArr[nb] = pt; bKey[nb] = key; nb++; }
             }
             System.Array.Sort(fKey, fArr, 0, nf); System.Array.Sort(bKey, bArr, 0, nb);
             front.SetParticles(fArr, nf); back.SetParticles(bArr, nb);
+            KdFlush();                                                                    // item 211: this frame's base surge as fog
             FrontLive = nf; BackLive = nb;
             PuffSpeedMean = puffs.Length > 0 ? spdSum / puffs.Length : 0f; PuffSpeedMax = spdMax;
             var heat = HeatColor * Mathf.Lerp(1f, NukeFx.NightGainMul, night);
@@ -286,7 +293,7 @@ namespace OpenZ
         void OnDestroy()
         {
             if (Current == this) Current = null;
-            if (frontMat) Destroy(frontMat); if (backMat) Destroy(backMat);
+            if (frontMat) Destroy(frontMat); if (backMat) Destroy(backMat); KdDestroy();
         }
 
         /// <summary>Proof: puff counts, size range and the biggest puff on screen (px) for camera c.</summary>

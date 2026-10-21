@@ -217,7 +217,7 @@ namespace OpenZ
             Log($"+1.55 s: {Track()}");
             yield return new WaitForSeconds(2.5f);
             Log($"+4 s: {Track()}");
-            Check("the enemy fort's gun explodes with the fort and flies (visible, never just gone)", tossed && yaw && yaw.gameObject.activeInHierarchy && yaw.GetComponentsInChildren<Renderer>().Any(r => r.enabled));
+            Check("the enemy fort's gun explodes with the fort and flies (visible, never just gone)", tossed && ((yaw && yaw.gameObject.activeInHierarchy && yaw.GetComponentsInChildren<Renderer>().Any(r => r.enabled)) || OzFortGunBreakup.ShownFor(yaw)));   // item 205: after its landing it lies in pieces (OzFortGunBreakup)
             Finish();
         }
 

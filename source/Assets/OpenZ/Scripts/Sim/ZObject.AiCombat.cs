@@ -110,7 +110,7 @@ namespace OpenZ.Sim
         }
 
         /// <summary>DV55: t is VERY close (a held unit may still take it).</summary>
-        bool CloseGrab(ZObject t) => ZWorld.CloseGrabDeviation && Within(CenterX, CenterY, t.CenterX, t.CenterY, ZWorld.CloseGrabPx);
+        bool CloseGrab(ZObject t) => ZWorld.CloseGrabDeviation && Within(CenterX, CenterY, t.CenterX, t.CenterY, World.HeldVehicleReach);   // DV84: 220 px like a flag (was CloseGrabPx)
         /// <summary>DV55: flag f is close enough for a held unit (ZWorld.CloseGrabFlagPx).</summary>
         bool CloseGrabFlag(ZObject f) => ZWorld.CloseGrabDeviation && Within(CenterX, CenterY, f.CenterX, f.CenterY, ZWorld.CloseGrabFlagPx);
 
@@ -127,8 +127,9 @@ namespace OpenZ.Sim
                 if (enter && (!o.IsRobot || o.NoAutoEnter || (o.JustLeftCannon && t.Kind == ZKind.Cannon))) continue;
                 double od = Dist(o.CenterX, o.CenterY, t.CenterX, t.CenterY);
                 if (od > d || (od == d && o.Id > Id) || od > lim) continue;
-                if (o.PlayerHold && ZWorld.GrabPolicyDeviation && od > (enter ? ZWorld.CloseGrabPx : ZWorld.CloseGrabFlagPx)) continue;   // held: only very close things
+                if (o.PlayerHold && ZWorld.GrabPolicyDeviation && od > (enter ? World.HeldVehicleReach : ZWorld.CloseGrabFlagPx)) continue;   // held: only very close things (DV84: vehicles 220 px like flags)
                 if (!o.CanSee(t) || o.PathUnreachable(t)) continue;
+                if (!enter && o.FlagRunHeld) continue;                                         // DV130: a robot under fire takes no flag by itself, so it is no closer taker (Sim/ZObject.NoAutoFlag.cs)
                 return true;
             }
             return false;

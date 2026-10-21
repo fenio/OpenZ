@@ -67,9 +67,9 @@ namespace OpenZ
             foreach (var kv in g.Views)
             {
                 var v = kv.Value; var o = v ? v.Obj : null;
-                if (!v || o == null || o.Type != "pyro" || !v.isActiveAndEnabled) continue;
+                if (!v || o == null || o.Type != "pyro" || !v.isActiveAndEnabled || ZodBriefing.EndingHides(v)) continue;   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs)
                 float out01 = 1f;                                                                           // a dead pyro's pilot flame dies down, it is not cut
-                if (o.Destroyed || v.Dying) { out01 = 1f - v.DeadFor / OzGlowFade.Seconds; if (!v.Dying || out01 <= 0.02f) continue; }
+                if (o.Destroyed || v.Dying) { out01 = Mathf.Clamp01(1f - v.DeadFor / OzGlowFade.Seconds); if (!v.Dying || out01 <= 0.02f) continue; }   // clamped: an eaten robot's death clock is minus infinity (UnitView.Eaten.cs), the flame keeps its normal size
                 if (v.AnticActive && v.Antic.StowsWeapon) continue;                                      // the flamer is put away (drink, phone, fishing, lounger): no nozzle flame in the air
                 if (!sockets.TryGetValue(v, out var s) || !s) { s = FindSocket(v.transform); sockets[v] = s; if (!s) continue; }
                 if (!s.gameObject.activeInHierarchy) continue;

@@ -98,7 +98,7 @@ namespace OpenZ
             menu.ProofOpen("options"); yield return Wait(0.7f);
             var ort = menu.ProofPanel("options");
             Check("options beside the list", Beside(ort, out var od), od);
-            Check("options MUSIC + FULLSCREEN rows", menu.ProofOptionRows, "MUSIC · SOUNDTRACK and FULLSCREEN · NATIVE RESOLUTION after the live rows");
+            Check("options MUSIC + FULLSCREEN rows", menu.ProofOptionRows, "MUSIC · SOUNDTRACK and FULLSCREEN after the live rows");
             Snap("01_options.png");
 
             // ---- 6: CONTROLS centred modal + table

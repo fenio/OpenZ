@@ -39,7 +39,7 @@ namespace OpenZ
 
         void Awake()
         {
-            I = this;
+            I = this; ZRuleProf.On = true; ZRuleProf.Reset();   // b109: rule tick timer per part, log only (Sim/ZRuleProf.cs)
             Time.maximumDeltaTime = MaxFrameStep;
             // Every level starts at the warm sunrise, whatever time a proof left saved in the scene
             ZodShotList.EnsureFile();
@@ -73,6 +73,11 @@ namespace OpenZ
             ZWorld.HeavyPairDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_heavy_pair", 1) == 1;     // DV30 heavy tank twin barrels (vehicles_nb_v1)
             ZWorld.CraneGunDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_crane_gun", 1) == 1;       // DV31 crane driver shoots back (vehicles_nb_v1)
             ZWorld.HarbourWrecksDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_l17_wrecks", 1) == 1;   // l17_details_v1 DV39: L17 harbour wrecks block their tiles until destroyed
+            ZWorld.L16PyramidsDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                       // level 16 DV89: the pyramids are destroyable map items
+            ZWorld.L16ShuttleDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                        // level 16 DV95: the shuttle stands in the place of one hut
+            ZWorld.ShuttlePlayableDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; ZWorld.ShuttleOn = OzShuttleStart.RuleAtStart(level, gameDifficulty); ZWorld.ShuttleTeam = player;   // DV118: the level 16 shuttle is the player's transport; K347: the battlefield screen's SHUTTLE box (oz_start_shuttle, default on; level 16 on EASY / MEDIUM, none on HARD; UI/OzShuttleStart.cs), read at the level start (Sim/ZWorld.Shuttle.cs)
+            ZWorld.L17ShuttlesDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; ZWorld.L17StartShuttle = OzShuttleStart.L17StartAtStart(level, gameDifficulty);   // K444 DV134: level 17's EMPTY car-park shuttle (every difficulty) and the SHUTTLE box's one by the red fort (EASY / MEDIUM, the box on) (Sim/ZWorld.L17Shuttles.cs, UI/OzShuttleStart.cs)
+            ZWorld.PyroForceBurnDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                     // DV113: with Ctrl held, Pyros burn buildings and bridges (Sim/ZObject.PyroForceBurn.cs)
             ZWorld.DetailPropsDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;
             ZWorld.FortRushDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_fort_rush", 1) == 1;       // boarding_nb_v1 DV34 robots rush the fort door (NB15)
             ZWorld.BoardNearestDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_board_nearest", 1) == 1;   // boarding_nb_v1 DV35 the nearest robot boards (NB16)
@@ -81,6 +86,7 @@ namespace OpenZ
             CaptureHold.Enabled = PlayerPrefs.GetInt("oz_capture_after_board", 1) == 1;                                                // boarding_nb_v1 NB17 (view only)
             ZWorld.GrabPolicyDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_grab_policy", 1) == 1;   // DV38 one auto-grab per target, ordered units hold
             ZWorld.GrenadeRuleDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_grenade_rule", 1) == 1;   // DV40 grenades: only grunts throw them at robots
+            ZWorld.GrenadeBoostDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_grenade_boost", 1) == 1;   // DV104 a thrown grenade: radius x 1.2; a direct hit x 1.15, an area hit x 0.9 (ZWorld.GrenadeBoost.cs)
             ZWorld.FortDefenderDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_fort_defender", 1) == 1;   // fort_defender_v1 DV41: a grunt defends the roof of a fort under attack
             ZWorld.PathV3Deviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt(OzSettingTips.PrefPathV3, 1) == 1;
             ZWorld.ElectrobotDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_electrobot", 1) == 1;       // electrobot_v1 DV45: the Electrobot in the build lists
@@ -89,12 +95,15 @@ namespace OpenZ
             ZWorld.ElectrobotAllLevels = false;
             ZWorld.KnockHoldDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_knock_hold", 1) == 1;
             ZWorld.RunOverDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_run_over", 1) == 1;
+            ZWorld.JeepChargeDeviation = ZWorld.RunOverDeviation;                                                                       // DV121: the jeep runs robots over, with the run-over rule (off in 'Zod exact') (Sim/ZObject.JeepCharge.cs)
+            ZWorld.SetCrocodileRules(PlayerPrefs.GetInt("oz_zod_exact", 0) == 0, PlayerPrefs.GetInt("oz_crocodiles", 1) == 1, PlayerPrefs.GetInt("oz_croc_hurry", 1) == 1, PlayerPrefs.GetInt("oz_croc_flee", 1) == 1, PlayerPrefs.GetInt("oz_croc_water_cost", 1) == 1);   // level 16: the crocodile rule and its three companions, each with its own switch (ZWorld.Crocodiles.cs)
             ZWorld.RocketSpeedDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_rocket_speed", 1) == 1;
             ZWorld.HelpDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_squad_help", 1) == 1;
             ZWorld.CaptureRunDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_capture_run", 1) == 1;    // DV54: captures run
             ZWorld.CloseGrabDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_close_grab", 1) == 1;      // DV55: very close flags / vehicles, the closest unit
             ZWorld.BotCommitDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_bot_commit", 1) == 1;      // DV56: the CPU sends its idle groups
             ZWorld.BotLaserDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                      // DV71: the CPU builds Lasers sometimes (ZBot.LaserPick)
+            ZWorld.BotHeavyDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                      // DV115: the CPU builds a mix of units, heavy tanks / missile launchers from 8:00 and the robot squads in turn (ZBot.HeavyMix.cs)
             ZWorld.BotFinishDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_bot_finish", 1) == 1;
             ZWorld.RepairInPlaceDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_repair_pad", 1) == 1;
             ZWorld.CraneFixDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_crane_fix", 1) == 1;
@@ -102,6 +111,12 @@ namespace OpenZ
             ZWorld.CraneAnyRuinDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                  // DV74: a crane rebuilds a destroyed building / bridge in any zone
             ZWorld.RepairBayFireDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                 // DV77: a vehicle fires out of its repair bay on the way in and out too
             ZWorld.UnmannedStopDeviation = true;                                                                                       // DV79: a vehicle with nobody inside never moves, turns or fires (ZObject.Unmanned.cs)
+            ZWorld.DriverFireDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                   // DV87: hatch drivers fire their own weapon; no driver comes up on a bridge or in a door lane (ZObject.DriverFire.cs)
+            ZWorld.HeroSquadDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                    // DV108: hero squads placed by the level data (Sim/ZHeroSquad.cs)
+            ZWorld.HeroBoostDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                    // DV112: hero squads stronger + self-repair (Sim/ZHeroSquad.Kh4.cs)
+            ZWorld.GrabCertainDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                  // DV84: one unit takes a free flag / empty vehicle for certain (ZObject.GrabCertain.cs)
+            ZWorld.ElectroSteadyDeviation = ZWorld.ElectrobotDeviation;                                                                // DV83: the Electrobot stands and fires (ZObject.ElectroSteady.cs)
+            ZWorld.SnipeSafeSpotDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                // DV82: no driver sniping on a bridge or in a door lane (ZWorld.SnipeSafe.cs)
             ZWorld.RiflePairDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                     // DV78: a grunt's rifle on a grunt (ZObject.RiflePair.cs)
             ZWorld.FireOnMoveDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_fire_on_move", 1) == 1;
             ZWorld.EjectLockDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_eject_lock", 1) == 1;
@@ -110,6 +125,19 @@ namespace OpenZ
             ZWorld.L17CrewsTeam = player;
             ZWorld.FortDoorGunDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && gameDifficulty == GameDifficulty.Hard && !(blueBot && redBot);   // DV73 Hard: a missile cannon on each fort's door tower (ZWorld.FortDoorGun.cs)
             ZWorld.ExitLanesDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt("oz_exit_lanes", 1) == 1;
+            ZWorld.StrikeGroupDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && PlayerPrefs.GetInt(OzStrikeGroups.Pref, 1) == 1;   // DV107 enemy strike groups: the Options row ENEMY STRIKE GROUPS (oz_strike_groups, default on; ZBot.StrikeGroup.cs)
+            ZWorld.OvertakeDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0 && OzOvertake.On; Debug.Log($"[OpenZ] fast units pass slow ones: {(ZWorld.OvertakeDeviation ? "ON" : "off")}");   // DV105: the Options row FAST UNITS PASS SLOW ONES, OFF by default; off in 'Zod exact' (Sim/ZOvertake.cs)
+            ZWorld.CalmMoveDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; Debug.Log($"[OpenZ] calm movement (b49): {(ZWorld.CalmMoveDeviation ? "ON" : "off")}");   // b49 DV101: on in the game, off in 'Zod exact' (Sim/ZCalm.cs)
+            ZWorld.FortRunDeviation = ZWorld.RockRoundDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; OzOverlapOption.Apply();   // DV102 fort run, DV103 round the rocks, the option FRIENDLY UNITS OVERLAP (never in 'Zod exact')
+            Debug.Log($"[OpenZ] fort run (DV102): {(ZWorld.FortRunDeviation ? "ON" : "off")}, round the rocks (DV103): {(ZWorld.RockRoundDeviation ? "ON" : "off")}, friendly units overlap: {(ZWorld.FriendsOverlap ? "ON" : "off")}");
+            ZWorld.CalmFollowDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; Debug.Log($"[OpenZ] calm follow behind a slower unit (DV109): {(ZWorld.CalmFollowDeviation ? "ON" : "off")}");   // DV109: on in the game, off in 'Zod exact' (Sim/ZPathing.CalmFollow.cs)
+            ZWorld.SniperHeadshotDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                // DV116: sniper headshots, 15 % of a sniper's hits on a robot (Sim/ZObject.Headshot.cs)
+            ZWorld.SniperSteadyDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                  // DV120: snipers stand and fire: no walk past an enemy in range, no walk back (Sim/ZObject.SniperSteady.cs)
+            ZWorld.ToughSteadyDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                   // DV123: Toughs stand and fire: no walk past an enemy in range, no walk back, fewer small steps after a kill (Sim/ZObject.ToughSteady.cs)
+            ZWorld.NoAutoFlagUnderFireDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                           // DV130: a player's robot under fire runs to no flag by itself; a clicked flag always (Sim/ZObject.NoAutoFlag.cs)
+            ZWorld.HeavyFallDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0; ZWorld.HeavyTurretRockClearM = OzTreeCrush.TurretRockClear(); OzTreeCrush.Ensure();   // DV124: a big faller fells the tree it comes down on (Sim/ZWorld.HeavyFall.cs, View/OzTreeCrush.cs)
+            ZWorld.GroundFireDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                   // DV117: burning ground bites an enemy who stays in it (Sim/ZWorld.GroundFire.cs)
+            ZWorld.ProneTargetDeviation = PlayerPrefs.GetInt("oz_zod_exact", 0) == 0;                                                  // DV122: a kneeling / lying sniper is a smaller target, the stance a rule (Sim/ZObject.ProneTarget.cs)
             if (level == "L17") Debug.Log($"[OpenZ] L17 start crews (DV63): {(ZWorld.L17CrewsDeviation && ParkedStartOn(level) ? "ON for " + player + " (Easy)" : "off (" + OpenZDifficulty.Label(gameDifficulty) + ")")}");
             Debug.Log($"[OpenZ] driver sniping: {(ZWorld.SnipeDeviation ? "OpenZ deviation DC2 (driver-hit floor, snipers x3, open-seat snipe chance, resting crews)" : "Zod exact")}");
             SetParkingKeepOut(map.text, level);                                                          // DV66: no vehicle parked on a lamp / sign / hydrant (ZWorld.ExitLanes.cs)
@@ -121,6 +149,9 @@ namespace OpenZ
             var col = GameObject.Find("COL_Terrain");
             ground = col ? col.GetComponent<Collider>() : null;
             BindViews();
+            OzHeroSquadView.Spawn(this);                                                          // DV108: the hero squads' own models; the scene's robots of the entry they replace are hidden
+            OzPlayableShuttle.Spawn(this);                                                        // DV118: the scene's ship becomes the playable shuttle's view (View/OzPlayableShuttle.cs)
+            OzShuttleEmptyLook.SpawnMapShuttles(this);                                            // K256f: every other shuttle of the rules (a map's entry) its full view; the empty look on each
             foreach (var c in World.FortDoorGuns)
             {   // DV73 (Hard): the door tower's missile cannon: the scene's own cannon of that tower is hidden, the new one gets its view
                 if (Views.ContainsKey(c.Id)) continue;
@@ -129,6 +160,7 @@ namespace OpenZ
                 SpawnUnitView(c);
             }
             if (World.FortDoorGuns.Count > 0) Debug.Log($"[OpenZ] Hard: {World.FortDoorGuns.Count} fort door-tower missile cannons (DV73)");
+            OzTowerCannonViews.Spawn(this);                                                           // the level data's fort tower cannons the scene does not show (level 16: DV99)
             // mech), crewed, at the fort, on top of the map's start units. Only human vs bot; never in bot matches or tests.
             ApplyTechBonus();
             if (!(blueBot && redBot) && level == "L02" && OpenZDifficulty.HeadStartToggle /* menu_exe_v1: the menu switch, every difficulty */)   // L02 only: its map gives neither side a vehicle; L17 red already starts with 5
@@ -144,6 +176,12 @@ namespace OpenZ
                 foreach (var v in extra) SpawnUnitView(v);
                 Debug.Log($"[ZGame] L17 head start for {player}: {extra.Count} {(ParkedStartOn(level) ? "parked empty (DV32)" : "crewed")} vehicles at the fort");
             }
+            if (!(blueBot && redBot) && level == "L16" && OpenZDifficulty.HeadStartToggle)
+            {
+                var extra = World.AddHeadStart(player, HeadStartL16Types);
+                foreach (var v in extra) SpawnUnitView(v);
+                Debug.Log($"[ZGame] L16 head start for {player}: {extra.Count} crewed vehicles at the fort");
+            }
             SetupWalkable();
             if (!GetComponent<CombatView>()) gameObject.AddComponent<CombatView>();
             if (!FindFirstObjectByType<FxManager>()) new GameObject("FxManager").AddComponent<FxManager>();
@@ -153,13 +191,18 @@ namespace OpenZ
             if (!FindFirstObjectByType<PropBreakables>()) new GameObject("PropBreakables").AddComponent<PropBreakables>();
             if (!FindFirstObjectByType<BridgeRepairBadges>()) new GameObject("BridgeRepairBadgesHost").AddComponent<BridgeRepairBadges>();
             if (!FindFirstObjectByType<VeteranMarks>()) new GameObject("VeteranMarks").AddComponent<VeteranMarks>();   // veterancy_v1 DV12
+            if (level == "L16" && !FindFirstObjectByType<OzBridgeWobble>()) new GameObject("OzBridgeWobble").AddComponent<OzBridgeWobble>();   // level 16: the plank bridge gives a little under a vehicle (view only)
+            if (level == "L16" && !FindFirstObjectByType<OzTreeFall>()) new GameObject("OzTreeFall").AddComponent<OzTreeFall>();   // DV88: the trees that close a tile get their props here (before the first DetailPropHub.Update binds them) and fall when the rules destroy them (view only)
             if (level == "L17" && !FindFirstObjectByType<OzWeather>()) new GameObject("OzWeather").AddComponent<OzWeather>();   // weather_l17_v1: night rain showers + thunder (view only, no sim change)
+            if (level == "L16" && !FindFirstObjectByType<OzJungleWeather>()) new GameObject("OzJungleWeather").AddComponent<OzJungleWeather>();   // level 16: tropical rain by day with wind (view only, no rule is touched)
         }
 
         /// <summary>OpenZ head start (deliberate deviation DV3, listed in the parity report's Deviations block): the crewed vehicles the
         /// human gets on L02 in human vs CPU games while PlayerPrefs <see cref="HeadStartPref"/> is 1 (the default).</summary>
         public static readonly string[] HeadStartTypes = { "light", "light", "jeep", "jeep", "medium" };
         public static readonly string[] EasyL17Types = { "missile_launcher", "heavy" };
+        /// <summary>Level 16 head start: two jeeps and a light tank, crewed (the map itself starts each side with a heavy and a medium tank).</summary>
+        public static readonly string[] HeadStartL16Types = { "jeep", "jeep", "light" };
         public const string HeadStartPref = "oz_headstart";
         /// <summary>
         /// PlayerPrefs oz_l17_parked (1 = on, default); 'Zod exact' turns it off. Bot matches use the same switch.</summary>
@@ -242,6 +285,7 @@ namespace OpenZ
         public UnitView SpawnUnitView(ZObject o)
         {
             if (Views.TryGetValue(o.Id, out var existing)) return existing;
+            if (o.IsHero) { var hv = OzHeroSquadView.SpawnView(this, o); if (hv) return hv; }   // DV108: Alan and Brad out of a vehicle are drawn as themselves (View/OzHeroSquadView.cs)
             string key = o.Kind == ZKind.Robot ? (o.Type == "laser" && !Prefab("Z_bs01_laser") ? "Z_robot" : "Z_bs01_" + o.Type) : "Z_" + o.Type;   // robots_v3: the v3 laser when present
             GameObject prefab = unitPrefabs == null ? null : System.Array.Find(unitPrefabs, g => g && g.name == key);
             if (!prefab && unitPrefabs != null && o.Kind == ZKind.Robot) prefab = System.Array.Find(unitPrefabs, g => g && g.name == (o.Type == "tough" ? "Z_tough" : "Z_robot"));
@@ -281,6 +325,7 @@ namespace OpenZ
             long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             RuleTicksLastFrame = Advance(World, ref acc, Time.deltaTime, gameSpeed);
             RuleMsLastFrame = (float)((System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+            var ruleLine = ZRuleProf.MinuteLine(World); if (ruleLine != null) Debug.Log(ruleLine);   // b109: rule tick timer per part, log only (Sim/ZRuleProf.cs)
         }
 
         /// <summary>The only sim clock (Zod ztime.cpp:21: game time = real seconds x game_speed): fixed 10 ms ticks fed by the
@@ -378,7 +423,7 @@ namespace OpenZ
 
         public float GroundY(float x, float z)
         {
-            if (walkMask != 0 && Physics.Raycast(new Ray(new Vector3(x, 200, z), Vector3.down), out var hit, 400, walkMask, QueryTriggerInteraction.Ignore)) return hit.point.y + CraterField.GroundAdd(hit.collider, x, z);
+            if (walkMask != 0 && Physics.Raycast(new Ray(new Vector3(x, 200, z), Vector3.down), out var hit, 400, walkMask, QueryTriggerInteraction.Ignore)) return hit.point.y + CraterField.GroundAdd(hit.collider, x, z) - OzBridgeWobble.DipAt(hit.collider, x, z);
             if (ground && ground.Raycast(new Ray(new Vector3(x, 200, z), Vector3.down), out var h, 400)) return h.point.y + CraterField.DentRender(x, z);
             return 0;
         }

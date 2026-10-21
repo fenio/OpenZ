@@ -177,6 +177,7 @@ namespace OpenZ
             var u = mouse && prev != null && (sel.Count == 1 || sameType) ? prev : sel[UnityEngine.Random.Range(0, sel.Count)];
             if (sel.Count == 1) u = sel[0];
             uvSpeaker = u.Id;
+            if (HvSelect(u)) return null;                                                       // KC4b: ALAN & BRAD's own lines (AudioDirector.HeroVoices.cs)
             if (!unitVoices || !UnitVoices.Known(u.Type)) return u;
             var uv = Uv();
             double now = Time.unscaledTimeAsDouble;
@@ -209,6 +210,7 @@ namespace OpenZ
                 if (o != null && !o.Destroyed && o.Waypoints.Count > 0 && (attack || o.Kind != ZKind.Cannon)) took.Add(o);   // a cannon never answers a move order
             var u = UvPickSpeaker(took);
             uvOrderUnit = u;
+            if (u != null && u.IsHero && HvOrder(u, attack, noWay)) return true;               // KC4b: ALAN & BRAD's own lines (AudioDirector.HeroVoices.cs)
             if (u == null || !UnitVoices.Known(u.Type))                                          // no type voice: the channel rules still hold for the classic line
                 return uv.DecideOrder(noWay, false, false, UvChannel(), () => rnd(), Time.unscaledTimeAsDouble) == UnitVoices.OrderAct.Nothing;
             uvSpeaker = u.Id;

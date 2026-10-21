@@ -286,6 +286,7 @@ namespace OpenZ
         void LaunchBigParts(Vector3 center, float power, bool fort)
         {
             if (bigParts.Count == 0) return;
+            RocksBigParts(center, fort);                                                                           // items 331 + 332: the big ones meet the rocks (BuildingBreaker.Rocks.cs)
             float k = Mathf.Clamp(power, 0.8f, fort ? 1.1f : 1.8f);
             foreach (var rb in bigParts)
             {
@@ -407,6 +408,8 @@ namespace OpenZ
             public ConcreteChunkLib.Entry lib; public Vector3 partCenter;
             float age, life = 16f, contactAt = -10f; int crashes; bool keep, done;
             public void Arm(float lifeSeconds, bool stays) { life = lifeSeconds; keep = stays; age = 0f; crashes = 0; done = false; }
+            bool RockPop() { if (!OzRockBody.OnRockNow(gameObject) || !OzRockBody.PopIfOnRock(gameObject, () => gameObject.SetActive(false))) return false; done = true; return true; }   // items 331 + 332 (asked every sinking frame: nothing made unless it pops)
+            void Start() { OzWaterLanding.Watch(transform, "building part", rb); }                  // b27: the shared water landing rule (the part is switched on at the collapse)
 
             void OnCollisionEnter(Collision c)
             {
@@ -414,6 +417,7 @@ namespace OpenZ
                 if (age < 0.2f || speed < 2.5f || crashes >= 2 || age - contactAt < 0.4f) return;
                 contactAt = age; crashes++;
                 var p = c.contactCount > 0 ? c.GetContact(0).point : transform.position;
+                if (OzWaterLanding.UnderSurface(p)) return;                                         // b27: it touched the bed under a drawn water surface: no crash, dust or shake there (its splash is made at the surface)
                 if (lib != null) { LibCrash(p, speed); return; }
                 var fx = FxManager.I; if (fx) { fx.DemolitionDust(p, 3f, 3f, Mathf.Clamp(speed * 0.08f, 0.4f, 1.1f)); fx.Dust(p, 1.2f); }
                 var fxp = OpenZFxPlayer.I; if (fxp && fxp.Shake != null) fxp.Shake.Impact(p, crashes == 1 ? 1.1f : 0.6f);
@@ -458,6 +462,7 @@ namespace OpenZ
                 if (age < life) return;
                 if (keep) { if (rb) rb.isKinematic = true; done = true; return; }                     // the fort's ruin keeps its parts
                 if (rb) rb.isKinematic = true;
+                if (!done && RockPop()) return;                                                                      // items 331 + 332: on a rock it pops away, never sinks through it
                 float t = age - life;
                 transform.position += Vector3.down * 0.6f * Time.deltaTime;                             // sinks ~1.8 m over 3 s
                 if (t > 3f) { gameObject.SetActive(false); done = true; }

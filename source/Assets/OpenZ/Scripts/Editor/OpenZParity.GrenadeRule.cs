@@ -74,7 +74,7 @@ namespace OpenZ.EditorTools
             {
                 id = "DV40", change = "Grenades: every robot type but the grunt fights robots with its own weapon and throws grenades only at vehicles, guns and buildings",
                 zod = "a robot whose squad carries grenades throws one at whatever it attacks, robots included (zobject.cpp:2102-2213 ProcessAttackDamage)",
-                openz = "psycho, sniper, tough, pyro and laser keep their weapon against robots and throw only at vehicles, cannons, buildings, rocks; grunts throw at anything as in Zod; grenade damage, radius, throw speed and ammo stay Zod's",
+                openz = "psycho, sniper, tough, pyro and laser keep their weapon against robots and throw only at vehicles, cannons, buildings, rocks; grunts throw at anything as in Zod; throw speed, scatter and ammo stay Zod's (damage and radius: DV104)",
                 measured = "L02 headless duels (20 s, 6 grenades, unarmed targets): " + sb,
                 toggle = $"PlayerPrefs oz_grenade_rule = {(getInt("oz_grenade_rule", 1) == 1 ? "1 (on, default)" : "0 (off)")}; off in 'Zod exact'",
                 status = !ok ? DevCheck : pref ? DevActive : DevActive + " (off by pref)",

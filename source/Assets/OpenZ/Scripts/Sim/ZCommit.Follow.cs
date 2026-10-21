@@ -473,7 +473,7 @@ namespace OpenZ.Sim
             }
             return false;
         }
-        bool LaneAtPoint(int px, int py) { foreach (var L in Lanes) if (px >= L.ZX0 && px < L.ZX1 && py >= L.ZY0 && py < L.ZY1) return true; return false; }
+        bool LaneAtPoint(int px, int py) { foreach (var L in LanesNear(px, py)) if (px >= L.ZX0 && px < L.ZX1 && py >= L.ZY0 && py < L.ZY1) return true; return false; }
         public const double ExitReach = 160;
 
         /// <summary>FollowThrough: a minion walking on (not in a lane / gap / bridge area) this close to its arrived leader stops where it is
@@ -601,13 +601,13 @@ namespace OpenZ.Sim
         /// ground is free, but not in the zone of a 1-tile robot gap or a bridge deck: there the squad walks single file.</summary>
         bool SlotInNarrowZone(int x, int y)
         {
-            foreach (var L in Lanes) if ((L.Bridge || !L.VehicleLane) && BoxInZone(L, x - 8, y - 8, 16, 16)) return true;
+            foreach (var L in LanesNear(x, y)) if ((L.Bridge || !L.VehicleLane) && BoxInZone(L, x - 8, y - 8, 16, 16)) return true;
             return false;
         }
 
         bool BridgeKeep(double x, double y, double margin = 0)
         {
-            foreach (var L in Lanes) if (L.Bridge && x >= L.KX0 - margin && x < L.KX1 + margin && y >= L.KY0 - margin && y < L.KY1 + margin) return true;
+            foreach (var L in margin <= LaneNearMargin ? LanesNear(x, y) : Lanes) if (L.Bridge && x >= L.KX0 - margin && x < L.KX1 + margin && y >= L.KY0 - margin && y < L.KY1 + margin) return true;
             return false;
         }
         /// <summary>A minion that left its squad's follow for a bridge re-joins it only this far (px) clear of every bridge keep-clear area

@@ -60,7 +60,7 @@ namespace OpenZ
 
         //      from the shooter first meets the target's body, not at its centre. The body is the sim footprint (Zod's hit box)
         //      inset 12 %, as tall as the model class; robots keep their aim point.
-        static float BodyHeight(ZObject t) => t.Kind == ZKind.Building ? (t.IsFort ? 7.5f : t.IsBridge ? 1.2f : 5f) : t.Kind == ZKind.Cannon ? 1.6f : t.Type == "heavy" || t.Type == "medium" ? 2.6f : 2.1f;
+        static float BodyHeight(ZObject t) => t.IsShuttle ? 5.1f : t.Kind == ZKind.Building ? (t.IsFort ? 7.5f : t.IsBridge ? 1.2f : 5f) : t.Kind == ZKind.Cannon ? 1.6f : t.Type == "heavy" || t.Type == "medium" ? 2.6f : 2.1f;
 
         bool BodyBounds(ZObject t, out Bounds b)
         {
@@ -72,6 +72,7 @@ namespace OpenZ
             var v = ViewOf(t.Id);
             if (v && t.Kind != ZKind.Building) c = v.transform.position;                                // moving units: the drawn body
             if (v && v.OnTower) gy = v.transform.position.y;                                            // crews_v1: a tower gun's body is on its pad
+            if (v && t.IsShuttle) { if (OzShuttleAim.Air(t)) gy = v.transform.position.y; size.x = size.z = 6.2f; }   // DV118: the ship's own size, up where it is drawn
             b = new Bounds(new Vector3(c.x, gy + h * 0.5f, c.z), new Vector3(size.x * 0.88f, h, size.z * 0.88f));
             return true;
         }
@@ -96,6 +97,9 @@ namespace OpenZ
 
         /// <summary>
         /// target's drawn meshes (HitSurface); the footprint box (bug #13) only when the body has nothing to test.</summary>
+        /// <summary>DV118: the height of the playable shuttle while it flies (zero for every other target).</summary>
+        static Vector3 AirLift(ZObject t) { var sv = t != null && t.ShuttleAirborne ? OzPlayableShuttle.Of(t) : null; return sv ? Vector3.up * sv.ShownHeight : Vector3.zero; }   // DV118: every drawn shuttle
+
         Vector3 OnSurface(ZObject t, Vector3 from, Vector3 aim)
         {
             var b = BodyOf(t);
@@ -121,13 +125,14 @@ namespace OpenZ
                     case ZEventType.MissileFired: MissileFired(e, a, b, fx, au); break;
                     case ZEventType.MissileExploded:
                     {
-                        var at = PxGround(e.x, e.y);
+                        var at = OzShuttleAim.AirAim(b, PxGround(e.x, e.y), 0f);                                          // DV118: a blast at the flying shuttle bursts up at its hull
                         if (b != null && b.IsFortDefender) at = FortDefenderView.RoofPoint(at);             // fort_defender_v1 DV41: on the roof where he stands
                         if (b != null && !b.Destroyed && BodyBounds(b, out var bb) && bb.Contains(new Vector3(at.x, bb.center.y, at.z)))
                         {   // bug #13: a shell that lands inside a building / vehicle footprint bursts on the wall facing the shooter
                             var src = a != null ? (ViewOf(a.Id) ? ViewOf(a.Id).transform.position : game.CenterWorld(a)) + Vector3.up * 1.2f : at + Vector3.up * 8f;
                             at = OnSurface(b, src, at + Vector3.up * 1f);                             // IM1: on the drawn wall
                         }
+                        OzShuttleAim.NoteBlast(e, a, b, at);                                            // DV118: the gallery's counts, the last hit on the ship
                         LegacyMatch.MissileBlast(e, a, b, at, fx, au);                                 // legacy_match: size + sound per source (LEGACY_MATCH.md 1)
                         NoteBlast(at, e.radius);                                                      // deaths_mech_v1: ragdolls fly from this blast's centre
                         OzDeathTrace.Blast(e, at);
@@ -150,7 +155,7 @@ namespace OpenZ
                     case ZEventType.OwnerChanged: { var v = ViewOf(e.objId); if (v && a != null) v.SetOwner(CaptureHold.Shown(a)); rules?.Handle(e); break; }   // boarding_nb_v1 NB17
                     case ZEventType.Created: if (a != null) game.SpawnUnitView(a); break;
                     case ZEventType.Ejected:
-                        if (au && a != null && a.Kind == ZKind.Vehicle && BoardingView.I && BoardingView.I.sounds) BoardingView.Latch(PosOf(a, 0), e.objId);
+                        if (au && a != null && a.Kind == ZKind.Vehicle && !a.IsShuttle && BoardingView.I && BoardingView.I.sounds) BoardingView.Latch(PosOf(a, 0), e.objId);
                         if (au) au.Play("exit", PosOf(a, 0), 0.8f, 0, e.objId, "exit"); break;
                     case ZEventType.GrenadesPicked:
                     {
@@ -221,19 +226,22 @@ namespace OpenZ
         {
             if (a == null || t == null) return;
             var av = ViewOf(e.objId);
-            if (av && av.HoldShotWhileDown(e, t)) return;                                             // deaths_mech_v1: knocked down: drawn when it is up
+            if (av && av.HoldShotWhileDown(e, t)) return; if (BoardingView.HoldShotWhileExiting(e, a, t)) return;   /* K441: still walking out of a carrier: drawn when its walk is over (View/BoardingView.ExitWalk.cs) */                                             // deaths_mech_v1: knocked down: drawn when it is up
             if (UnitAim.HoldShot(av, e, t)) return;                                                   // combatview: turn onto the target first
             if (WeaponsV2.SkipShot(e, a, t, av)) return;                                               // weapons_v2: the sniper aims (visible shots only; Zod's rolls go on)
             DrawnShots++;
             if (av && !WeaponsV2.OwnsRecoil(a)) av.OnFire();                                           // weapons_v2: the runner kicks when the round really leaves
             Vector3 from = av ? av.MuzzlePos() : PosOf(a), to = PosOf(t);
-            if (a.Kind == ZKind.Vehicle && a.Type == "apc" && ApcSideHatches.ShotFrom(av, to, out var hatchMuzzle)) from = hatchMuzzle;
+            if (a.Kind == ZKind.Vehicle && a.Type == "apc" && !BoardingView.TryCrewMuzzle(a.Id, out _) && ApcSideHatches.ShotFrom(av, to, out var hatchMuzzle)) from = hatchMuzzle;
             string type = a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : a.Type;   // apc_v1 DV15
             Vector3 chest = default; bool crewAim = (CrewAim.SmallArms(type) || e.flag2) && CrewAim.Point(t, out chest);
             if (crewAim) to = CrewAim.Impact(from, chest, e.flag);                                    // on the chest from any side (no hull test), misses fly past him
+            else if (!e.flag && OzShuttleAim.High(t)) to = OzShuttleAim.SkyMiss(from, t);           // DV118: a miss at the flying shuttle flies past it into the sky
             else if (!e.flag) to = HitSurface.MissGround(from, to + new Vector3(Random.Range(-1.6f, 1.6f), Random.Range(-0.4f, 0.8f), Random.Range(-1.6f, 1.6f)));   // miss: IM1 on the ground where the line lands
             else if (e.flag2) to = SeatPos(t);                                                     // driver hit: the round goes into the hatch / seat
-            else to = OnSurface(t, from, to + new Vector3(Random.Range(-0.5f, 0.5f), Random.Range(-0.3f, 0.5f), Random.Range(-0.5f, 0.5f)));   // bug #13 / IM1: on the real surface
+            else to = OnSurface(t, from, OzShuttleAim.HitAim(t, to) + new Vector3(Random.Range(-0.5f, 0.5f), Random.Range(-0.3f, 0.5f), Random.Range(-0.5f, 0.5f)));   // bug #13 / IM1: on the real surface
+            to = UnitView.HeadshotShotEnd(e, a, t, ViewOf(t.Id), to);
+            OzShuttleAim.NoteShot(e, a, t, from, to);                                                // DV118: the gallery's counts, the last hit on the ship                                   // DV116: a sniper's headshot ends at the head (UnitView.Headshot.cs)
             if (WeaponsV2.Shot(this, e, a, t, type, av, from, to)) return;                             // weapons_v2: bolt / MG burst / laser bolts / crack from the drawn muzzle
             switch (type)
             {
@@ -354,21 +362,22 @@ namespace OpenZ
             if (WeaponsV2.HoldMissile(this, av, e, a, t)) return;                                      // weapons_v2: bazooka raised + settled first (lands on the sim's blast)
             if (UnitAim.HoldShot(av, e, t)) return;                                                   // combatview: turret / body onto the target first
             string type = a.IsFort ? "howitzer" : a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : a.Type;   // apc_v1 DV15
-            Vector3 from = av ? av.MuzzlePos() : PosOf(a), to = PxGround(e.x, e.y) + Vector3.up * 0.25f;
-            if (a.Kind == ZKind.Vehicle && a.Type == "apc" && ApcSideHatches.ShotFrom(av, to, out var hatchMuzzle)) from = hatchMuzzle;   // the passengers' rockets and grenades leave a side hatch too
+            Vector3 from = av ? av.MuzzlePos() : PosOf(a), to = OzShuttleAim.AirAim(t, PxGround(e.x, e.y) + Vector3.up * 0.25f, e.value);   // DV118: up to the flying shuttle (the hull's middle, where it will be)
+            if (a.Kind == ZKind.Vehicle && a.Type == "apc" && !BoardingView.TryCrewMuzzle(a.Id, out _) && ApcSideHatches.ShotFrom(av, to, out var hatchMuzzle)) from = hatchMuzzle;   // the passengers' rockets and grenades leave a side hatch too; DV87: not while the lone driver is up in the roof hatch
             if (t != null && !e.flag && BodyBounds(t, out var tb) && tb.Contains(new Vector3(to.x, tb.center.y, to.z)))
             {
                 if (LegacyMatch.Eased(type))
                 {
                     // IM1 OnSurface from the shooter's body + 1.2 m), not on the footprint box 0.3-1.1 m away from it
                     var src = (av ? av.transform.position : game.CenterWorld(a)) + Vector3.up * 1.2f;
-                    to = OnSurface(t, src, PxGround(e.x, e.y) + Vector3.up * 1f);
+                    to = OnSurface(t, src, OzShuttleAim.AirAim(t, PxGround(e.x, e.y) + Vector3.up * 1f, 0f));
                 }
-                else to = SurfaceHit(t, from, to + Vector3.up * 0.75f);                              // bug #13: the shell ends on the wall it hits
+                else to = OzShuttleAim.Air(t) ? OnSurface(t, from, to + Vector3.up * 0.75f) : SurfaceHit(t, from, to + Vector3.up * 0.75f);   // DV118: on the flying ship's drawn hull                              // bug #13: the shell ends on the wall it hits
             }
             if (t != null && t.IsFortDefender) to = FortDefenderView.RoofPoint(to);                  // fort_defender_v1 DV41: he stands on the fort roof
             float delay = e.value;
             bool grenade = e.flag;
+            if (!(a.IsFort && FortGunView.Handles(a.Id))) OzShuttleAim.NoteFired(e, a, t, from, to);   // DV118: the gallery's counts (the fort's own shell: FortGunView)
             if (a.IsFort && FortGunView.Handles(a.Id)) return;                                       // DV7: the fort's turret draws its own shell + boom
             if (grenade)
             {
@@ -482,6 +491,7 @@ namespace OpenZ
             {
                 case ZKind.Robot:
                     if (o.Squashed && v) { v.Squash(game.World.GetAny(e.otherId)); break; }
+                    if (o.Eaten && v) { v.EatenByCrocodile(); break; }                                        // level 16: taken by a crocodile (UnitView.Eaten.cs, CrocodileView.cs)
                     var kv = ViewOf(e.otherId); var from = kv ? kv.transform.position : p + Random.insideUnitSphere;   // thrown away from the killer
                     float prox = 1f;
                     if (e.flag2 && BlastNear(p, out var bc, out var bk)) { from = bc; prox = bk; }                 // deaths_mech_v1: this frame's blast centre
@@ -499,6 +509,8 @@ namespace OpenZ
                     if (!(v && v.Popped)) LegacyMatch.RobotDeath(p, from, e.flag2, au);                             // a pop plays its own crunch + smoke
                     break;
                 case ZKind.Vehicle: case ZKind.Cannon:
+                    if (VehicleDeathSync.Hold(this, game, e, o, v, au)) break;                               // version 1.1 item 202: it explodes when its killing round / MLRS rocket is drawn hitting it
+                    if (OzShuttleBreakup.TakesDeath(o, v, p, fx, au)) break;                                 // DV118: the shuttle falls apart into its pieces (View/OzShuttleBreakup.cs)
                     if (v) v.Die(false, true, p);
                     ScorchDecals.Add(p, 2.2f, ScorchKind.Wreck);
                     LegacyMatch.UnitDeath(o, p, fx, au);                                                 // legacy_match: size per chassis + wreck fire
@@ -521,12 +533,13 @@ namespace OpenZ
                         pil.Break(blast);                                                            // plays dst_rock_crash_large itself
                         break;
                     }
+                    if (o.Type == "hut" && L16Hut.SimDied(game, o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p)) break;   // level 16: the thatched hut breaks itself (straw and wood, its fallen state, the wood sound)
                     if (o.Type == "hut" && game.StaticViews.TryGetValue(o.Id, out var hgo) && hgo && hgo.GetComponentInChildren<BaseProp>(true) is BaseProp bprop)
                     {   // base_props_v1: the military base set breaks itself (fuel fireball / glass / sparks, chunks, ruin, fire, sounds)
                         bprop.Break(ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p, o.Id);
                         break;
                     }
-                    if (o.Type == ZWorld.DetailPropType) { DetailPropHub.SimDied(o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p); break; }
+                    if (o.Type == ZWorld.DetailPropType) { if (!OzTreeCrush.HoldsDeath(game, e, o)) DetailPropHub.SimDied(o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p); break; }
                     if (o.Type == ZWorld.WreckType && HarbourDetails.SimWreckDied(o, ViewOf(e.otherId) ? ViewOf(e.otherId).transform.position : p)) break;   // l17_details_v1 DV39: the wreck breaks and sinks (no stone burst)
                     if (PropToss.TryToss(game, o, p)) break;                                             // deaths_mech_v1: barrels fly to the sim's debris point
                     if (o.Type == "grenades")

@@ -245,6 +245,7 @@ namespace OpenZ
             pieces.RemoveAll(p => !p);
             if (pieces.Count == 0) return;
             var p = pieces[Random.Range(0, pieces.Count)];
+            if (OzWaterLanding.InWater(p.transform)) return;                                     // b27: a piece that lies in water never burns
             float k = Mathf.Clamp01((fireUntil - Time.time) / fireSpan);                         // endings_v1: the fort burns 28 s
             FxManager.I.Burn(p.transform.position + Vector3.up * 0.3f, 0.5f + 0.6f * k);
         }
@@ -262,12 +263,14 @@ namespace OpenZ
             public BuildingBreaker owner; public Rigidbody rb; public float life; public Bounds footprint;
             public ConcreteChunkLib.Entry lib;
             float age, contactAt = -10; int contacts; bool resting; Vector3 popBase;           // endings_v1: the pop keeps the piece's own scale
+            void Start() { OzWaterLanding.Watch(transform, "building piece", rb); }             // b27: the shared water landing rule (rubble that never flies is not enabled and never gets here)
             void OnCollisionEnter(Collision c)
             {
                 float speed = c.relativeVelocity.magnitude;
                 if (age < 0.14f || speed < 1.4f || age - contactAt < 0.30f || contacts >= 5) return;
                 contactAt = age; contacts++;
                 var p = c.contactCount > 0 ? c.GetContact(0).point : transform.position;
+                if (OzWaterLanding.UnderSurface(p)) return;                                         // b27: it touched the bed under a drawn water surface: no dust and no knock there (its splash is made at the surface)
                 FxManager.I?.Dust(p, Mathf.Min(1.2f, 0.22f + speed * 0.05f));
                 if (lib != null) { if (owner && owner.TrySound()) { AudioDirector.Fire("dst_debris_concrete", p, GetInstanceID(), Mathf.Clamp(0.16f + speed * 0.02f, 0.16f, 0.36f)); LibCrashes[2]++; } return; }
                 if (owner && owner.TrySound())

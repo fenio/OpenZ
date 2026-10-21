@@ -44,7 +44,7 @@ namespace OpenZ
         {
             switch (key)
             {
-                case "rifle": case "burst": case "bolt": return K(Bus.Weapons, Profile.Local, 100, 1, 4);
+                case "rifle": case "burst": case "bolt": case "hero_shot": return K(Bus.Weapons, Profile.Local, 100, 1, 4);   // item 225: the hero squad's shot (OzHeroShotSound), the bolt's profile
                 case "mg": return K(Bus.Weapons, Profile.Local, 100, 1, 6);                          // weapons_v2: psycho MG bursts (one clip per burst; tails overlap)
                 case "sniper_tail": return K(Bus.Weapons, Profile.Field, 150, 1, 2);                 // weapons_v2: the sniper's valley echo (carries further)
                 case "backblast": return K(Bus.Weapons, Profile.Local, 100, 2, 2);                   // weapons_v2: bazooka back-blast
@@ -377,7 +377,7 @@ namespace OpenZ
                 rig.position = new Vector3(f.x, gy + Mathf.Clamp(h * rigHeightK, rigMin, rigMax), f.z);   // audio_v2: was clamp(h x .2, 6, 30)
                 rig.rotation = Quaternion.Euler(0f, rts.transform.eulerAngles.y, 0f);
             }
-            float lo = rts ? rts.minHeight : 22f, hi = rts ? rts.maxHeight : 230f;
+            float lo = RtsCamera.SpanClosest, hi = RtsCamera.SpanWidest;                                    // the old zoom span 22..230 m: the same gain at every height as before the new zoom limits (RtsCamera.ZoomLimits.cs)
             ZoomGain = Mathf.Pow(10f, overviewDb * Mathf.InverseLerp(lo, hi, h) / 20f);
             RangeScale = Mathf.Clamp(h / 70f, 0.6f, 3.3f);
             float nowU = Time.unscaledTime, cDb = 0f, wDb = 0f;                                             // audio_v2: per-bus duck

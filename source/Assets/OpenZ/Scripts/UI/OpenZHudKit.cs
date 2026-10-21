@@ -482,7 +482,7 @@ namespace OpenZ
         static Dictionary<string, Texture2D> vehiclePortraits;
 
         static readonly string[] Order = { "missile_launcher", "missile_cannon", "gatling", "howitzer", "crane", "apc", "jeep", "heavy", "medium", "light", "gun",
-                                           "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot" };   // electrobot_v1: portrait_electrobot_* is its own token
+                                           "grunt", "psycho", "sniper", "tough", "pyro", "laser", "electrobot", "shuttle" };   // electrobot_v1: portrait_electrobot_* is its own token; DV118: portrait_shuttle_*
         static readonly (string alias, string type)[] Aliases =
         {
             ("mobile_missile", "missile_launcher"), ("missilelauncher", "missile_launcher"), ("missile_launch", "missile_launcher"), ("rocket_launcher", "missile_launcher"), ("mlrs", "missile_launcher"),

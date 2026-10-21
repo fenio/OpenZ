@@ -510,9 +510,9 @@ namespace OpenZ
                 if (p.rubble)
                 {
                     float floor = Ground(s.pos.x, s.pos.z) + 0.15f;
-                    if (s.pos.y < floor && OpenZFxPlayer.IsWaterTile(s.pos))
+                    if (s.pos.y < floor && (OpenZFxPlayer.IsWaterTile(s.pos) || OzWaterLanding.OpenWaterAt(s.pos, floor - 0.15f, out _)))   // b27: also the drawn water over a land tile (the widened river, the water under a destroyed bridge, a ravine stream)
                     {   // critic L02 #12 ("bridge debris floats for 10 s"): over water a chunk splashes once, sinks and is gone
-                        if (!s.grounded) { s.grounded = true; s.life = Mathf.Min(s.life, s.age + 1.3f); if (s.contactAge < 0) s.contactAge = s.age; OpenZFxPlayer.I?.Splash(new Vector3(s.pos.x, floor - 0.1f, s.pos.z), 0.3f); }
+                        if (!s.grounded) { s.grounded = true; s.life = Mathf.Min(s.life, s.age + 1.3f); if (s.contactAge < 0) s.contactAge = s.age; OzWaterLanding.Splash(new Vector3(s.pos.x, floor - 0.1f, s.pos.z), OzWaterSize.Small, "rubble chip", Mathf.Abs(s.vel.y)); }   // b27: the shared water landing rule (a few small splashes and plops for a whole burst)
                         s.vel = new Vector3(s.vel.x * 0.2f, -0.8f, s.vel.z * 0.2f);
                     }
                     else if (s.pos.y < floor)

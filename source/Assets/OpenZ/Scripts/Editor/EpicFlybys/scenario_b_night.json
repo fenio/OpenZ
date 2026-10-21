@@ -1,0 +1,467 @@
+{
+ "name": "scenario_b_night",
+ "title": "Night battle at the torches and the temple",
+ "about": "Night. From RTS heights: the approach over the east ring road towards the lit temple (the blue column with its Electrobot and MLRS below), a wide pass along the road over the fight at the torch pole where the red squads attack north and fight back, a high look from the west over the fight to the campfire and the pyramid's fire bowls (a tank blows up, the MLRS salvos land), and a slow push over the gateway to the whole temple in its fire light (the last framing kept as it was), where the red laser squad attacks west and fires across the frame at a blue squad coming from the west, while three red mechs come up from the south to help.",
+ "level": "L16",
+ "scene": "L16_Jungle",
+ "output": "flyby_b_night_4k",
+ "seconds": 28.0,
+ "time_of_day": 0.62,
+ "weather": "clear",
+ "seed": 1602,
+ "settle_s": 3.0,
+ "floor_m": 1.8,
+ "drift": 0.8,
+ "flyby_sky": false,
+ "lounge_wake_m": 0,
+ "full": {
+  "width": 3840,
+  "height": 2160,
+  "fps": 60
+ },
+ "preview": {
+  "width": 1920,
+  "height": 1080,
+  "fps": 60
+ },
+ "camera": [
+  {
+   "t": 0.0,
+   "pos": [
+    166,
+    36,
+    -108
+   ],
+   "look": [
+    190,
+    0,
+    -158
+   ],
+   "fov": 38,
+   "cut": true,
+   "ease": "inout",
+   "note": "shot 1: the approach, high over the ring road towards the lit temple, the blue column below"
+  },
+  {
+   "t": 7.0,
+   "pos": [
+    170,
+    34,
+    -118
+   ],
+   "look": [
+    191,
+    0,
+    -164
+   ],
+   "fov": 38
+  },
+  {
+   "t": 7.0,
+   "pos": [
+    205,
+    40,
+    -124
+   ],
+   "look": [
+    190,
+    0,
+    -163
+   ],
+   "fov": 40,
+   "cut": true,
+   "ease": "inout",
+   "note": "shot 2: high from the north-east (over the east rim, inside the map), down onto the fight on the road at the torch pole (197,-159) and the columns, muzzle flashes"
+  },
+  {
+   "t": 13.5,
+   "pos": [
+    203,
+    40,
+    -131
+   ],
+   "look": [
+    189,
+    0,
+    -167
+   ],
+   "fov": 40
+  },
+  {
+   "t": 13.5,
+   "pos": [
+    142,
+    34,
+    -156
+   ],
+   "look": [
+    189,
+    0,
+    -176
+   ],
+   "fov": 38,
+   "cut": true,
+   "ease": "inout",
+   "note": "shot 3: high from the west over the fight to the campfire and the fire bowls of the pyramid; the blue tank blows up at 17.5"
+  },
+  {
+   "t": 20.0,
+   "pos": [
+    149,
+    31,
+    -169
+   ],
+   "look": [
+    190,
+    0,
+    -178
+   ],
+   "fov": 38
+  },
+  {
+   "t": 20.0,
+   "pos": [
+    165,
+    28,
+    -219
+   ],
+   "look": [
+    193,
+    0,
+    -180
+   ],
+   "fov": 40,
+   "cut": true,
+   "ease": "inout",
+   "note": "shot 4: the gateway torches from RTS height, a slow push to the kept last framing: the red lasers fire across it at the blue flank coming from the west (lower left)"
+  },
+  {
+   "t": 24.0,
+   "pos": [
+    168.5,
+    27,
+    -213.5
+   ],
+   "look": [
+    192.5,
+    0,
+    -176
+   ],
+   "fov": 40
+  },
+  {
+   "t": 28.0,
+   "pos": [
+    172,
+    26,
+    -208
+   ],
+   "look": [
+    192,
+    0,
+    -172
+   ],
+   "fov": 40,
+   "note": "the approved last framing (kept as it was)"
+  }
+ ],
+ "sun_birds": {
+  "on": false
+ },
+ "units": [
+  {
+   "tag": "blue_a",
+   "team": "b",
+   "type": "psycho",
+   "x": 186,
+   "z": -146,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    186,
+    -170
+   ],
+   "note": "stops north of the lasers' reach"
+  },
+  {
+   "tag": "blue_b",
+   "team": "b",
+   "type": "grunt",
+   "x": 190,
+   "z": -141,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    193,
+    -174
+   ]
+  },
+  {
+   "tag": "blue_c",
+   "team": "b",
+   "type": "tough",
+   "x": 182,
+   "z": -139,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    182,
+    -172
+   ],
+   "note": "stops north-west of the lasers' reach"
+  },
+  {
+   "tag": "blue_tank",
+   "team": "b",
+   "type": "light",
+   "x": 185,
+   "z": -134,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    185,
+    -178
+   ]
+  },
+  {
+   "tag": "red_a",
+   "team": "r",
+   "type": "grunt",
+   "x": 189,
+   "z": -177,
+   "hp_k": 2.2,
+   "start": "attack_move",
+   "to": [
+    189,
+    -161
+   ],
+   "note": "fights back: attacks north at the blue column"
+  },
+  {
+   "tag": "red_pyro",
+   "team": "r",
+   "type": "pyro",
+   "x": 186,
+   "z": -170,
+   "hp_k": 2.2,
+   "start": "attack_move",
+   "to": [
+    187,
+    -163
+   ],
+   "note": "fights back: attacks north at the blue column"
+  },
+  {
+   "tag": "red_laser",
+   "team": "r",
+   "type": "laser",
+   "x": 190,
+   "z": -186,
+   "hp_k": 1.6,
+   "start": "hold",
+   "note": "holds the temple's foot only until 18.5 s (fires at what comes within its 17 m, does not chase north out of the kept framing), then attacks west at the blue flank (side-on to the last shot's lens)"
+  },
+  {
+   "tag": "red_tough",
+   "team": "r",
+   "type": "tough",
+   "x": 183,
+   "z": -183,
+   "hp_k": 2.2,
+   "start": "attack_move",
+   "to": [
+    183,
+    -166
+   ],
+   "note": "fights back: attacks north at the blue column"
+  },
+  {
+   "tag": "blue_flank",
+   "team": "b",
+   "type": "grunt",
+   "x": 158,
+   "z": -186,
+   "hp_k": 2.6,
+   "start": "hold",
+   "note": "the flank: waits west of the vehicle factory (out of every red unit's reach, of the flags and of the gun) until its order"
+  },
+  {
+   "tag": "blue_flank2",
+   "team": "b",
+   "type": "psycho",
+   "x": 156,
+   "z": -191,
+   "hp_k": 2.4,
+   "start": "hold",
+   "note": "a second flank squad: waits south-west of the first (out of every red unit's reach) until its order"
+  },
+  {
+   "tag": "blue_electro",
+   "team": "b",
+   "type": "electrobot",
+   "x": 191,
+   "z": -137,
+   "hp_k": 1.6,
+   "start": "attack_move",
+   "to": [
+    190,
+    -168
+   ],
+   "note": "the Electrobot with the blue column: its arcs into the fight"
+  },
+  {
+   "tag": "blue_mlrs",
+   "team": "b",
+   "type": "missile_launcher",
+   "x": 186,
+   "z": -149,
+   "hp_k": 2.0,
+   "start": "attack_move",
+   "to": [
+    186,
+    -155
+   ],
+   "note": "the MLRS drives in with the blue column (deeper in the frames than at the bottom of shot 1) and (hold from 7 s) fires its salvos into the fight at the torch pole"
+  },
+  {
+   "tag": "red_mech1",
+   "team": "r",
+   "type": "medium",
+   "x": 190,
+   "z": -213,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    189,
+    -168
+   ],
+   "note": "a red mech coming late from the south to help (in the last shot from about 20 s)"
+  },
+  {
+   "tag": "red_mech2",
+   "team": "r",
+   "type": "medium",
+   "x": 186,
+   "z": -216,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    184,
+    -170
+   ],
+   "note": "a red mech coming late from the south to help"
+  },
+  {
+   "tag": "red_mech3",
+   "team": "r",
+   "type": "medium",
+   "x": 194,
+   "z": -210,
+   "hp_k": 1.4,
+   "start": "attack_move",
+   "to": [
+    191,
+    -170
+   ],
+   "note": "a red mech coming late from the south to help"
+  }
+ ],
+ "props": [],
+ "setup": [],
+ "cues": [
+  {
+   "t": 0.0,
+   "action": "log_units"
+  },
+  {
+   "t": 8.5,
+   "action": "order:attack_move",
+   "tag": "blue_flank",
+   "via": [
+    168,
+    -186
+   ],
+   "x": 186,
+   "z": -182,
+   "note": "the flank goes east north of the rocks and comes at the lasers from the west at about 20 s: the lasers turn towards the lens's side and fire across the kept last framing"
+  },
+  {
+   "t": 7.0,
+   "action": "order:hold",
+   "tag": "blue_mlrs",
+   "note": "the MLRS stops behind the column and fires at what comes within its 20 m (it does not drive into the melee)"
+  },
+  {
+   "t": 9.5,
+   "action": "order:attack_move",
+   "tag": "blue_flank2",
+   "via": [
+    168,
+    -190
+   ],
+   "x": 186,
+   "z": -187,
+   "note": "the second flank squad follows the first from the west into the lasers' fire (the last shot)"
+  },
+  {
+   "t": 14.0,
+   "action": "log_units"
+  },
+  {
+   "t": 18.5,
+   "action": "order:attack_move",
+   "tag": "red_laser",
+   "x": 168,
+   "z": -186,
+   "note": "the red lasers attack west at the blue flank coming from the west: they fire side-on across the kept last framing"
+  },
+  {
+   "t": 17.5,
+   "action": "destroy",
+   "tag": "blue_tank",
+   "note": "a fireball between the camera and the pyramid in shot 3"
+  },
+  {
+   "t": 17.5,
+   "action": "shake",
+   "shake_s": 0.8,
+   "shake_m": 0.2,
+   "shake_deg": 0.5
+  },
+  {
+   "t": 27.5,
+   "action": "log_units"
+  }
+ ],
+ "audio": {
+  "mute_buses": [
+   "Music",
+   "UI",
+   "Voice",
+   "Voice/Announcer",
+   "Voice/Robots",
+   "Voice/Commander"
+  ],
+  "silence_clips": [
+   "sd_robot_croc_alarm_a",
+   "sd_robot_cry_cut_a",
+   "sd_vo_croc_hurry_a",
+   "sd_vo_croc_hurry_b",
+   "sd_vo_croc_hurry_c",
+   "sd_vo_croc_hurry_d",
+   "sd_vo_croc_hurry_e",
+   "sd_vo_croc_flee_a",
+   "sd_vo_croc_flee_b",
+   "sd_vo_croc_flee_c",
+   "sd_vo_croc_bank_a",
+   "sd_vo_croc_bank_b"
+  ],
+  "silence_prefixes": [
+   "sd_vo_",
+   "sd_robot_cry",
+   "sd_robot_croc_alarm"
+  ],
+  "voice_gate": true,
+  "music_off": true
+ }
+}

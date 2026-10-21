@@ -73,7 +73,8 @@ namespace OpenZ.EditorTools
         {
             id = "DV38", change = "Auto-capture: one unit per flag / vehicle / crate; units the player ordered hold (human teams)",
             zod = "every idle leader auto-grabs the nearest flag / vehicle / crate within 220 px (zobject.cpp:1603-1853), several units may run for the same one, and a unit that finished a player move grabs too",
-            openz = "on a human team a target another leader already walks to is skipped, and a unit whose last order came from the player never auto-grabs (it still engages enemies); new units from factories auto-grab as in Zod; every team only auto-grabs a flag / vehicle / cannon / crate it can see; the CPU's own orders are unchanged",
+            openz = "on a human team a target another leader already walks to is skipped, and a unit whose last order came from the player never auto-grabs (it still engages enemies); new units from factories auto-grab as in Zod; every team only auto-grabs a flag / vehicle / cannon / crate it can see; the CPU's own orders are unchanged" +
+                    $" (with DV84 on: a held unit takes an empty vehicle or gun within Zod's own 220 px, a try that fails or stalls is given up for {ZWorld.GrabFailMemory:0} s so that the next closest unit goes, and a unit on a plain move takes a flag or an empty vehicle within {ZWorld.CloseGrabPx} px of its way; OpenZParity.V11GrabCertain.cs)",
             measured = "Play proof in MASTER_TODO (auto-grab row); the rules rows run with it off",
             toggle = $"PlayerPrefs oz_grab_policy = {(getInt("oz_grab_policy", 1) == 1 ? "1 (on, default)" : "0 (off)")}; off in 'Zod exact'",
             status = getInt("oz_grab_policy", 1) == 1 ? DevActive : DevActive + " (off by pref)",

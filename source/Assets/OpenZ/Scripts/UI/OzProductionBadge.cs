@@ -159,7 +159,7 @@ namespace OpenZ
     /// + level numeral, tab, cue flag (3-slice + fill + text), notch glow, hazard, fill, fill2, white-hot, sheen, cap halo + cap, face,
     /// next face (Filled Vertical reveal), scan band, rim flash, glow, and the well's two RectMask2D clips (digits | word, split by the
     /// READY wipe edge) with the wipe line. Root pivot = the medallion centre; a CanvasGroup carries the enter / exit fade.</summary>
-    public sealed class OzProductionBadge
+    public sealed partial class OzProductionBadge
     {
         public readonly RectTransform Rt;
         readonly CanvasGroup cg;

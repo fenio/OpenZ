@@ -29,6 +29,15 @@ namespace OpenZ.Sim
         public bool attackTo, playerGiven;
         /// <summary></summary>
         public int leash;
+        /// <summary>DV84 (ZObject.GrabCertain.cs): a robot of this squad has already left this player's order for an empty vehicle beside
+        /// its way. A mark on the order, not a part of it: Equals does not compare it, so setting it never restarts the waypoint.</summary>
+        public bool grabDone;
+        /// <summary>b49 (ZObject.Calm.cs): the player gave this order with Ctrl held: the unit may leave its way to attack what it meets (the
+        /// attack-move as it always was). A mark on the order, not a part of it: Equals does not compare it.</summary>
+        public bool fightOnWay;
+        /// <summary>DV113 (ZObject.PyroForceBurn.cs): the player gave this order with Ctrl held (force fire): a Pyro may flame the building or
+        /// bridge it attacks. A mark on the order, not a part of it: Equals does not compare it.</summary>
+        public bool forceFire;
 
         public static readonly ZWaypoint Cleared = new ZWaypoint { mode = WpMode.None, refId = -1 };
 

@@ -47,7 +47,7 @@ Shader "OpenZ/FxAdditive"
         _Intensity ("Intensity (HDR gain)", Float) = 1
         [HDR] _CoreColor ("White-hot core colour", Color) = (1, 0.94, 0.72, 1)
         _CoreMix ("Core mix (LEG .8)", Range(0, 1)) = 0.8
-        _Shape ("Shape (0 glow, 1 streak, 2 puff, 3 fireball, 4 band, 5 band uv, 6 gauss, 7 scorch, 8 flame mesh, 9 tracer)", Float) = 0
+        _Shape ("Shape (0 glow, 1 streak, 2 puff, 3 fireball, 4 band, 5 band uv, 6 gauss, 7 scorch, 8 flame mesh, 9 tracer, 10 water swell, 11 water foam)", Float) = 0
         _Opaqueness ("Alpha-over amount (0 additive, 1 premultiplied over)", Range(0, 1)) = 0
         _UseVertexColor ("Use vertex colour (particles 1, glb meshes 0)", Range(0, 1)) = 1
         _SoftFade ("Soft particle fade distance (m, 0 = off)", Float) = 0
@@ -342,6 +342,14 @@ Shader "OpenZ/FxAdditive"
             }
 
             // M12 terrain ring coverage: 32-sided annulus, antialiased with fwidth of the squared radius
+            // value noise for the foam patch (shape 11)
+            float OzFxHash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+            float OzFxNoise(float2 p)
+            {
+                float2 c = floor(p), f = frac(p); f = f * f * (3.0 - 2.0 * f);
+                return lerp(lerp(OzFxHash(c), OzFxHash(c + float2(1.0, 0.0)), f.x), lerp(OzFxHash(c + float2(0.0, 1.0)), OzFxHash(c + float2(1.0, 1.0)), f.x), f.y);
+            }
+
             half FxBandCoverage(float2 offset, float outerR, half innerFrac, float sides)
             {
                 float r2 = dot(offset, offset);
@@ -690,6 +698,30 @@ Shader "OpenZ/FxAdditive"
                 {   // flat ring on a world-aligned particle quad (M12 ripple: FX_ShockRing .88-1.0, lit water colour + emission)
                     half c = FxBandCoverage(q, 1.0, _BandInner, _BandSides);
                     cover = c * vc.a;
+                    half3 lit = _Lit > 0.0 ? tint * FxLighting(positionWS, half3(0.0, 1.0, 0.0), screenUV, 0.0) : tint;
+                    rgb = lit * _Intensity + _EmissionColor.rgb;
+                }
+                else if (shape == 10)
+                {   // soft swells on water, on a world-aligned quad: a few broad concentric waves (_BandSides of them across the
+                    // radius, _BandInner their phase); a crest is lit a little lighter than the water, a trough a little darker
+                    // (_CoreMix of the lit tone); they thin out toward the middle and end softly at the rim
+                    float waves = _BandSides > 0.5 ? _BandSides : 2.5;
+                    float w = sin((r * waves - _BandInner) * TWO_PI);
+                    half env = (half)(smoothstep(0.10, 0.55, r) * (1.0 - smoothstep(0.90, 1.0, r)));
+                    half crest = (half)saturate(w) * 0.6;                 // a broad, half see-through light band: a gentle edge, never a drawn line
+                    half trough = (half)saturate(-w) * 0.75;
+                    half3 lit = _Lit > 0.0 ? tint * FxLighting(positionWS, half3(0.0, 1.0, 0.0), screenUV, 0.0) : tint;
+                    half sum = crest + trough;
+                    cover = sum * env * vc.a;
+                    rgb = ((lit * _Intensity + _EmissionColor.rgb) * crest + lit * _CoreMix * trough) / max(sum, 1e-3);
+                }
+                else if (shape == 11)
+                {   // a foam patch on water, on a world-aligned quad: a soft disc broken into flecks toward its rim (the flecks stay
+                    // where they are on the water while the patch spreads)
+                    float n = OzFxNoise(positionWS.xz * 2.6) * 0.62 + OzFxNoise(positionWS.xz * 6.3 + 11.3) * 0.38;
+                    half body = (half)(1.0 - smoothstep(0.30, 1.0, r + (n - 0.5) * 0.6));
+                    half flecks = (half)smoothstep(0.30, 0.60, n + (1.0 - r) * 0.42);
+                    cover = body * flecks * vc.a;
                     half3 lit = _Lit > 0.0 ? tint * FxLighting(positionWS, half3(0.0, 1.0, 0.0), screenUV, 0.0) : tint;
                     rgb = lit * _Intensity + _EmissionColor.rgb;
                 }

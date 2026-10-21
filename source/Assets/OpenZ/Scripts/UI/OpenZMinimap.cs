@@ -63,7 +63,7 @@ namespace OpenZ
             k = Mathf.Clamp(Mathf.CeilToInt(mapPx / Mathf.Max(mw, mh)), k0, 8);
             ek = Mathf.Max(1, Mathf.RoundToInt(k / (float)k0));
             tw = mw * k; th = mh * k;
-            var fr = OzLayout.Minimap;
+            var fr = OzHudLayout.At(OzPanel.Minimap, OzLayout.Minimap);
             PanelSize = fr.Size;
             panel = Hud.Node("Minimap", h.Root).Place(fr);
             h.AddBlocker(panel);
@@ -74,7 +74,7 @@ namespace OpenZ
             }
             else Hud.Plate(panel, "lg", 28f, OzUi.Amber);
             panel.gameObject.AddComponent<Canvas>();                                                   // nested canvas: per-frame frustum updates rebuild only this panel
-            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L02" ? "L02 · DESERT" : game.level;
+            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : game.level;
             Hud.Label(panel, "Level", lvl, 10, OzUi.Muted, 0.16f, OzStyle.Plain).At(OzLayout.MinimapTitleX, OzLayout.MinimapLevelY, OzH.L, false, 200);
 
             // well: the map fitted keeping its aspect (zmini_map.cpp:24-59), letterbox bands hatched with coordinate ticks
@@ -126,6 +126,9 @@ namespace OpenZ
             if (game.level == "L17")                                                                          // Z level 17 (refs/zod_maps/L17_z1996.png)
                 return new Pal { ground = new Color32(86, 86, 84, 255), road = new Color32(118, 116, 110, 255), water = new Color32(92, 104, 58, 255),
                                  deep = new Color32(70, 82, 44, 255), cliff = new Color32(172, 168, 158, 255), cliffDark = new Color32(138, 134, 126, 255), plates = true };
+            if (game.level == "L16")
+                return new Pal { ground = new Color32(104, 122, 54, 255), road = new Color32(124, 122, 116, 255), water = new Color32(110, 96, 50, 255),
+                                 deep = new Color32(86, 74, 38, 255), cliff = new Color32(132, 104, 70, 255), cliffDark = new Color32(104, 80, 52, 255), plates = false };
             return new Pal { ground = new Color32(158, 120, 80, 255), road = new Color32(126, 124, 118, 255), water = new Color32(78, 168, 160, 255),   // Z level 2; turquoise water like the 3D river
                              deep = new Color32(56, 128, 128, 255), cliff = new Color32(190, 136, 86, 255), cliffDark = new Color32(158, 106, 64, 255), plates = false };
         }
@@ -435,18 +438,25 @@ namespace OpenZ
         // ------------------------------------------------------------------ camera frustum (Zod: yellow view rectangle; guide: 1.5 u AMBER polyline)
         static readonly Vector2[] Corners = { new Vector2(0, 0), new Vector2(1, 0), new Vector2(1, 1), new Vector2(0, 1) };
         readonly Vector2[] fr = new Vector2[4];
+        /// <summary>The view frame as drawn: its four corners in the map picture's units (the screen's lower-left, lower-right,
+        /// upper-right, upper-left corner on the ground).</summary>
+        public Vector2[] Frame => fr;
+        const float FrameReach = 3000f;                                                                   // free look: a corner ray is followed this far at most (m)
         void DrawFrustum()
         {
             var cam = hud.rts ? hud.rts.GetComponent<Camera>() : Camera.main; if (!cam) return;
+            bool free = hud.rts && hud.rts.FreeLook;                                                    // free look (testing mode): the four corner rays meet the flat ground plane (y 0): a steady trapezoid at any heading and tilt
             for (int i = 0; i < 4; i++)
             {
                 var ray = cam.ViewportPointToRay(new Vector3(Corners[i].x, Corners[i].y, 0));
-                if (!game.GroundPoint(ray, out var g)) g = ray.GetPoint(300);
+                Vector3 g;
+                if (free) g = ray.GetPoint(ray.direction.y < -1e-4f ? Mathf.Min(-ray.origin.y / ray.direction.y, FrameReach) : FrameReach);
+                else if (!game.GroundPoint(ray, out g)) g = ray.GetPoint(300);
                 var px = ZGame.WorldToPx(g);
                 fr[i] = PxToLocal(px.x, px.y);
             }
             float w = OzPx.Line(1.5f), ws = OzPx.Line(3f);
-            OzCamEdge.KeepFrameBottom(fr, ws * 0.5f);                                                    // the camera may look past the lower map edge: the frame's lower line stays on the map's lower border (OzCamEdge.cs)
+            if (!free) OzCamEdge.KeepFrameBottom(fr, ws * 0.5f);                                                    // the camera may look past the lower map edge: the frame's lower line stays on the map's lower border (OzCamEdge.cs)
             for (int i = 0; i < 4; i++) { Line(frustumShade[i], fr[i], fr[(i + 1) % 4], ws); Line(frustum[i], fr[i], fr[(i + 1) % 4], w); }
         }
 

@@ -90,7 +90,7 @@ namespace OpenZ
             if (on && !built) Build();
             shown = on;
             foreach (var p in panels) p.gameObject.SetActive(on);
-            if (!on) EndDrag();
+            EndDrag();                                                                                   // item 226: P mid-drag, either way, ends the drag and hides the icon
             AudioDirector.UI(on ? "ui_confirm" : "ui_cancel");
         }
 
@@ -105,28 +105,30 @@ namespace OpenZ
             ghostRt.Anchor(Vector2.zero, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(Cell, Cell));
             ghost = ghostRt.gameObject.AddComponent<RawImage>(); ghost.raycastTarget = false; ghost.color = new Color(1f, 1f, 1f, 0.85f);
             ghostRt.gameObject.SetActive(false);
-            panels.Add(ghostRt); ghostRt.gameObject.SetActive(false);
+            ghostRt.gameObject.SetActive(false);                                                       // item 226: the ghost is NOT one of the panels: Show() must never switch it on (it showed the last dragged icon again, stuck where it was dropped, on every P; a blank one on the first P)
         }
 
         RectTransform Column(string name, Team team, string title, Vector2 anchor, Vector2 pivot, Vector2 pos)
         {
             float w = Pad * 2f + Cols * Cell + (Cols - 1) * Gap;
-            int rows = Rows(Robots.Length) + Rows(Vehicles.Length) + Rows(ZBuildLists.Cannons.Length);
-            float h = Pad + Head + 3 * (Head - 4f) + rows * (Cell + LabelH + Gap) + Pad * 0.5f;
+            int extra = OzCheatShuttle.Offered(team) ? 1 : 0;                                              // DV118: the TRANSPORT section (UI/OzCheatShuttle.cs)
+            int rows = Rows(Robots.Length) + Rows(Vehicles.Length) + Rows(ZBuildLists.Cannons.Length) + extra * Rows(OzCheatShuttle.Types.Length);
+            float h = Pad + Head + (3 + extra) * (Head - 4f) + rows * (Cell + LabelH + Gap) + Pad * 0.5f;
             var p = Hud.Node(name, hud.Root); p.Anchor(anchor, pivot, pos, new Vector2(w, h));
             Hud.Plate(p, "md", Head + 6f, OzUi.Mark(team));
             Hud.Label(p, "Title", title, 12, OzUi.Ink, 0.16f).At(Pad, 8);
             float y = Pad + Head + 4f;
             y = Section(p, "ROBOT SQUADS", Robots, team, y);
             y = Section(p, "VEHICLES", Vehicles, team, y);
-            Section(p, "GUNS", ZBuildLists.Cannons, team, y);
+            y = Section(p, "GUNS", ZBuildLists.Cannons, team, y);
+            if (OzCheatShuttle.Offered(team)) Section(p, "TRANSPORT", OzCheatShuttle.Types, team, y);       // DV118: the playable shuttle, dragged in as a full unit
             hud.AddBlocker(p);
             return p;
         }
 
         RectTransform NeutralRow()
         {
-            int n = Vehicles.Length + ZBuildLists.Cannons.Length;
+            int n = Vehicles.Length + ZBuildLists.Cannons.Length + (OzCheatShuttle.Offered(Team.Neutral) ? OzCheatShuttle.Types.Length : 0);   // K256f: + the empty shuttle
             float w = Pad * 2f + n * Cell + (n - 1) * Gap, h = Pad + Head + Cell + LabelH + Pad * 0.5f;
             var p = Hud.Node("CheatNeutral", hud.Root); p.Anchor(new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -86f), new Vector2(w, h));
             Hud.Plate(p, "md", Head + 6f, OzUi.Neutral);
@@ -134,6 +136,7 @@ namespace OpenZ
             int i = 0;
             foreach (var t in Vehicles) Tile(p, t, Team.Neutral, Pad + i++ * (Cell + Gap), Pad + Head);
             foreach (var t in ZBuildLists.Cannons) Tile(p, t, Team.Neutral, Pad + i++ * (Cell + Gap), Pad + Head);
+            if (OzCheatShuttle.Offered(Team.Neutral)) foreach (var t in OzCheatShuttle.Types) Tile(p, t, Team.Neutral, Pad + i++ * (Cell + Gap), Pad + Head);   // K256f: the empty shuttle (UI/OzCheatShuttle.cs)
             hud.AddBlocker(p);
             return p;
         }
@@ -154,7 +157,7 @@ namespace OpenZ
             var cell = Hud.Node("Cell_" + type, p).TL(x, y, Cell, Cell + LabelH);
             var bg = Hud.Img(cell, "Bg", OzUi.A(OzUi.GM950, 0.75f)); bg.rectTransform.TL(0, 0, Cell, Cell);
             Hud.Border(bg.transform, OzUi.A(team == Team.Neutral ? OzUi.Neutral : OzUi.Mark(team), 0.55f));
-            var tex = team == Team.Neutral ? UnitArt.Icon(type, Team.Red) : ((Texture)UnitArt.VehiclePortrait(type, team) ?? UnitArt.Icon(type, team));   // crewed = team portrait
+            var tex = team == Team.Neutral ? (OzCheatShuttle.NeutralArt(type) ?? UnitArt.Icon(type, Team.Red)) : ((Texture)UnitArt.VehiclePortrait(type, team) ?? UnitArt.Icon(type, team));   // crewed = team portrait; K256f: the empty shuttle's own picture
             var raw = Hud.Node("Art", cell).TL(3, 3, Cell - 6, Cell - 6).gameObject.AddComponent<RawImage>();
             raw.raycastTarget = false; raw.texture = tex;
             raw.color = team == Team.Neutral ? new Color(0.62f, 0.62f, 0.62f, 1f) : Color.white;      // grey = empty
@@ -176,13 +179,14 @@ namespace OpenZ
                 foreach (var e in entries)
                     if (OpenZHud.Contains(e.rt, mp))
                     {
-                        drag = e; ghost.texture = e.tex; ghost.color = e.team == Team.Neutral ? new Color(0.62f, 0.62f, 0.62f, 0.85f) : new Color(1f, 1f, 1f, 0.85f);
+                        drag = e; Drags++; ghost.texture = e.tex; ghost.color = e.team == Team.Neutral ? new Color(0.62f, 0.62f, 0.62f, 0.85f) : new Color(1f, 1f, 1f, 0.85f);
                         ghostRt.gameObject.SetActive(true); ghostRt.SetAsLastSibling(); AudioDirector.UI("ui_drag_pick");   // sound_v3
                         break;
                     }
                 if (drag == null) return;
             }
             ghostRt.anchoredPosition = hud.ScreenToCanvas(mp);
+            if (!m.leftButton.isPressed && !m.leftButton.wasReleasedThisFrame) { EndDrag(); AudioDirector.UI("ui_drag_cancel"); return; }   // item 226: the release was never seen (the window lost focus mid-drag): the icon goes, nothing spawns
             if (m.rightButton.wasPressedThisFrame || (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)) { EndDrag(); AudioDirector.UI("ui_cancel"); return; }
             if (!m.leftButton.wasReleasedThisFrame) return;
             var d = drag.Value; EndDrag();
@@ -200,9 +204,19 @@ namespace OpenZ
         }
 
         void EndDrag() { drag = null; if (ghostRt) ghostRt.gameObject.SetActive(false); }
+        /// <summary>item 226: the window lost focus or the overlay went away mid-drag: the icon goes. Public for the counted check.</summary>
+        public void CancelDrag() => EndDrag();
+        void OnApplicationFocus(bool has) { if (!has) EndDrag(); }
+        void OnDisable() => EndDrag();
+        /// <summary>Checks: the dragged icon is on the screen right now.</summary>
+        public static bool GhostVisible => I && I.ghostRt && I.ghostRt.gameObject.activeInHierarchy;
+        /// <summary>Checks: drags started since the game began.</summary>
+        public static int Drags;
 
         void Spawn(string type, Team team, Vector2Int px)
         {
+            OzHighScores.Unranked = "TESTING OVERLAY USED · NOT IN THE TABLE";                               // high scores: this match does not enter the table
+            if (type == ZWorld.ShuttleType) { OzCheatShuttle.Spawn(game, hud, team, px); return; }          // DV118: a full shuttle, its pad and its view (UI/OzCheatShuttle.cs)
             var W = game.World;
             bool robot = ZBuildLists.IsRobot(type);
             int foot = robot ? 1 : 2;

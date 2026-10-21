@@ -46,11 +46,12 @@ namespace OpenZ.Sim
         public int PassengerGrenades;
 
         public bool IsApc => Kind == ZKind.Vehicle && Type == "apc";
-        bool ApcCrewRules => IsApc && ZWorld.ApcCrewDeviation;
+        bool ApcCrewRules => (IsApc && ZWorld.ApcCrewDeviation) || IsShuttle;   // DV118: the playable shuttle carries one squad by these rules (Sim/ZWorld.Shuttle.cs)
 
         /// <summary>DV15: this owned, crewed APC takes `team`'s squad as passengers now (no passengers aboard yet).</summary>
         public bool CanTakePassengers(Team team) =>
-            ApcCrewRules && !Destroyed && KillAt < 0 && Owner != Team.Neutral && Owner == team && Drivers.Count > 0 && Passengers.Count == 0;
+            (ApcCrewRules && ShuttleDoorOk && !Destroyed && KillAt < 0 && Owner != Team.Neutral && Owner == team && Drivers.Count > 0 && Passengers.Count == 0)   // DV118: the shuttle only on the ground
+            || ShuttleEmptyTakes(team);                                                                   // DV118 (K256f): an EMPTY shuttle takes a human team's ordered squad, its leader the pilot (Sim/ZWorld.ShuttleEmpty.cs)
 
         /// <summary>DV15: robot `r` (a squad leader or one of its minions) may board this APC as a passenger.</summary>
         public bool CanTakePassengers(ZObject r) => r != null && r.IsRobot && !r.Destroyed && CanTakePassengers(r.Owner);
@@ -60,7 +61,7 @@ namespace OpenZ.Sim
         public bool CanEjectCrew()
         {
             if (Destroyed || Owner == Team.Neutral) return false;
-            if (ApcCrewRules) return Passengers.Count > 0;
+            if (ApcCrewRules) return (Passengers.Count > 0 || ShuttleHeroPilot) && (ShuttleDoorOk || ShuttleAirExitOk()) && ShuttleCrewSettled;   // K256f2: a hero pilot gets out too (Sim/ZWorld.ShuttleHeroes.cs)   // DV118: the shuttle lets them out on the ground, once the squad walking in has sat down; K256f: in the air only where it may land and let them out (Sim/ZWorld.ShuttleEmpty.cs)
             return CanEjectDrivers() && Drivers.Count > 0;
         }
 
@@ -88,7 +89,7 @@ namespace OpenZ.Sim
         public const int FollowSlack = 10;
         internal bool FollowBoardTarget(ZObject t)
         {
-            if (IsMinion || t == null || !t.CanTakePassengers(this) || Waypoints.Count == 0) return false;
+            if (IsMinion || t == null || t.IsShuttle || !t.CanTakePassengers(this) || Waypoints.Count == 0) return false;   // DV118: a landed shuttle never moves (its squad walks to its back slots)
             var wp = Waypoints[0];
             if (Math.Abs(t.CenterX - wp.x) <= FollowSlack && Math.Abs(t.CenterY - wp.y) <= FollowSlack) return false;
             wp.x = t.CenterX; wp.y = t.CenterY; Waypoints[0] = wp;
@@ -130,7 +131,8 @@ namespace OpenZ.Sim
         /// become the passenger squad. Entered event with flag = true (passengers: no capture, no owner change).</summary>
         bool BoardAsPassengers(ZObject r, ZObject v)
         {
-            if (!ApcCrewDeviation || r == null || v == null || r.KillAt >= 0 || r.IsMinion || !v.CanTakePassengers(r)) return false;
+            if (!(ApcCrewDeviation || (v != null && v.IsShuttle)) || r == null || v == null || r.KillAt >= 0 || r.IsMinion || !v.CanTakePassengers(r)) return false;
+            if (v.IsShuttle) ShuttleBoardSchedule(r, v);                                    // DV118: when each figure reaches the ramp foot, the ramp's hold (Sim/ZWorld.ShuttleRamp.cs)
             v.PassengerType = r.Type;
             v.Passengers.Clear();
             v.Passengers.Add(r.Health);
@@ -158,6 +160,7 @@ namespace OpenZ.Sim
         bool EjectPassengers(Team team, ZObject v)
         {
             if (v == null || team == Team.Neutral || v.Owner != team || v.Destroyed || !v.CanEjectCrew()) return false;
+            if (v.IsShuttle) return ShuttleExitOrder(v, team);                               // DV118: the ramp comes down first; the squad gets out when it is fully down (Sim/ZWorld.ShuttleRamp.cs)
             return PassengersOut(v, team) != null;
         }
 
@@ -171,6 +174,8 @@ namespace OpenZ.Sim
             var hp = v.Passengers.ToList();
             var leader = CreateRobotGroup(v.PassengerType, v.LocX, v.LocY, team, hp.Count);
             var squad = new List<ZObject> { leader }; squad.AddRange(leader.Minions);
+            HeroCrewOut(v, squad, hp, true);                                                                // DV108: hero members come out as themselves, Brad first, with their own hit points (Sim/ZHeroSquad.cs)
+            if (v.IsShuttle) ShuttlePlaceCrew(v, squad); else ExitWalkApc(v, squad);   /* DV132: the APC's getting-out times (Sim/ZObject.ExitWalk.cs) */                                                   // DV118: each one standing on its own back slot behind the ship (Sim/ZWorld.ShuttleRamp.cs)
             for (int i = 0; i < squad.Count; i++)
             {
                 squad[i].Health = Math.Min(squad[i].MaxHealth, Math.Max(1, hp[i]));

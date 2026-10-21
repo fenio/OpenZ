@@ -40,8 +40,9 @@ namespace OpenZ.Sim
             int drv = Drivers.Count > 0 ? Drivers[0] : 0;
             bool hit = Health < restHp || drv < restDriverHp || LastEnemyHit > restHitSeen;
             restHp = Health; restDriverHp = drv; restHitSeen = LastEnemyHit;
-            if (!ZWorld.SnipeDeviation || Drivers.Count == 0 || Owner == Team.Neutral || VeteranActive || World.GameOver || !ZWorld.IdleRestTypes.Contains(Type))
+            if (!ZWorld.SnipeDeviation || Drivers.Count == 0 || Owner == Team.Neutral || VeteranActive || World.GameOver || !ZWorld.IdleRestTypes.Contains(Type) || HatchShutSpot(time))   // DV87: no rest in the open hatch on a bridge or in a door lane
             { RestEnd(-1); return; }
+            if (StrikeHeld) { RestEnd(-1); return; }                                         // DV107: the crew of a strike group's vehicle does not rest in the hatch while the group forms or marches
             bool order = Waypoints.Count > 0;
             bool busy = order || IsMoving || AttackObject != null || cgTarget != null || Stunned || hit;
             if (!Resting)

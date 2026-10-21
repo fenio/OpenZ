@@ -43,7 +43,7 @@ namespace OpenZ
         static void OnLoaded(Scene s, LoadSceneMode m)
         {
             if (!On || !Application.isPlaying || !s.IsValid()) return;
-            if (!(s.name.StartsWith("L02") || s.name.StartsWith("L17"))) return;
+            if (!(s.name.StartsWith("L02") || s.name.StartsWith("L16") || s.name.StartsWith("L17"))) return;
             if (I && I.gameObject.scene == s) return;
             var go = new GameObject("DoorWear");
             SceneManager.MoveGameObjectToScene(go, s);

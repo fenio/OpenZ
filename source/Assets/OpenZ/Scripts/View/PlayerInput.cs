@@ -58,12 +58,12 @@ namespace OpenZ
             for (int i = 0; i < Selection.Count; i++)                                                   // a selected squad leader died: keep the squad selected (its new leader)
             {
                 var s = Selection[i]; int guard = 0;
-                while (s != null && s.Destroyed && s.Successor != null && guard++ < 8) s = s.Successor;
+                while (s != null && (s.Destroyed || s.KillAt >= 0) && s.Successor != null && guard++ < 8) s = s.Successor;   // KC4b: also a leader who left the map (boarded): the squad's next member stays selected
                 if (s != null && s.Leader != null && !s.Leader.Destroyed && s.Leader.KillAt < 0 && s.Leader.Owner == s.Owner) s = s.Leader;   // bug 12 / 18: a picked member -> its (new) leader
                 if (s != null && s != Selection[i] && !s.Destroyed && s.Owner == game.player && !Selection.Contains(s)) Selection[i] = s;
                 else if (s != null && s != Selection[i] && Selection.Contains(s)) { Selection.RemoveAt(i); i--; }
             }
-            Selection.RemoveAll(selPrune ??= o => o.Destroyed || o.Owner != game.player);
+            Selection.RemoveAll(selPrune ??= o => o.Destroyed || o.Owner != game.player || (o.KillAt >= 0 && W.Get(o.Id) != o));   // KC4b: a robot removed from the map (boarded) leaves the selection once the squad's hand-over is followed
             Vector2 mp = mouse.position.ReadValue();
             Hover = HoverAt(mp);
 
@@ -81,8 +81,8 @@ namespace OpenZ
             }
             if (lDown && mouse.leftButton.isPressed)
             {
-                if (!dragging && (mp - boxStart).sqrMagnitude > 4f) AudioDirector.UI("ui_box_select");
-                if ((mp - boxStart).sqrMagnitude > 4f) dragging = true;
+                if (!dragging && (mp - boxStart).sqrMagnitude > BoxSqr) AudioDirector.UI("ui_box_select");
+                if ((mp - boxStart).sqrMagnitude > BoxSqr) dragging = true;
                 if (dragging) CollectBox(mp);
             }
             if (lDown && mouse.leftButton.wasReleasedThisFrame)
@@ -109,7 +109,7 @@ namespace OpenZ
                 {
                     var pt = ZGame.WorldToPx(pg);
                     MarkerPos = pg;
-                    OrderEach((w, u) => w.SendPatrol(game.player, u, pt.x, pt.y), $"patrol to ({pt.x},{pt.y})");
+                    OrderEach((w, u) => !OzShuttleOrderAim.PatrolRefused(w, u, pt.x, pt.y) && w.SendPatrol(game.player, u, pt.x, pt.y), $"patrol to ({pt.x},{pt.y})");   // K256g SHUTTLE ORDERS: no patrol for a shuttle to a place where it can never land
                 }
                 else AudioDirector.UI("ui_order_invalid");
             }
@@ -122,12 +122,14 @@ namespace OpenZ
                 else if (game.GroundPoint(Cam.ScreenPointToRay(mp), out var gp))
                 {
                     var pt = ZGame.WorldToPx(gp);
+                    OzShuttleQueueInput.Click(pending.Count == 0, queueClick);                                // K410 (DV125): a Shift click for a flying shuttle goes after its route (View/OzShuttleQueueInput.cs)
                     foreach (var u in Selection)
                     {
                         if (!pending.TryGetValue(u, out var l)) pending[u] = l = new List<ZWaypoint>();
                         l.Add(BuildWaypoint(u, Hover, pt.x, pt.y, ctrl, alt));
                     }
                     MarkerPos = gp;
+                    OzShuttleKickflip.OrderClick(Selection, mp, gp, queueClick, OzBindings.Held(OzAction.NearestOnly));   // K344: a double right-click of a far move = the shuttle's kickflip (view only; the orders as before; View/OzShuttleKickflip.cs)
                     if (!shift) Flush(OzBindings.Held(OzAction.NearestOnly), mp);   // menu_exe_v1: bound key (Z)
                 }
                 else AudioDirector.UI("ui_order_invalid");
@@ -158,8 +160,8 @@ namespace OpenZ
             }
             else if (!alt)
             {
-                bool repairKey = OzBindings.Pressed(OzAction.RepairVehicles) && SendToRepair();
-                if (OzBindings.Pressed(OzAction.NextRobot) && !(repairKey && OzBindings.KeyOf(OzAction.NextRobot) == OzBindings.KeyOf(OzAction.RepairVehicles))) Cycle('r', ZKind.Robot, mp);   // menu_exe_v1: bound keys (R V G)
+                bool menuKey = OzRallyKey.Take(this), repairKey = !menuKey && OzBindings.Pressed(OzAction.RepairVehicles) && SendToRepair();
+                if (OzBindings.Pressed(OzAction.NextRobot) && !((repairKey || menuKey) && OzBindings.KeyOf(OzAction.NextRobot) == OzBindings.KeyOf(OzAction.RepairVehicles))) Cycle('r', ZKind.Robot, mp);   // menu_exe_v1: bound keys (R V G)
                 if (OzBindings.Pressed(OzAction.NextVehicle)) Cycle('v', ZKind.Vehicle, mp);
                 if (OzBindings.Pressed(OzAction.NextGun)) Cycle('g', ZKind.Cannon, mp);
             }
@@ -186,6 +188,27 @@ namespace OpenZ
 
         bool InView(Vector2 p) => p.x >= 0 && p.y >= 0 && p.x <= Screen.width && p.y <= Screen.height;
 
+        /// <summary>The pointer travel (px, squared) past which a held left press is the selection box and no longer a click
+        /// (2 px; Zod: more than 1 px, zplayer.cpp:2581).</summary>
+        public const float BoxSqr = 4f;
+
+        /// <summary>b30: a left press that went down on an own fort / factory is held back by the HUD, because it may be the click
+        /// that opens the build menu. Once it has travelled it is a box-select after all, and the HUD hands it over here
+        /// (OpenZHud.Update): the box runs from where the button went down, exactly as if this script had taken the press itself
+        /// (the old selection goes unless Shift is held, the box sound, a patrol that waited for its far end is dropped).
+        /// released = the button came up on this same frame: the box is final at once.</summary>
+        public void BoxFromHeldPress(Vector2 start, Vector2 now, bool shift, bool released)
+        {
+            if (game == null || game.World == null) return;
+            if (PatrolArmed) { PatrolArmed = false; AudioDirector.UI("ui_cancel"); }
+            lDown = true; dragging = true; boxStart = start; additive = shift;
+            AudioDirector.UI("ui_box_select");
+            CollectBox(now);                                                                            // clears the old selection unless Shift is held
+            if (!released) return;                                                                      // Update goes on with the box and ends it on the release
+            lDown = dragging = false;
+            if (Selection.Count > 0) SelectTime = Time.unscaledTime;
+        }
+
         // ------------------------------------------------------------------ selection
         /// <summary>Screen rectangle of a unit's Zod footprint (ground rectangle extruded to the model height).</summary>
         public Rect ScreenRect(ZObject o)
@@ -197,7 +220,7 @@ namespace OpenZ
             if (o.IsUnit && game.Views.TryGetValue(o.Id, out var uv) && uv && uv.gameObject.activeInHierarchy)
             {
                 if (o.Kind != ZKind.Robot && MeshRect(o, out var mr)) return MinSize(Grow(mr, 3f * UiK), 22f * UiK);
-                float rad = o.Kind == ZKind.Robot ? 0.6f : o.Kind == ZKind.Cannon ? 1.3f : 1.6f, hh = o.Kind == ZKind.Robot ? 1.85f : 2.2f;
+                float rad = o.Kind == ZKind.Robot ? 0.6f * OzHeroSquadView.Tall(o) : o.Kind == ZKind.Cannon ? 1.3f : 1.6f, hh = o.Kind == ZKind.Robot ? 1.85f * OzHeroSquadView.Tall(o) : 2.2f;   // KC4b: a hero's size
                 return MinSize(BoxRect(c, uv.transform.position, rad, hh), (o.Kind == ZKind.Robot ? 16f : 22f) * UiK);
             }
             if (o.Kind == ZKind.Building && MeshRect(o, out var br)) return br;
@@ -341,6 +364,7 @@ namespace OpenZ
                         || n.Contains("Dust") || n.Contains("Flash") || n.Contains("Fx") || n.Contains("Halo") || n.Contains("Light")) continue;
                     var sm = rr.sharedMaterial; if (sm && sm.renderQueue >= 2900) continue;                // transparent / additive fx
                     if (unit && SkipPart(rr.transform, t)) continue;                                           // (e): the unit's own model only
+                    if (o.IsShuttle && !rr.gameObject.name.StartsWith("SH_")) continue;                         // DV118: the shuttle's frame: its hull, pods, legs, nozzles and lamps (no ramp, bay or effects)
                     if (o.Kind == ZKind.Vehicle && GunPart(rr.transform, t, jeep)) continue;
                     Bounds mbnd; Matrix4x4 m2w;
                     if (rr is SkinnedMeshRenderer smr)
@@ -351,7 +375,7 @@ namespace OpenZ
                     else
                     {
                         var mf = rr.GetComponent<MeshFilter>(); if (!mf || !mf.sharedMesh) continue; mbnd = RealBounds(mf.sharedMesh); m2w = rr.transform.localToWorldMatrix;
-                        if (!unit && mf.sharedMesh.isReadable)
+                        if ((!unit || o.IsShuttle) && mf.sharedMesh.isReadable)
                         {   // (7): the building's real vertices (strided to ~20k per mesh) for its silhouette
                             var vs = mf.sharedMesh.vertices; var l2 = w2l * m2w; int step = Mathf.Max(1, vs.Length / 20000);
                             for (int i = 0; i < vs.Length; i += step) ptsTmp.Add(l2.MultiplyPoint3x4(vs[i]));
@@ -365,17 +389,17 @@ namespace OpenZ
                 }
                 if (!any) return false;
                 meshBox[o.Id] = mb = (t, lb); MeshBoxMeasures++;
-                meshPts[o.Id] = !unit && ptsTmp.Count > 8 ? Silhouette(ptsTmp, lb) : null;
+                meshPts[o.Id] = (!unit || o.IsShuttle) && ptsTmp.Count > 8 ? Silhouette(ptsTmp, lb) : null;   // DV118: the shuttle's frame is its silhouette too
                 ptsTmp.Clear();
             }
-            if (o.Kind == ZKind.Building && meshPts.TryGetValue(o.Id, out var sil) && sil != null)
+            if ((o.Kind == ZKind.Building || o.IsShuttle) && meshPts.TryGetValue(o.Id, out var sil) && sil != null)
             {   // (7): the projected silhouette, once per frame per building
                 int f = Time.frameCount;
                 if (ptsRect.TryGetValue(o.Id, out var pr) && pr.frame == f) { r = pr.r; return pr.ok; }
                 var cm = Cam; bool ok = false;
                 if (cm)
                 {
-                    var l2w = mb.t.localToWorldMatrix; Vector2 smn = new Vector2(float.MaxValue, float.MaxValue), smx = new Vector2(float.MinValue, float.MinValue);
+                    var l2w = OzPlayableShuttle.FrameL2W(o, mb.t); Vector2 smn = new Vector2(float.MaxValue, float.MaxValue), smx = new Vector2(float.MinValue, float.MinValue);
                     for (int i = 0; i < sil.Length; i++)
                     {
                         var sp = cm.WorldToScreenPoint(l2w.MultiplyPoint3x4(sil[i])); if (sp.z < 0) continue;
@@ -437,14 +461,15 @@ namespace OpenZ
             if (cands.Count == 0) { lastClickType = null; return; }
             var pick = cands[UnityEngine.Random.Range(0, cands.Count)];                  // Zod picks one at random (zplayer.cpp:2583-2614); view RNG: never the sim's seeded stream (unit_voices_v1 review)
             // double-click: every own unit of that type on screen (standard RTS)
-            if (!additive && lastClickType == pick.Type && Time.unscaledTime - lastClickTime < 0.35f)
+            string pickKind = OzHeroSquadView.FaceKey(pick);                                              // KC4b: a hero squad is its own kind here (a grunt's double-click leaves the heroes out, a hero's takes the heroes)
+            if (!additive && lastClickType == pickKind && Time.unscaledTime - lastClickTime < 0.35f)
             {
                 var screen = new Rect(0, 0, Screen.width, Screen.height);
                 Selection.Clear();
-                Selection.AddRange(W.OwnedSelectable(game.player).Where(o => o.Type == pick.Type && screen.Overlaps(ScreenRect(o))));
+                Selection.AddRange(W.OwnedSelectable(game.player).Where(o => OzHeroSquadView.FaceKey(o) == pickKind && screen.Overlaps(ScreenRect(o))));
                 lastClickType = null; SelectAllAt = Time.unscaledTime; SelectVoice(); return;              // sound_v3
             }
-            lastClickType = pick.Type; lastClickTime = Time.unscaledTime;
+            lastClickType = pickKind; lastClickTime = Time.unscaledTime;
             if (additive && Selection.Contains(pick)) { Selection.Remove(pick); RemovedAt = Time.unscaledTime; }   // sound_v3           // Shift+click toggles
             else if (!Selection.Contains(pick)) Selection.Add(pick);
         }
@@ -466,7 +491,7 @@ namespace OpenZ
         {
             if (W == null || W.GameOver) return false;
             var vs = Selection.Where(o => o != null && o.Owner == game.player && o.Kind == ZKind.Vehicle && !o.Destroyed && !o.IsMinion && o.CanBeRepaired()
-                                          && !(o.Waypoints.Count > 0 && o.Waypoints[0].mode == WpMode.UnitRepair)).ToList();
+                                          && !(o.Waypoints.Count > 0 && o.Waypoints[0].mode == WpMode.UnitRepair) && !(o.IsShuttle && o.ShuttleRepairTarget >= 0)).ToList();   // item 271: the shuttle on its repair trip
             if (vs.Count == 0)
             {
                 if (!Selection.Any(o => o != null && o.Kind == ZKind.Vehicle && o.Waypoints.Count > 0 && o.Waypoints[0].mode == WpMode.UnitRepair)) return false;
@@ -485,7 +510,7 @@ namespace OpenZ
                 var st = stations.OrderBy(b => (b.CenterX - v.CenterX) * (double)(b.CenterX - v.CenterX) + (b.CenterY - v.CenterY) * (double)(b.CenterY - v.CenterY)).ThenBy(b => b.Id).First();
                 var wp = BuildWaypoint(v, st, st.CenterX, st.CenterY, false, false);
                 if (wp.mode != WpMode.UnitRepair) continue;
-                if (W.SendWaypoints(game.player, v, new[] { wp }) && v.Waypoints.Count > 0 && v.Waypoints[0].mode == WpMode.UnitRepair) sent++;
+                if (W.SendWaypoints(game.player, v, new[] { wp }) && ((v.Waypoints.Count > 0 && v.Waypoints[0].mode == WpMode.UnitRepair) || (v.IsShuttle && v.ShuttleRepairTarget == st.Id))) sent++;   // item 271
             }
             if (sent == 0) { AudioDirector.UI("ui_order_invalid"); return true; }
             MarkerTime = Time.unscaledTime;
@@ -518,6 +543,8 @@ namespace OpenZ
         ZObject HoverAt(Vector2 mp)
         {
             ZObject h = null, hu = null;
+            int treeX = -100000, treeY = -100000;                                                          // DV88: the tile under the pointer (levels with trees that can be felled only)
+            if (W.TreeTiles.Count > 0 && game.GroundPoint(Cam.ScreenPointToRay(mp), out var treeAt)) { var tp = ZGame.WorldToPx(treeAt); treeX = tp.x >> 4; treeY = tp.y >> 4; }
             var kbd = Keyboard.current; bool forceBridge = kbd != null && kbd.ctrlKey.isPressed;
             // skipped unless Ctrl was held, so a destroyed bridge never became the crane's target; a broken bridge is a target while
             // a crane of ours is selected (repair cursor + CraneRepair order)
@@ -527,6 +554,7 @@ namespace OpenZ
             foreach (var o in W.Objects)
             {
                 if ((o.Destroyed && o.Kind != ZKind.Building) || (o.IsMinion && o.Owner == game.player)) continue;   // DV16: an ENEMY squad member is a target (Zod hovers minions too); only our own minions are skipped
+                if (o.BlockTiles != null && W.IsTreeTile(o) && (Mathf.Abs((o.LocX >> 4) - treeX) > 8 || Mathf.Abs((o.LocY >> 4) - treeY) > 8)) continue;   // DV88: a tree more than 8 tiles from the pointer cannot be under it (its pick box is at most 4.5 m high): no pick box is worked out for it
                 // target only when explicitly ordered (Ctrl held = attack)
                 if (o.IsBridge && !forceBridge && !(craneSel && o.Destroyed)) continue;
                 bool interesting = o.Type == "flag" || o.Type == "grenades" || o.Kind == ZKind.Building || o.Type == "rock" || o.Type == ZWorld.WreckType /* l17_details_v1 DV39 */ ||
@@ -558,7 +586,8 @@ namespace OpenZ
         ZWaypoint BuildWaypoint(ZObject u, ZObject h, int x, int y, bool ctrl, bool alt)
         {
             var wp = ZWaypoint.Move(x, y, !NearHostiles(u));
-            if (ctrl) wp.attackTo = true;
+            if (ctrl) { wp.attackTo = true; wp.fightOnWay = true; }                     // b49: Ctrl = the unit may leave its way to fight what it meets (Sim/ZObject.Calm.cs)
+            if (ctrl) wp.forceFire = true;                                              // DV113: Ctrl = force fire: a Pyro flames the building or bridge it is sent at (Sim/ZObject.PyroForceBurn.cs)
             if (alt) wp.attackTo = false;
             if (h == null) return wp;
             wp.refId = h.Id;
@@ -596,7 +625,7 @@ namespace OpenZ
         {
             if (Selection.Count != 1) return false;
             var u = Selection[0];
-            if (!u.CanEjectCrew() || !ScreenRect(u).Contains(mp)) return false;                      // apc_v1 DV15: an APC without passengers has nothing to EXIT
+            if (!OzShuttleAirOffers.Exit(u) || !ScreenRect(u).Contains(mp)) return false;           // apc_v1 DV15: an APC without passengers has nothing to EXIT; K430b: a shuttle up in the air neither: the click goes on as a move order (UI/OzShuttleAirOffers.cs)
             EjectUnit(u);
             return true;
         }
@@ -610,7 +639,7 @@ namespace OpenZ
         {
             if (u == null) return false;
             pending.Remove(u);                                                                            // ClearDevWayPointsOfSelected
-            bool ok = W.Eject(game.player, u);
+            bool ok = OzShuttleAirOffers.ExitOrder(u) && W.Eject(game.player, u);                     // K430b: no EXIT order up in the air (refused with the blip below; UI/OzShuttleAirOffers.cs)
             if (!ok) AudioDirector.UI("ui_order_invalid");
             else { MarkerTime = Time.unscaledTime; EjectedAt = MarkerTime; }                             // sound_v3
             return ok;
@@ -634,8 +663,13 @@ namespace OpenZ
         Vector3 ghostScale0 = Vector3.one; bool ghostOnTower;                                               // combat_nb_v1 NB28
         /// <summary>combat_nb_v1 NB28: the placement cursor is on a fort tower pad (the ghost sits on the pad, PlaceTile = the Zod turret spot).</summary>
         public bool PlaceOnTower => ghostOnTower;
+        /// <summary>k252: which of Placing's stored guns is placed: 0 = the first (PLACE, the key, as before); a ready-gun tile by the
+        /// building picks its own gun (UI/OzReadyGuns.cs). The Sim's PlaceCannon takes the index; its rules do not depend on it.</summary>
+        public int PlaceIndex { get; private set; }
+        /// <summary>k252: the same placement as PLACE for one stored gun of an own building (a ready-gun tile).</summary>
+        public void BeginPlaceCannon(ZObject b, int index) { BeginPlaceCannon(b); if (Placing == b) PlaceIndex = Mathf.Clamp(index, 0, b.StoredCannons.Count - 1); }
 
-        public void BeginPlaceCannon(ZObject b) { if (b != null && b.Owner == game.player && b.StoredCannons.Count > 0) Placing = b; }
+        public void BeginPlaceCannon(ZObject b) { if (b != null && b.Owner == game.player && b.StoredCannons.Count > 0) { Placing = b; PlaceIndex = 0; } }
         public void CancelPlace() { Placing = null; if (ghost) ghost.SetActive(false); PlacementFootprint.Hide(); }
 
         void UpdatePlacement(Mouse mouse, Keyboard kb, Vector2 mp)
@@ -648,16 +682,17 @@ namespace OpenZ
             }
             if (Placing == null) return;
             if (Placing.Owner != game.player || Placing.StoredCannons.Count == 0 || kb.escapeKey.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame) { if (kb.escapeKey.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame) AudioDirector.UI("ui_cancel"); CancelPlace(); return; }
+            if (PlaceIndex >= Placing.StoredCannons.Count) PlaceIndex = Placing.StoredCannons.Count - 1;   // k252 (UI/OpenZProductionWindow.Buttons.cs, UI/OzReadyGuns.cs): the gun being placed
             if (!game.GroundPoint(Cam.ScreenPointToRay(mp), out var gp)) return;
             var px = ZGame.WorldToPx(gp);
             // combat_nb_v1 NB28: the 2x2 spot whose centre is nearest the pointer (was: the tile under it = the ghost's top-left, the
             // ghost's centre up to 16 px off the pointer); on a fort tower pad the pad's Zod turret spot (the pad is 9 m up and 3.7 m
             // off the spot: the ground point under the pointer lay inside the fort)
             PlaceTile = new Vector2Int(Mathf.RoundToInt(px.x / 16f - 1f), Mathf.RoundToInt(px.y / 16f - 1f));
-            ghostOnTower = TowerMounts.TurretSpotUnderRay(game, Cam.ScreenPointToRay(mp), Placing.StoredCannons[0], out var towerTile, out var towerSeat, out float towerYaw);
+            ghostOnTower = TowerMounts.TurretSpotUnderRay(game, Cam.ScreenPointToRay(mp), Placing.StoredCannons[PlaceIndex], out var towerTile, out var towerSeat, out float towerYaw);
             if (ghostOnTower) PlaceTile = towerTile;
             PlaceValid = W.CannonPlacable(Placing, PlaceTile.x, PlaceTile.y);
-            var type = Placing.StoredCannons[0];
+            var type = Placing.StoredCannons[PlaceIndex];   // k252 (UI/OpenZProductionWindow.Buttons.cs, UI/OzReadyGuns.cs): the gun being placed (0 = the first, as before)
             if (!ghost || ghostType != type)
             {
                 if (ghost) Destroy(ghost);
@@ -683,7 +718,7 @@ namespace OpenZ
             else PlacementFootprint.Show(game, wpos, 4f, PlaceValid, false, 0f);
             if (mouse.leftButton.wasReleasedThisFrame)
             {
-                var c = W.PlaceCannon(game.player, Placing, PlaceTile.x, PlaceTile.y);
+                var c = W.PlaceCannon(game.player, Placing, PlaceTile.x, PlaceTile.y, PlaceIndex);   // k252 (UI/OpenZProductionWindow.Buttons.cs, UI/OzReadyGuns.cs): that gun (the Sim's own index)
                 if (c != null) CancelPlace();
                 else AudioDirector.UI("ui_cannon_place_invalid");
                 if (c == null) OzGunZone.Refused(this);                                                  // the reason in words, as a HUD notice (OzGunZone)
@@ -695,6 +730,8 @@ namespace OpenZ
         /// <summary>zplayer.cpp:2942-3016: send every pending list (Z held: only the unit nearest to its first waypoint).</summary>
         void Flush(bool zHeld, Vector2 mp)
         {
+            OzShuttleQueueInput.Prefix(game.World, pending);                                         // K410 (DV125): after a Shift queue a flying shuttle's route still to fly goes in front (View/OzShuttleQueueInput.cs)
+            if (OzShuttleOrderAim.Filter(game, pending)) { pending.Clear(); return; }               // K256g SHUTTLE ORDERS: no order for a shuttle to a place where it can never land (View/OzShuttleOrderAim.cs); nobody left = the blip, no order mark
             ZObject only = null;
             if (zHeld && Selection.Count > 0)
                 only = Selection.Where(pending.ContainsKey).OrderBy(u =>

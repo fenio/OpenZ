@@ -53,7 +53,7 @@ namespace OpenZ
             IdBandK = Shader.PropertyToID("_FlybyHazeBandK"), IdThrough = Shader.PropertyToID("_FlybySunThrough");
 
         [System.Serializable] public class SkyLevel { public string texture, textureHi; public float[] horizonSRGB, zenithSRGB, sky15SRGB; public float corridorWidthDeg, corridorClearFromDeg, horizonBlendDeg = 3f, hazeToPanoramaHorizon = 1f; }
-        [System.Serializable] public class SkyLevels { public SkyLevel L02, L17; }
+        [System.Serializable] public class SkyLevels { public SkyLevel L02, L16, L17; }
         [System.Serializable] public class SkyJson { public int version; public SkyLevels levels; }
 
         static SkyJson json; static bool jsonTried;
@@ -82,7 +82,7 @@ namespace OpenZ
                 if (ta) { try { json = JsonUtility.FromJson<SkyJson>(ta.text); } catch (System.Exception e) { Debug.LogWarning("[OpenZ FlybySky] " + JsonPath + ": " + e.Message); } }
             }
             if (json == null || json.levels == null) return null;
-            return level == "L17" ? json.levels.L17 : level == "L02" ? json.levels.L02 : null;
+            return level == "L17" ? json.levels.L17 : level == "L16" ? json.levels.L16 : level == "L02" ? json.levels.L02 : null;
         }
 
         static string Level() => ZGame.I ? ZGame.I.level : null;

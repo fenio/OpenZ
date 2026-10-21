@@ -195,6 +195,7 @@ namespace OpenZ
             float T = OpenZFxPlayer.RealFlight(simDelay, ZGame.I ? ZGame.I.gameSpeed : 1f);
             float g = OpenZFxCatalog.GravityOf(FxWeapon.Cannon);
             g = ShotClearance.LiftGravity(from, to, T, g, 0.6f);
+            g = OzAirShots.LobGravity(from, to, T, g);                                                // K337: a shell at the flying shuttle: its lob under the ceiling (View/OzAirShots.cs)
             var v0 = (to - from) / T; v0.y += g * T * 0.5f;
             MuzzleBlast(from, v0, fort, true);
             return Fly(from, v0, g, T, fort, null);

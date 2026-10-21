@@ -17,6 +17,7 @@ namespace OpenZ
         public static float DisposeAfter = 15f, Radius = 0.072f, HalfHeight = 0.013f, ClatterMin = 0.55f, ClatterGap = 0.08f;
         public const int MaxLive = 8;
         public static int Thrown, Clatters, Disposed, Sunk;
+        public float clatterGain = 1f;                                                             // K248b: this piece's clatter gain (1 = a can; a headshot's head louder, UnitView.HeadPop.cs)
         public static readonly List<string> Log = new List<string>();
         static readonly List<AnticCan> live = new List<AnticCan>();
 
@@ -127,7 +128,7 @@ namespace OpenZ
             float n = c.contactCount > 0 ? Mathf.Abs(Vector3.Dot(c.relativeVelocity, c.GetContact(0).normal)) : c.relativeVelocity.magnitude;
             if (n < ClatterMin || age - lastClatter < ClatterGap || clatters >= 12) return;
             lastClatter = age; clatters++; Clatters++;
-            AnticFx.Sound("rob_antic_can_clatter", at, id, Mathf.Clamp(0.3f + n * 0.14f, 0.3f, 1f));
+            AnticFx.Sound("rob_antic_can_clatter", at, id, Mathf.Clamp(0.3f + n * 0.14f, 0.3f, 1f) * clatterGain);
             if (n > 2.5f && WreckFx.OnScreen(at)) { var fxp = OpenZFxPlayer.I; if (fxp && fxp.isActiveAndEnabled) fxp.Dust(at, 0.12f); }
         }
 

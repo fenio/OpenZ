@@ -248,14 +248,15 @@ namespace OpenZ
             var o = View.Obj; var t = o.AttackObject;
             if (t == null || t.Destroyed) t = predicted;
             if (t == null || t.Destroyed || game == null || !Muzzle) return false;
-            var from = Muzzle.position; var to = game.CenterWorld(t) + Vector3.up * 0.25f;
+            var from = Muzzle.position; var to = OzShuttleAim.AirAim(t, game.CenterWorld(t) + Vector3.up * 0.25f, 0f);   // DV118: up to the flying shuttle
             float dxp = t.CenterX - o.CenterX, dyp = t.CenterY - o.CenterY;
             float T = Mathf.Max(0.12f, Mathf.Sqrt(dxp * dxp + dyp * dyp) / Mathf.Max(1, o.MissileSpeed)) / Mathf.Max(0.25f, game.gameSpeed);
             var v = (to - from) / T; v.y += OpenZFxCatalog.GravityOf(FxWeapon.Bazooka) * T * 0.5f;
             if (v.sqrMagnitude < 1e-4f) return false;
             dir = v.normalized;
             float el = Mathf.Asin(Mathf.Clamp(dir.y, -1f, 1f)) * Mathf.Rad2Deg;
-            if (el > 30f || el < -20f) { var flat = new Vector3(dir.x, 0f, dir.z).normalized; dir = Tilt(flat, Vector3.up, Mathf.Clamp(el, -20f, 30f)); }
+            float elHi = OzShuttleAim.High(t) ? 50f : 30f;                                            // DV118: the tube lifts higher at the flying shuttle
+            if (el > elHi || el < -20f) { var flat = new Vector3(dir.x, 0f, dir.z).normalized; dir = Tilt(flat, Vector3.up, Mathf.Clamp(el, -20f, elHi)); }
             return true;
         }
 
@@ -329,7 +330,7 @@ namespace OpenZ
             bool recent = engaged || now - lastEngagedAt < 1.5f;                                      // between rolls / target switch: stay down
             bool can = recent && !o.IsMoving && drawnSpeed < 0.35f && !wet && !grenades && !View.OnTower
                        && WeaponsV2.Enabled;                                                          // review: the A/B toggle stands them up (was: stayed down)
-            var target = can ? Want : Stance.Stand;
+            var target = SniperCoverView.Drawn(o, can ? Want : Stance.Stand);   // DV122: the rules' stance while they decide it (View/SniperCoverView.cs)
             if (!recent) engTarget = -1;
             // one pose at a time: blend the current one out before another comes in
             if (target != Current && poseRaw <= 0f) { Current = target; landed = false; }
@@ -358,12 +359,13 @@ namespace OpenZ
             var o = View != null ? View.Obj : null; float now = Time.time;
             if (o == null || o.AttackObject == null || o.AttackObject.Destroyed) return Want;
             bool fresh = o.AttackObject.Id != engTarget;
-            if (fresh && (PoseWeight < 0.05f || now - lastEngagedAt > 1.5f))
+            if (fresh && SniperStanceGate.NewEngagement(External, PoseWeight, now - lastEngagedAt))   // K248b: with BS01Stance on the robot a new stance only for a new fight (View/SniperStanceGate.cs)
             {   // a new engagement: pick its stance once (stable while it lasts)
                 Engagements++;
                 float range01 = o.AttackRadius > 0 ? Mathf.Sqrt((float)(o.AttackObject.CenterX - o.CenterX) * (o.AttackObject.CenterX - o.CenterX) +
                                                                 (float)(o.AttackObject.CenterY - o.CenterY) * (o.AttackObject.CenterY - o.CenterY)) / o.AttackRadius : 0f;
                 Want = PickStance(o.Id, Engagements, range01);
+                if (Want == Stance.Prone && o.IsFortDefender) Want = Stance.Kneel;                  // DV111: the fort's roof sniper kneels in his sandbag nest, never lies on the deck
                 if (Want == Stance.Prone) StanceProne++; else if (Want == Stance.Kneel) StanceKneels++; else StanceStand++;
             }
             engTarget = o.AttackObject.Id; lastEngagedAt = now;

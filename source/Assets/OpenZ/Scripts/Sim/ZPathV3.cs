@@ -539,15 +539,24 @@ namespace OpenZ.Sim
             return n > 0 && cross * 2 >= n;
         }
         public const int GroupPassSteps = 96;
-        int[] gpDist, gpSeen; int gpStamp; readonly List<int> gpQ = new List<int>();
+        int[] gpDist, gpSeen, gpFree; int gpStamp; readonly List<int> gpQ = new List<int>();
         bool GpOk(int x, int y) => x >= 0 && y >= 0 && x < zw && y < zh && gpSeen[y * zw + x] == gpStamp;
         void GpBfs(bool robot, int gx, int gy)
         {
             var pf = W.Path; int n = zw * zh;
-            if (gpDist == null || gpDist.Length != n) { gpDist = new int[n]; gpSeen = new int[n]; }
+            if (gpDist == null || gpDist.Length != n) { gpDist = new int[n]; gpSeen = new int[n]; gpFree = new int[n]; }
             gpStamp++; gpQ.Clear();
-            bool F(int x, int y) => x >= 0 && y >= 0 && x + (robot ? 0 : 1) < zw && y + (robot ? 0 : 1) < zh && pf.TilePassableGrid(x, y, robot, false)
+            bool Fits(int x, int y) => x >= 0 && y >= 0 && x + (robot ? 0 : 1) < zw && y + (robot ? 0 : 1) < zh && pf.TilePassableGrid(x, y, robot, false)
                                     && (robot || (pf.TilePassableGrid(x + 1, y, false, false) && pf.TilePassableGrid(x, y + 1, false, false) && pf.TilePassableGrid(x + 1, y + 1, false, false)));
+            bool F(int x, int y)
+            {                                                                            // (a tile is asked up to 24 times in one flood: its answer is kept for the flood)
+                if (x < 0 || y < 0 || x >= zw || y >= zh) return false;                  // (off the map Fits is false too)
+                int k = y * zw + x, m = gpFree[k];
+                if (m == gpStamp) return true;
+                if (m == -gpStamp) return false;
+                bool f = Fits(x, y); gpFree[k] = f ? gpStamp : -gpStamp;
+                return f;
+            }
             if (!F(gx, gy)) return;
             gpSeen[gy * zw + gx] = gpStamp; gpDist[gy * zw + gx] = 0; gpQ.Add(gy * zw + gx);
             for (int qi = 0; qi < gpQ.Count; qi++)
@@ -661,6 +670,7 @@ namespace OpenZ.Sim
             if (!changed) return;
             Lanes.Clear();
             for (int i = 0; i < laneMaster.Count; i++) if (!laneHidden[i]) Lanes.Add(laneMaster[i]);
+            lanesStamp++;                                                                // (the cells of LanesNear follow the list, ZLanes.cs)
         }
         /// <summary>ZFormation.FormationStep (v3, review round 1 + 2): the live DV24 step of a zoned minion is capped at its own Zod speed in water
         /// and on any slow tile (DV24's catch-up never applies there, as for DV44's follow); on other ground it is the live step exactly
@@ -1313,6 +1323,12 @@ namespace OpenZ.Sim
 
         // ------------------------------------------------------------------ group orders: one spot rule and one arrival rule set per order
         bool spreadLive;
+        /// <summary>DV90 switch: a group order with the live rules of at least <see cref="LiveOrderSpreadMin"/> selected units spreads its
+        /// members' first path requests over ticks (the path queue of DV44: at most SearchCap requests started a tick, oldest first).</summary>
+        public static bool LiveOrderSpread = true;
+        /// <summary>A group order with the live rules of at least this many selected units spreads its first path requests over ticks (the
+        /// path queue of DV44); a smaller group plans at once.</summary>
+        public const int LiveOrderSpreadMin = 8;
         /// <summary>ZSlots.SpreadGroup hook (DV44 on): a group order whose clicked point lies in / next to a zone, or whose members' straight
         /// ways to it cross a zone, gets the live spots and (TestGroupRules) the live arrival / push rules for every member until its next
         /// order; any other group order DV44's spots and settle.</summary>
@@ -1333,6 +1349,8 @@ namespace OpenZ.Sim
             }
             spreadLive = true;
             try { SpreadGroup(group, px, py); } finally { spreadLive = false; }
+            if (LiveOrderSpread && group.Count >= LiveOrderSpreadMin)
+                foreach (var u in group) { u.PC.orderWaits = true; foreach (var m in u.Minions) if (m != null) m.PC.orderWaits = true; }   // a large group: its first path requests are spread over the next ticks (ZCommit.cs DeferPath)
             if (ZonesOn && TestGroupRules)
             {
                 LiveGroupOrders++;
@@ -1370,8 +1388,8 @@ namespace OpenZ.Sim
         /// <summary>ZSlots.OnOrder (via GroupOrderReset): a new order ends the live arrival rules of the unit's (and its squad's) last group order.</summary>
         internal void LiveOrderReset(ZObject o)
         {
-            o.PC.liveOrder = false; o.PC.liveZOff = false;
-            foreach (var m in o.Minions) if (m != null) { m.PC.liveOrder = false; m.PC.liveZOff = false; }
+            o.PC.liveOrder = false; o.PC.liveZOff = false; o.PC.orderWaits = false;
+            foreach (var m in o.Minions) if (m != null) { m.PC.liveOrder = false; m.PC.liveZOff = false; m.PC.orderWaits = false; }
             if (R4(16777216)) OrderLiveStart(o);
         }
 
@@ -2107,7 +2125,7 @@ namespace OpenZ.Sim
                 PS.lastProgress = World.Time; PS.rebase = true;
                 return true;
             }
-            int id = World.Path.FindPath(LocX + 8, LocY + 8, cur.x, cur.y, IsRobot, HasExplosives(), out var pts);
+            int id = World.Path.FindPath(LocX + 8, LocY + 8, cur.x, cur.y, IsRobot, RockPath(), out var pts);   // DV103 (ZPathing.RockRound.cs)
             cur.pathFindingId = 0; cur.gotPfResponse = true;
             if (id != 0 && pts != null && pts.Count > 0)
             {

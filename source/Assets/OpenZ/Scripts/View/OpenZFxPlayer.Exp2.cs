@@ -392,7 +392,7 @@ namespace OpenZ
             {   // the current blast's non-visual duties (BlastInternal): listeners, camera (same gates), ground light, scorch, debris
                 if (!QuietBlast) Exploded?.Invoke(at, s);
                 if (k != Exp2Kind.Small) Shake.Impact(at, s);
-                if (groundLights) GroundLight(flat, k == Exp2Kind.Small ? s * 0.6f : s, false, true);
+                if (groundLights && !e2Air) GroundLight(flat, k == Exp2Kind.Small ? s * 0.6f : s, false, true);   // K396: none under an air blast (OpenZFxPlayer.AirExp2.cs)
                 if (scorchMarks && at.y - gy <= OpenZFxCatalog.ScorchMaxHeight) Scorch(flat, s, kind == FxBlastKind.Vehicle || kind == FxBlastKind.Building ? 2 : 1);
                 DebrisRequested?.Invoke(at, s, kind);
             }
@@ -487,7 +487,7 @@ namespace OpenZ
             float peakI = (v == 1 ? 3f : v == 3 ? 16f : v == 4 ? 7f : 10f) * lk;
             float range = (v == 1 ? 1.5f : v == 3 ? 4f : 3f) * U;
             light = Exp2Light(centre, peakI, range, v == 1 ? S_Light : v == 3 ? B_Light : M_Light);
-            if (v == 1 || v == 4)
+            if ((v == 1 || v == 4) && !e2Air)                                    // K396: no flat ground ring under an air blast (OpenZFxPlayer.AirExp2.cs)
             {   // flat ground-parallel ring 0.3U -> 0.65U over +167..+333 (S3 f382-f387), gone by +367
                 EmitP(e2Ring, new Vector3(at.x, gy + 0.08f, at.z), Vector3.zero, 0.2f * tj, 0.3f * U, W, 1f, 0.167f * tj);
             }
@@ -508,14 +508,14 @@ namespace OpenZ
                     var d = RandDir(0.55f); var p = b + Vector3.up * (0.45f * pCore * U) + d * (0.5f * pCore * U);
                     EmitP(e2Spike, p, d * (0.4f * U), 0.133f * tj, 0.03f * U * (0.67f + 0.66f * Rand()), W, 1f, (0.1f + 0.06f * Rand()) * tj);
                 }
-                EmitP(e2FireRing, new Vector3(at.x, gy + 0.1f, at.z), Vector3.zero, 0.36f * tj, 2.2f * U, W, 1f, 0.267f * tj);
-                int nr = 6 + (Rand() < 0.5f ? 1 : 0) + (Rand() < 0.5f ? 1 : 0);
+                if (!e2Air) EmitP(e2FireRing, new Vector3(at.x, gy + 0.1f, at.z), Vector3.zero, 0.36f * tj, 2.2f * U, W, 1f, 0.267f * tj);
+                int nr = e2Air ? 0 : 6 + (Rand() < 0.5f ? 1 : 0) + (Rand() < 0.5f ? 1 : 0);   // K396: no rolling ground billows under an air blast
                 for (int i = 0; i < nr; i++)
                 {
                     float a = a0 + i * 6.2831853f / nr + (Rand() - 0.5f) * 0.5f; var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
                     EmitP(e2Roll, new Vector3(at.x, gy + 0.15f, at.z) + dir * (1.05f * U), dir * U + Vector3.up * 0.15f * U, 0.42f * tj, 0.55f * U * (0.85f + 0.3f * Rand()), W, 1f, 0.47f * tj);
                 }
-                int n2 = 2 + (Rand() < 0.5f ? 1 : 0);
+                int n2 = e2Air ? 0 : 2 + (Rand() < 0.5f ? 1 : 0);   // K396: no burning secondaries on the ground under an air blast
                 for (int i = 0; i < n2; i++)
                 {
                     float a = Rand() * 6.2831853f, r = (1.0f + 0.8f * Rand()) * U;

@@ -20,7 +20,7 @@ namespace OpenZ
         static readonly Preset[] Presets =
         {
             new Preset { name = OzQuality.MediumAsset, renderer = "OZ_Renderer_Medium", level = "PC Medium (OpenZ preset)", msaa = 2, shadowRes = 2048, addShadowRes = 2048, cascades = 2, distance = 180f, softQuality = 2, ssaoHalf = true },
-            new Preset { name = OzQuality.LowAsset, renderer = "OZ_Renderer_Low", level = "PC Low (OpenZ preset)", msaa = 1, shadowRes = 1024, addShadowRes = 1024, cascades = 2, distance = 120f, softQuality = 1, ssaoOff = true },
+            new Preset { name = OzQuality.LowAsset, renderer = "OZ_Renderer_Low", level = "PC Low (OpenZ preset)", msaa = 1, shadowRes = 1024, addShadowRes = 1024, cascades = 1 /* version 1.1: one shadow step on LOW */, distance = 120f, softQuality = 1, ssaoOff = true },
         };
 
         [MenuItem("OpenZ/Perf/Make quality presets")]

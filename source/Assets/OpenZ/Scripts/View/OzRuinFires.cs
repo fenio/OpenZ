@@ -241,8 +241,7 @@ namespace OpenZ
                     }
                     if (hot > 0.05f && fxp.pointLights && now >= s.nextLight && s.fires.Count > 0)
                     {   // the flickering fire light of a burning wreck, one per ruin, at its first fire
-                        s.nextLight = now + 0.25f;
-                        fxp.AddLight(s.fires[0].root + Vector3.up * 1.1f, OpenZFxCatalog.WreckFireLight.color, OpenZFxCatalog.BurnLightThree * 1.3f * hot, OpenZFxCatalog.BurnLightRange * 0.9f, 0.3f, 0.5f, 0.2f, false);
+                        s.nextLight = now + OzFireDesync.RuinLight(fxp, s.id, now, s.fires[0].root + Vector3.up * 1.1f, hot);   // item 400: each ruin's light on its own beat
                     }
                 }
                 if (s.bridge) BridgeLoop(s, hot);

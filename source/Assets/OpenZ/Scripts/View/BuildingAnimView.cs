@@ -127,6 +127,7 @@ namespace OpenZ
             float dtFx = game.paused ? 0f : Time.deltaTime * Mathf.Clamp(game.gameSpeed, 0.25f, 4f);   // machines follow game time
             float dtAmb = Mathf.Min(Time.deltaTime, 0.05f);                                                // wind is ambient (flags too)
             UpdateWind(Time.time);
+            OzStationCrane.Tick(game);                                                                     // DV118: the repair stations' cranes step every frame, also once no shuttle is drawn (View/OzStationCrane.cs)
             for (int i = 0; i < rigs.Count; i++) rigs[i].Tick(dtFx, dtAmb, Time.time);
         }
 
@@ -245,6 +246,7 @@ namespace OpenZ
             float dishAngle, dishSpeed, fanAngle, fanSpeed, drop, dropVel, kickAt;
             Vector2 swingA, swingV;
             bool wasDestroyed, wasActive, wasWorking; Team lastOwner;
+            bool wasReeled;                                                                              // K256e: the hook reeled up for a shuttle
             readonly float seed;
             readonly List<Beacon> beacons = new List<Beacon>();
             MaterialPropertyBlock mpb;
@@ -539,20 +541,28 @@ namespace OpenZ
 
             void Hoist(float dt, float dtAmb, float now, bool own)
             {
-                bool working = own && o.RepairingUnit;                                          // Zod's flat 5 s repair (brepair.cpp)
+                bool working = own && o.RepairingUnit && !OzStationCrane.Away(o.Id);            // Zod's flat 5 s repair (brepair.cpp); DV118: the hook stays up over the shuttle (View/OzStationCrane.cs)
                 if (working != wasWorking)
                 {
                     Sound(working ? "repair_hoist_down" : "repair_hoist_up", o, hook.position);
                     swingV += Random.insideUnitCircle * 4f;                                     // the start / stop jerks the hook
                     wasWorking = working;
                 }
-                float want = working ? m.hookDrop + 0.05f * Mathf.Sin(now * 2f * Mathf.PI * 1.3f + seed * 6f) : 0f;
+                bool reel = OzStationCrane.Away(o.Id);                                          // K256e: the crane away for a shuttle: the hook reeled fully up under the beam
+                if (reel != wasReeled)
+                {
+                    wasReeled = reel;
+                    if (AudioDirector.Has("shuttle_crane_hoist")) AudioDirector.Fire("shuttle_crane_hoist", hook.position, o.Id, reel ? 1f : 0.85f, reel ? 1.05f : 0.9f);
+                    else Sound(reel ? "repair_hoist_up" : "repair_hoist_down", o, hook.position);
+                }
+                float want = reel ? -Mathf.Max(0f, cableLen * unitM - 0.15f) : working ? m.hookDrop + 0.05f * Mathf.Sin(now * 2f * Mathf.PI * 1.3f + seed * 6f) : 0f;
                 if (dt > 0) drop = Mathf.SmoothDamp(drop, want, ref dropVel, (working ? m.hookDownTime : m.hookUpTime) * 0.45f, Mathf.Infinity, dt);
                 if (working && now > kickAt) { swingV += Random.insideUnitCircle * 5f; kickAt = now + Random.Range(0.5f, 0.9f); }   // work jolts
                 // damped pendulum (degrees), natural period of the real length (cable + half the hook, + the drop)
                 float L = Mathf.Max(0.5f, cableLen * unitM + 0.7f + drop);
                 float w0 = Mathf.Sqrt(9.81f / L), zeta = 0.12f;
                 var target = new Vector2(m.windS * 1.3f * (0.4f + 1.2f * m.gust), m.windS * 0.4f * Mathf.Sin(now * 0.7f + seed * 9f));
+                if (reel) { target = Vector2.zero; swingV *= Mathf.Exp(-8f * dtAmb); swingA *= Mathf.Exp(-4f * dtAmb); }   // K256e: reeled up, it hangs still
                 var acc = -w0 * w0 * (swingA - target) - 2f * zeta * w0 * swingV;
                 swingV += acc * dtAmb; swingA += swingV * dtAmb;
                 swingA = Vector2.ClampMagnitude(swingA, 9f);
@@ -581,7 +591,7 @@ namespace OpenZ
                     if (b.tr.gameObject.activeSelf != show) b.tr.gameObject.SetActive(show);
                     if (!show || !b.anchor) continue;
                     float us = b.anchor.lossyScale.x;
-                    b.tr.position = b.anchor.TransformPoint(b.local);
+                    b.tr.position = OzStationCrane.Follow(o.Id, b.anchor.TransformPoint(b.local));   // DV118: the trolley's lamps ride with the crane
                     if (b.sphere) { b.tr.rotation = Quaternion.identity; b.tr.localScale = Vector3.one * b.size.x * us; }
                     else
                     {
@@ -656,6 +666,8 @@ namespace OpenZ
                 rb.linearVelocity = away * Random.Range(2.6f, 4.2f) + Vector3.up * Random.Range(7.5f, 9.5f);
                 rb.angularVelocity = Random.onUnitSphere * Random.Range(1.6f, 3.2f);
                 var dw = w.AddComponent<DishWreck>(); dw.b = o; dw.life = 22f;
+                OzRockBody.Add(w, rb, OzRockBody.Kind.Dish, r.bounds.size, 21f);                                     // items 331 + 332: it meets the rocks
+                OzWaterLanding.Watch(w.transform, "radar dish", rb);                             // b27: the shared water landing rule
                 wreck = w;
                 tossPivotLocal = root.InverseTransformPoint(src.position);
                 trimFrames = 4;
@@ -715,6 +727,7 @@ namespace OpenZ
                 if (age < 0.25f || speed < 1.5f || age - lastHit < 0.3f || hits >= 5) return;
                 lastHit = age; hits++;
                 var p = c.contactCount > 0 ? c.GetContact(0).point : transform.position;
+                if (OzWaterLanding.UnderSurface(p)) return;                                         // b27: it touched the bed under a drawn water surface: no dust and no metal crash there (its splash is made at the surface)
                 FxManager.I?.Dust(p, Mathf.Min(1.4f, 0.35f + speed * 0.06f));
                 if (hits == 1)
                 {

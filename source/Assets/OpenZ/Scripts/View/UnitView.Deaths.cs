@@ -125,6 +125,8 @@ namespace OpenZ
             }
             if (WheeledBreakup.Applies(Obj)) WheeledBreakup.Tear(this, transform.position + Vector3.up * 1f, flipWreck);
             if (flipWreck) StartFlip(h);
+            OzTankWreck.Want(this);
+            OzWaterLanding.Watch(transform, "wreck hull", wreckBody, true, wreckBody == null);        // b27: a wreck that falls into water (flipped into the river, or its bridge went) splashes and rests partly under the surface
         }
 
         /// <summary>A dead tower gun keeps its pad only while the tower stands. When its fort has collapsed (the tower tops are thrown
@@ -157,7 +159,7 @@ namespace OpenZ
                     TossTurret();
                 }
             }
-            if (breakAt >= 0f && !breakDone && deathT >= breakAt) { breakDone = true; StopWreckFire(0.8f); BreakApart(cookOff); }
+            if (breakAt >= 0f && !breakDone && deathT >= breakAt && !OzTankWreck.Hold(this, deathT - breakAt)) { breakDone = true; StopWreckFire(0.8f); BreakApart(cookOff); }   // item 378: waits for its break-up (at most 2 s)
             if (towerFell && !breakDone)
             {   // nothing that could break into parts: what is left of the gun is not drawn any more (never left in the air)
                 breakDone = true; breakAt = deathT;
@@ -193,7 +195,7 @@ namespace OpenZ
                 if (burning && !wreckPyroLit) { wreckPyroLit = true; wreckPyro = OpenZPyroFire.KeepBurning(Obj, this, gameObject, false, fireAt); }
                 if (burning && !fireLoopOn && (!wreckPyro || !OpenZPyroFire.FullBurning(Obj.Id)) && adf && AudioDirector.Has("dst_fire_loop")) { adf.StartLoop("wreck_fire_" + Obj.Id, "dst_fire_loop", at, null, 0.6f); fireLoopOn = true; }   // also the last seconds of a 6-7 s burn, after the pyro fire's own 5 s crackle has ended
                 else if (!burning && fireLoopOn) StopWreckFire(1.5f);
-                if (fxp && fxp.isActiveAndEnabled) fxp.WreckBurn(at, k, burning, 0.7f, fireAt);
+                if (fxp && fxp.isActiveAndEnabled) OzFireDesync.VehicleBurn(fxp, Obj.Id, deathT, ref smokeT, at, k, burning, 0.7f, fireAt);
                 else if (FxManager.I) FxManager.I.Dust(at, 0.35f * k);
             }
             bool tossDone = !tossed || (tossLanded && tossT > tossDur + 3f);
@@ -277,7 +279,7 @@ namespace OpenZ
         void BeginFade()
         {
             StopWreckFire(1f);
-            fading = true; fadeT = 0f; fadeFrom = transform.position; fadeDepth = Mathf.Max(0.6f, LocalBounds().size.y * 0.8f);
+            fading = true; fadeT = 0f; fadeFrom = transform.position; fadeDepth = RockFadeDepth(Mathf.Max(0.6f, LocalBounds().size.y * 0.8f));   // items 331 + 332: a flipped hull on a rock pops away instead
             if (wreckBody) wreckBody.isKinematic = true;
             foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
             FxManager.I?.Dust(transform.position + Vector3.up * 0.3f, 0.5f);
@@ -328,6 +330,7 @@ namespace OpenZ
             wreckBody.angularVelocity = new Vector3(Mathf.Sin(a) * 4.3f, 1.4f * Mathf.Cos(a), -Mathf.Cos(a) * 4.3f) * Mathf.Lerp(0.9f, 1.3f, u);
             foreach (var r in GetComponentsInChildren<Renderer>()) r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
             gameObject.AddComponent<WreckContact>().Init(Obj.Id, true);
+            RockFlip(bc);                                                                                          // items 331 + 332: it meets the rocks (UnitView.Rocks.cs)
         }
 
         Bounds LocalBounds(bool hullOnly = false)
@@ -581,6 +584,7 @@ namespace OpenZ
                 if (System.Math.Abs(dx) > e.radius || System.Math.Abs(dy) > e.radius) continue;
                 float frac = Mathf.Sqrt(dx * dx + dy * dy) / e.radius;
                 if (frac >= 1f) continue;                                                                 // the sim's splash did not reach it
+                if (OzShuttleAim.AirBurstSkips(e, v)) continue;                                           // DV118: a blast at the flying shuttle does not reach the ground under it
                 if (Shrapnel && chips < 6 && !debris) { chips++; Chips(v, at, frac); }
                 if (o.Kind != ZKind.Robot) continue;
                 int kind = debris ? 1 : heavy ? (frac < KnockFrac ? 3 : 2) : grenade ? (frac < 0.45f ? 2 : 1) : 2;

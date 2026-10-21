@@ -28,6 +28,7 @@ namespace OpenZ
             if (frozen || age < 0.15f) return;
             float sp = c.relativeVelocity.magnitude;
             var at = c.contactCount > 0 ? c.GetContact(0).point : transform.position;
+            if (OzWaterLanding.UnderSurface(at)) return;                                               // b27: the flipped wreck touched the bed under a drawn water surface: no crash, sparks, scorch or shake there (its plunge is made at the surface)
             if (!crashed && sp > 2.5f)
             {
                 crashed = true; last = age;

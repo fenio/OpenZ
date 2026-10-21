@@ -19,6 +19,13 @@ Shader "OpenZ/WaterfallSheet"
         _FadeY ("Fade below this world height (lake surface)", Float) = -0.35
         _FadeRange ("Fade range (m)", Float) = 0.3
         _Wrap ("Light wrap", Range(0, 1)) = 0.55
+        [Header(Look v2 for the jungle falls)]
+        _LookV2 ("Look v2 on", Range(0, 1)) = 0
+        _LipFoam ("Lip foam (share of v from the top)", Range(0.02, 0.5)) = 0.12
+        _FootFoam ("Foot foam (share of v from the bottom)", Range(0.02, 0.6)) = 0.22
+        _StreakCut ("Streak threshold (texture g)", Range(0.3, 0.98)) = 0.84
+        _BodyAlpha ("Body alpha between the threads (x body alpha)", Range(0, 1)) = 0.35
+        _BodyDark ("Body shade (1 = the water tint as is)", Range(0.3, 1.2)) = 0.8
     }
     SubShader
     {
@@ -47,6 +54,7 @@ Shader "OpenZ/WaterfallSheet"
                 float4 _BaseMap_ST;
                 half4 _BaseColor; half4 _FoamColor; half4 _EmissionColor;
                 half _Alpha; half _FoamStreaks; half _EdgeBright; half _EdgeSoft; float _FadeY; float _FadeRange; half _Wrap;
+                half _LookV2; half _LipFoam; half _FootFoam; half _StreakCut; half _BodyAlpha; half _BodyDark;   // item 227 look v2
             CBUFFER_END
 
             struct A { float4 pos : POSITION; float3 n : NORMAL; float2 uv : TEXCOORD0; half4 col : COLOR; UNITY_VERTEX_INPUT_INSTANCE_ID };
@@ -84,6 +92,22 @@ Shader "OpenZ/WaterfallSheet"
                 half edge = smoothstep(0.7, 1.0, across) * _EdgeBright;                                 // brighter sides
                 half foam = saturate(i.col.r + streak * (0.6 + 0.4 * i.col.r) + edge);
                 half3 albedo = lerp(water, _FoamColor.rgb, foam * 0.9);
+                half a2 = -1.0;                                                                           // item 227 look v2: its own alpha (< 0 = the old look's)
+                if (_LookV2 > 0.5)
+                {   // item 227 (the jungle falls read as flat white slabs from above: the level 16 sheets carry no foam vertex paint, so
+                    // col.r = 1 made the whole sheet foam): a dark see-through body with bright fast threads, white foam only where the
+                    // water breaks: the lip (top of v) and the boil at the foot (bottom of v); v grows with height on these sheets
+                    half v = saturate(i.uv.y);
+                    half lip = smoothstep(1.0 - _LipFoam, 1.0, v) * (0.55 + 0.45 * t3.g);
+                    half foot = (1.0 - smoothstep(0.0, _FootFoam, v)) * (0.6 + 0.4 * t2.g) * smoothstep(0.0, 0.04, v);
+                    half thread = saturate((max(t3.g, max(t1.g, t2.g)) - _StreakCut) / max(0.02, 1.0 - _StreakCut)) * _FoamStreaks;
+                    half breaks = saturate(lip + foot);
+                    half3 body = _BaseColor.rgb * (_BodyDark * (0.8 + 0.4 * t1.g));
+                    foam = saturate(breaks + thread * (1.0 - breaks) + edge * 0.5);
+                    albedo = lerp(body, _FoamColor.rgb, foam);
+                    a2 = _Alpha * lerp(_BodyAlpha, 1.0, saturate(thread + breaks));
+                    a2 = lerp(a2, 0.95, breaks * 0.8);
+                }
 
                 Light L = GetMainLight(TransformWorldToShadowCoord(i.wp));
                 half nl = dot(n, L.direction);
@@ -105,6 +129,7 @@ Shader "OpenZ/WaterfallSheet"
             #endif
                 half3 c = albedo * lit + _EmissionColor.rgb * (0.7 + 0.6 * foam);
                 half a = lerp(_Alpha, 0.96, foam) * i.col.a;
+                if (a2 >= 0.0) a = a2 * i.col.a;                                                            // item 227 look v2
                 a *= smoothstep(0.0, _EdgeSoft, 1.0 - across);                                            // soft side edges
                 a *= smoothstep(_FadeY - _FadeRange, _FadeY, i.wp.y);                                    // gone under the lake
                 c = MixFog(c, i.fog);
