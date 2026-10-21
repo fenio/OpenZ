@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Feedback form (no GitHub account needed)
+    url: https://docs.google.com/forms/d/e/1FAIpQLSfMuZs9-p1pCsRm59CQy4PBuZwE8VbOAJj_2TeER6gD3sf9ag/viewform?usp=sharing
+    about: Send bugs and ideas without a GitHub account.
+  - name: Discord (ZZone server)
+    url: https://discord.gg/WjFqg35PsE
+    about: Chat and quick questions.

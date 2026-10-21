@@ -1,0 +1,20 @@
+name: Idea or feature request
+description: Suggest something for a future OpenZ version
+title: "[Idea] "
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: Please check the existing issues first, someone may have suggested it already. Then add a thumbs up there instead.
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What would you like to see, and why would it make the game better?
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else (optional)
+      description: Pictures, references to the original Z, links.

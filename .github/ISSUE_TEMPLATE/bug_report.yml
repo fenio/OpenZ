@@ -1,0 +1,72 @@
+name: Bug report
+description: Something in OpenZ is broken or behaves wrong
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping! Please search the existing issues first, your bug may already be reported.
+        No GitHub account? Use the feedback form instead: https://docs.google.com/forms/d/e/1FAIpQLSfMuZs9-p1pCsRm59CQy4PBuZwE8VbOAJj_2TeER6gD3sf9ag/viewform?usp=sharing
+  - type: dropdown
+    id: version
+    attributes:
+      label: Game version
+      description: Shown in the main menu, bottom corner.
+      options:
+        - "1.1"
+        - "1.0"
+        - Other (write it below)
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - Mac (experimental)
+        - Linux (community build)
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where did it happen?
+      placeholder: e.g. Level 16 Jungle, main menu, options
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to make it happen again
+      placeholder: |
+        1. Start Level 2 on Hard
+        2. Build a jeep
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: media
+    attributes:
+      label: Screenshot or short video
+      description: Drag and drop files here. A picture of the problem helps a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: pc
+    attributes:
+      label: Your PC (optional)
+      placeholder: Windows version, graphics card, screen resolution
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file (optional, very helpful for crashes)
+      description: Attach the newest file from %USERPROFILE%\AppData\LocalLow\OpenZ\OpenZ\CrashLogs or Player.log in the folder above it.

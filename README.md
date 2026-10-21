@@ -35,6 +35,7 @@
   <a href="docs/SCREENSHOTS.md">Screenshots</a> ·
   <a href="https://discord.gg/WjFqg35PsE">Discord</a> ·
   <a href="https://www.youtube.com/@playopenz">YouTube</a> ·
+  <a href="https://github.com/playopenz/OpenZ/issues">Bug list (GitHub Issues)</a> ·
   <a href="https://docs.google.com/forms/d/e/1FAIpQLSfMuZs9-p1pCsRm59CQy4PBuZwE8VbOAJj_2TeER6gD3sf9ag/viewform?usp=sharing">Report a bug / send an idea</a>
 </p>
 
@@ -153,7 +154,7 @@ feeling of the original. This is where it started, and where it is now:
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_35.jpg"><img src="media/screenshots/web/openz_screenshot_35.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
   <tr>
-    <td width="50%"><a href="media/screenshots/full/openz_screenshot_30.jpg"><img src="media/screenshots/web/openz_screenshot_30.jpg" alt="OpenZ screenshot"></a></td>
+    <td width="50%"><a href="media/screenshots/full/openz_screenshot_59.jpg"><img src="media/screenshots/web/openz_screenshot_59.jpg" alt="OpenZ screenshot"></a></td>
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_37.jpg"><img src="media/screenshots/web/openz_screenshot_37.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
   <tr>
@@ -161,7 +162,7 @@ feeling of the original. This is where it started, and where it is now:
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_47.jpg"><img src="media/screenshots/web/openz_screenshot_47.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
   <tr>
-    <td width="50%"><a href="media/screenshots/full/openz_screenshot_06.jpg"><img src="media/screenshots/web/openz_screenshot_06.jpg" alt="OpenZ screenshot"></a></td>
+    <td width="50%"><a href="media/screenshots/full/openz_screenshot_10.jpg"><img src="media/screenshots/web/openz_screenshot_10.jpg" alt="OpenZ screenshot"></a></td>
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_07.jpg"><img src="media/screenshots/web/openz_screenshot_07.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
 </table>
@@ -201,8 +202,10 @@ you find, and tell us what you want to see. Every single report gets read.
   <a href="https://docs.google.com/forms/d/e/1FAIpQLSfMuZs9-p1pCsRm59CQy4PBuZwE8VbOAJj_2TeER6gD3sf9ag/viewform?usp=sharing">Bug reports, feature requests and ideas: use the feedback form</a>
 </h3>
 
-Screenshots and short clips help squash bugs much faster; the form lets you attach them. We are not taking code or
-art contributions right now: what we need most is players and their feedback.
+Have a GitHub account? Use [**GitHub Issues**](https://github.com/playopenz/OpenZ/issues): you can see every bug that
+is already reported, add a thumbs up or a comment, and follow the fix. No account? The form works just as well.
+Screenshots and short clips help squash bugs much faster. We are not taking code or art contributions right now:
+what we need most is players and their feedback.
 
 **Enjoying it?** Drop a  on this page and share OpenZ with every Z fan you know!
 
