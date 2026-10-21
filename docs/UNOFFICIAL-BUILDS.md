@@ -4,9 +4,9 @@ These community builds are not official OpenZ releases. The existing Windows bui
 
 ## Running the downloads
 
-Downloads: [unofficial community release](https://github.com/fenio/OpenZ/releases/tag/v1.0-unofficial.1).
+Downloads: [unofficial community release](https://github.com/fenio/OpenZ/releases/tag/v1.1-unofficial.1).
 
-- **macOS Universal:** extract the ZIP, then open `OpenZ.app`. Apple Silicon gameplay has been tested locally; the Intel architecture is included but not runtime-tested. This community build is not notarized. Use macOS's per-app approval procedure if needed; do not disable Gatekeeper globally.
+- **macOS Universal:** extract the ZIP, then open `OpenZ.app`. It runs natively on Apple Silicon, unlike upstream's Intel-only experimental Mac build. Apple Silicon gameplay has been tested locally; the Intel architecture is included but not runtime-tested. This community build is not notarized. Use macOS's per-app approval procedure if needed; do not disable Gatekeeper globally.
 - **Linux x86-64 (experimental):** extract the `.tar.gz`, preserving permissions, open a terminal in the extracted directory, and run `./OpenZ`. A successful build is not a guarantee of compatibility: Linux gameplay has not yet been tested. Please report results to [the community fork](https://github.com/fenio/OpenZ/issues), not as official upstream platform support.
 
 Both default to native-resolution fullscreen. High-DPI/Retina displays can therefore be much slower than a smaller Unity editor Game view. To run at 1920 × 1080 fullscreen, quit any running copy first, then run from the extracted directory:
@@ -21,7 +21,7 @@ open ./OpenZ.app --args -screen-fullscreen 1 -screen-width 1920 -screen-height 1
 
 Substitute your preferred width and height; use `-screen-fullscreen 0` for a window. Fullscreen behavior may vary by platform/display. No separate launcher script is needed. Enable **OPTIONS → FPS COUNTER** to compare performance in the same map and view.
 
-Verify the downloaded archive against its adjacent `.sha256` file with `shasum -a 256 -c FILE.sha256` on macOS or `sha256sum -c FILE.sha256` on Linux. Binary packages include per-file checksums, licenses, credits, and `LAUNCHING.txt`. The release also provides the complete Unity source, not just GitHub's automatically generated code-only source archives. Extract the full-source archive into its own folder and add that folder to Unity Hub; it already includes the portable builder.
+Verify the downloaded archive against its adjacent `.sha256` file with `shasum -a 256 -c FILE.sha256` on macOS or `sha256sum -c FILE.sha256` on Linux. Binary packages include per-file checksums, licenses (`LICENSES.txt`, `LICENSE_ASSETS.txt`), credits, and `LAUNCHING.txt`. The release also provides the complete Unity source, not just GitHub's automatically generated code-only source archives. It is split into two parts to stay under GitHub's per-file limit: extract both full-source parts into the same new folder and add that folder to Unity Hub; it already includes the portable builder.
 
 ## Prerequisites
 
@@ -37,7 +37,7 @@ Open the complete project once, allow package import/compilation to finish, and 
 
 Use **OpenZ → Unofficial → Build macOS release** or **Build Linux release**, and select a parent output directory. Each command creates a new timestamped release directory.
 
-The builder includes runtime shaders, uses the `OZ_RELEASE` define and existing release assembly filter, sets the company to OpenZ, and restores temporary player settings afterwards. It builds MainMenu first, then both maps and Intro. Unlike the Windows script, it does not change editor PlayerPrefs. Build stamping and shader inclusion still update project assets, as the existing tools do.
+The builder includes runtime shaders, uses the `OZ_RELEASE` define and existing release assembly filter, sets the company to OpenZ, and restores temporary player settings afterwards. It builds MainMenu first, then the three maps and Intro. Unlike the Windows script, it does not change editor PlayerPrefs. Build stamping and shader inclusion still update project assets, as the existing tools do.
 
 ## Command line
 
@@ -45,13 +45,13 @@ For example, on macOS (adjust all paths and the editor version):
 
 ```sh
 UNITY="/Applications/Unity/Hub/Editor/6000.3.26f1/Unity.app/Contents/MacOS/Unity"
-PROJECT="$HOME/Games/OpenZ_1.0_source"
+PROJECT="$HOME/Games/OpenZ_1.1_source"
 
 "$UNITY" -batchmode -quit -projectPath "$PROJECT" \
   -buildTarget OSXUniversal \
   -executeMethod OpenZ.EditorTools.OpenZPortableBuild.Build \
   -ozPlatform macos -ozArchitecture universal \
-  -ozOutput "$HOME/Games/builds/OpenZ-unofficial-macos-1.0" \
+  -ozOutput "$HOME/Games/builds/OpenZ-unofficial-macos-1.1" \
   -logFile "$HOME/Games/openz-macos-build.log"
 ```
 
@@ -64,7 +64,7 @@ For Linux, use the same editor entry point (either on a Mac or on Linux):
   -buildTarget Linux64 \
   -executeMethod OpenZ.EditorTools.OpenZPortableBuild.Build \
   -ozPlatform linux -ozArchitecture x64 \
-  -ozOutput "$HOME/Games/builds/OpenZ-unofficial-linux-1.0" \
+  -ozOutput "$HOME/Games/builds/OpenZ-unofficial-linux-1.1" \
   -logFile "$HOME/Games/openz-linux-build.log"
 ```
 
@@ -74,7 +74,7 @@ Exit status is 0 on success, 1 on builder failure; Unity startup/license errors 
 
 ## Test and distribute
 
-Neither platform is validated merely by a successful compilation. Test menu/preview video, both levels, custom effects/shaders, audio, controls, fullscreen/Retina behavior, preferences, and performance on each supported architecture. The builder explicitly selects Metal on macOS; Linux uses the project's default graphics API configuration. Smoke-test on real Linux hardware before advertising Linux support.
+Neither platform is validated merely by a successful compilation. Test menu/preview video, all three levels, custom effects/shaders, audio, controls, fullscreen/Retina behavior, preferences, and performance on each supported architecture. The builder explicitly selects Metal on macOS; Linux uses the project's default graphics API configuration. Smoke-test on real Linux hardware before advertising Linux support.
 
 - Label downloads **unofficial**, identify the upstream version and your fork commit, and keep upstream support separate.
 - Include `LICENSES.txt`, the asset license and credits from `docs/`, and the complete corresponding source (including assets, changes and build instructions) alongside each binary release. See `LICENSE` and `docs/LICENSE-ASSETS.md`; asset redistribution is non-commercial and share-alike.
@@ -85,8 +85,8 @@ Neither platform is validated merely by a successful compilation. Test menu/prev
 Example packaging:
 
 ```sh
-ditto -c -k --sequesterRsrc --keepParent "$HOME/Games/builds/OpenZ-unofficial-macos-1.0" "$HOME/Games/builds/OpenZ-unofficial-macos-1.0.zip"
-tar -czf "$HOME/Games/builds/OpenZ-unofficial-linux-1.0.tar.gz" -C "$HOME/Games/builds" OpenZ-unofficial-linux-1.0
+ditto -c -k --sequesterRsrc --keepParent "$HOME/Games/builds/OpenZ-unofficial-macos-1.1" "$HOME/Games/builds/OpenZ-unofficial-macos-1.1.zip"
+tar -czf "$HOME/Games/builds/OpenZ-unofficial-linux-1.1.tar.gz" -C "$HOME/Games/builds" OpenZ-unofficial-linux-1.1
 ```
 
 ## Future CI

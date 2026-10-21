@@ -1,7 +1,7 @@
 > **Unofficial macOS / Linux builds — community fork**
 >
-> Download from [this fork's releases](https://github.com/fenio/OpenZ/releases/tag/v1.0-unofficial.1).
-> macOS Universal (Apple Silicon + Intel) has been tested locally on Apple Silicon; Linux x86-64 is experimental and not yet runtime-tested.
+> Download OpenZ 1.1 from [this fork's releases](https://github.com/fenio/OpenZ/releases/tag/v1.1-unofficial.1).
+> macOS Universal runs natively on Apple Silicon and Intel (upstream's experimental Mac build is Intel-only) and has been tested locally on Apple Silicon; Linux x86-64 is experimental and not yet runtime-tested.
 > These are not official OpenZ releases or a promise of upstream support. See [launch instructions](docs/UNOFFICIAL-BUILDS.md#running-the-downloads) and [build automation](docs/UNOFFICIAL-BUILDS.md).
 > The upstream project's README follows unchanged.
 

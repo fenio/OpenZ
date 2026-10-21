@@ -13,7 +13,7 @@ namespace OpenZ.EditorTools
     /// <summary>Unofficial macOS/Linux release builds, independent of the Windows release workflow.</summary>
     public static class OpenZPortableBuild
     {
-        static readonly string[] Scenes = { "MainMenu", "L02_Desert", "L17_CarPark", "Intro" };
+        static readonly string[] Scenes = { "MainMenu", "L02_Desert", "L16_Jungle", "L17_CarPark", "Intro" };
 
         /// <summary>Batch entry point: -ozPlatform macos|linux -ozOutput DIRECTORY [-ozArchitecture universal|arm64|x64].</summary>
         public static void Build()
@@ -70,6 +70,8 @@ namespace OpenZ.EditorTools
                 if (!File.Exists(scene)) throw new FileNotFoundException("Missing scene; extract both full-project source archives first.", scene);
             string notices = Path.Combine(Application.streamingAssetsPath, "LICENSES.txt");
             if (!File.Exists(notices)) throw new FileNotFoundException("The release must include its license notices.", notices);
+            string assetNotices = Path.Combine(Application.streamingAssetsPath, "LICENSE_ASSETS.txt");
+            if (!File.Exists(assetNotices)) throw new FileNotFoundException("The release must include its asset license.", assetNotices);
 
             output = Path.GetFullPath(output);
             string assets = Path.GetFullPath(Application.dataPath);
@@ -140,6 +142,7 @@ namespace OpenZ.EditorTools
                     Directory.Move(directory, Path.Combine(symbols, name));
                 }
                 File.Copy(notices, Path.Combine(output, "LICENSES.txt"));
+                File.Copy(assetNotices, Path.Combine(output, "LICENSE_ASSETS.txt"));
                 File.WriteAllText(Path.Combine(output, "README-UNOFFICIAL.txt"),
                     $"OpenZ {OzVersion.Number} — UNOFFICIAL {platform} build\n" +
                     "Community build, not an official release or a promise of upstream support.\n" +
@@ -147,7 +150,7 @@ namespace OpenZ.EditorTools
                     "Code: GPL-3.0. Assets: CC BY-NC-SA 4.0 (non-commercial, attribution, share-alike).\n" +
                     "Original project and credits: https://github.com/playopenz/OpenZ\n" +
                     "Not affiliated with Rebellion or The Bitmap Brothers.\n" +
-                    "See LICENSES.txt. Distributors must also provide the corresponding source and modifications.\n" +
+                    "See LICENSES.txt and LICENSE_ASSETS.txt. Distributors must also provide the corresponding source and modifications.\n" +
                     "Verify files: shasum -a 256 -c SHA256SUMS.txt (macOS), sha256sum -c SHA256SUMS.txt (Linux).\n",
                     new UTF8Encoding(false));
                 OpenZReleaseBuild.WriteSha256(output, out long bytes);
