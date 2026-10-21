@@ -176,6 +176,7 @@ feeling of the original. This is where it started, and where it is now:
 [OpenZ_1.1_mac_EXPERIMENTAL.zip](https://github.com/playopenz/OpenZ/releases/latest/download/OpenZ_1.1_mac_EXPERIMENTAL.zip),
 unzip it, then right-click the game and choose **Open** on the first start (it is not signed). See
 `HOW_TO_START_ON_A_MAC.txt` inside. It is an Intel build and has not been tested on many Macs yet.
+Linux, or a different Mac build: see the [community builds by fenio](https://github.com/fenio/OpenZ) (unofficial, 1.0).
 
 **Want to be sure your download is the original?** The checksums are in
 [RELEASE_SHA256.txt](https://github.com/playopenz/OpenZ/releases/latest/download/RELEASE_SHA256.txt). Check yours in
@@ -220,6 +221,27 @@ with every model, texture, sound and scene is attached to each
 Full credits: [CREDITS.md](docs/CREDITS.md).
 
 ## ❓ FAQ
+
+**What is new in the 1.1 update?**
+Pack your sunscreen and watch your step around the water, soldiers! 1.1 adds a whole new battlefield, **Level 16:
+Jungle**, with ruins, waterfalls, wobbly rope bridges and rain. Crocodiles drag robots under in the swamp, and monkeys
+flee the temples when the shooting starts. **Alan & Brad** finally join your army as a tough hero squad, straight off
+their sun loungers, and their **shuttle** is the first unit that flies: carry a squad over swamps, cliffs and trees,
+and double right-click a far spot for a corkscrew kickflip. On top of that: **sniper headshots**, **jeeps that run over
+big robots**, **high scores and army ranks** from Private to General, Pyros that burn buildings, an enemy that sends
+strike groups, new options and a huge pile of polish and fixes on every level. Everything is in the
+[change log](docs/CHANGELOG.md).
+
+**Do you have a Mac version?**
+Yes, an **experimental** one: `OpenZ_1.1_mac_EXPERIMENTAL.zip` on the
+[release page](https://github.com/playopenz/OpenZ/releases/latest). It is an Intel build and not signed, so on the
+first start right-click the game and choose **Open** (see `HOW_TO_START_ON_A_MAC.txt` inside). It has not been tested
+on many Macs yet, so please tell us how it runs for you.
+
+**Is there a Linux version?**
+Not from us yet. Our fan **fenio** made unofficial Mac and Linux builds of OpenZ 1.0, for anyone who would like to try
+it without building it themselves: [github.com/fenio/OpenZ](https://github.com/fenio/OpenZ). Thank you, fenio! These
+builds are made and looked after by him, not by us.
 
 **Are any original models or resources used?**
 No. Everything in OpenZ was made from scratch: every model, texture, animation, sound, voice line, music track and
