@@ -21,7 +21,7 @@ open ./OpenZ.app --args -screen-fullscreen 1 -screen-width 1920 -screen-height 1
 
 Substitute your preferred width and height; use `-screen-fullscreen 0` for a window. Fullscreen behavior may vary by platform/display. No separate launcher script is needed. Enable **OPTIONS → FPS COUNTER** to compare performance in the same map and view.
 
-Verify the downloaded archive against its adjacent `.sha256` file with `shasum -a 256 -c FILE.sha256` on macOS or `sha256sum -c FILE.sha256` on Linux. Binary packages include per-file checksums, licenses (`LICENSES.txt`, `LICENSE_ASSETS.txt`), credits, and `LAUNCHING.txt`. The release also provides the complete Unity source, not just GitHub's automatically generated code-only source archives. It is split into two parts to stay under GitHub's per-file limit: extract both full-source parts into the same new folder and add that folder to Unity Hub; it already includes the portable builder.
+Verify the downloaded archive against its adjacent `.sha256` file with `shasum -a 256 -c FILE.sha256` on macOS or `sha256sum -c FILE.sha256` on Linux. Binary packages include per-file checksums, licenses (`LICENSES.txt`, `LICENSE_ASSETS.txt`), credits, and `LAUNCHING.txt`. These releases contain binaries only. The game is built unmodified from the [upstream OpenZ 1.1 source archives](https://github.com/playopenz/OpenZ/releases/tag/v1.1); the only addition is the editor-only portable builder in this repository (see [Prerequisites](#prerequisites)).
 
 ## Prerequisites
 
@@ -77,7 +77,7 @@ Exit status is 0 on success, 1 on builder failure; Unity startup/license errors 
 Neither platform is validated merely by a successful compilation. Test menu/preview video, all three levels, custom effects/shaders, audio, controls, fullscreen/Retina behavior, preferences, and performance on each supported architecture. The builder explicitly selects Metal on macOS; Linux uses the project's default graphics API configuration. Smoke-test on real Linux hardware before advertising Linux support.
 
 - Label downloads **unofficial**, identify the upstream version and your fork commit, and keep upstream support separate.
-- Include `LICENSES.txt`, the asset license and credits from `docs/`, and the complete corresponding source (including assets, changes and build instructions) alongside each binary release. See `LICENSE` and `docs/LICENSE-ASSETS.md`; asset redistribution is non-commercial and share-alike.
+- Include `LICENSES.txt`, the asset license and credits from `docs/` in each binary package, and point to the corresponding source: the upstream release's source archives plus this repository's builder and build instructions. See `LICENSE` and `docs/LICENSE-ASSETS.md`; asset redistribution is non-commercial and share-alike.
 - The builder writes `SHA256SUMS.txt`. If you sign/notarize or otherwise alter files after building, regenerate it afterwards.
 - Sign/notarize macOS distributions as appropriate; this builder does not provide signing credentials or perform notarization. Do not tell users to disable Gatekeeper globally.
 - Archive the **whole release directory**, not just the executable. On Linux use `tar` to preserve executable permissions; on macOS preserve `.app` symlinks and permissions (for example with `ditto`).
