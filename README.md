@@ -150,15 +150,15 @@ feeling of the original. This is where it started, and where it is now:
 <table>
   <tr>
     <td width="50%"><a href="media/title.jpg"><img src="media/title.jpg" alt="OpenZ title card"></a></td>
-    <td width="50%"><a href="media/screenshots/full/openz_screenshot_01.jpg"><img src="media/screenshots/web/openz_screenshot_01.jpg" alt="OpenZ screenshot"></a></td>
+    <td width="50%"><a href="media/screenshots/full/openz_screenshot_35.jpg"><img src="media/screenshots/web/openz_screenshot_35.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
   <tr>
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_30.jpg"><img src="media/screenshots/web/openz_screenshot_30.jpg" alt="OpenZ screenshot"></a></td>
-    <td width="50%"><a href="media/screenshots/full/openz_screenshot_33.jpg"><img src="media/screenshots/web/openz_screenshot_33.jpg" alt="OpenZ screenshot"></a></td>
+    <td width="50%"><a href="media/screenshots/full/openz_screenshot_37.jpg"><img src="media/screenshots/web/openz_screenshot_37.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
   <tr>
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_04.jpg"><img src="media/screenshots/web/openz_screenshot_04.jpg" alt="OpenZ screenshot"></a></td>
-    <td width="50%"><a href="media/screenshots/full/openz_screenshot_05.jpg"><img src="media/screenshots/web/openz_screenshot_05.jpg" alt="OpenZ screenshot"></a></td>
+    <td width="50%"><a href="media/screenshots/full/openz_screenshot_47.jpg"><img src="media/screenshots/web/openz_screenshot_47.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
   <tr>
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_06.jpg"><img src="media/screenshots/web/openz_screenshot_06.jpg" alt="OpenZ screenshot"></a></td>
@@ -166,7 +166,7 @@ feeling of the original. This is where it started, and where it is now:
   </tr>
 </table>
 
-<p align="center"><b><a href="docs/SCREENSHOTS.md">More screenshots (all 34)</a></b></p>
+<p align="center"><b><a href="docs/SCREENSHOTS.md">More screenshots (all 66)</a></b></p>
 
 ## How to install
 
