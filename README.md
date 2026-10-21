@@ -105,6 +105,13 @@ And that's not all: several completely new ideas and brand-new content have been
   re-created from scratch for OpenZ: new designs, new models, new recordings. No original assets or materials were
   used, and any likeness to other characters or real persons is purely coincidental.
 
+<table>
+  <tr>
+    <td width="50%"><img src="media/clips/openz_clip_07.gif" alt="Night battle in the Jungle level" width="100%"></td>
+    <td width="50%"><img src="media/clips/openz_clip_08.gif" alt="Sunrise over the Jungle level" width="100%"></td>
+  </tr>
+</table>
+
 ## Graphics & polish
 
 OpenZ is built in **Unity 6** with the Universal Render Pipeline, and every model was shaped, rigged, animated and
@@ -146,8 +153,8 @@ feeling of the original. This is where it started, and where it is now:
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_01.jpg"><img src="media/screenshots/web/openz_screenshot_01.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
   <tr>
-    <td width="50%"><a href="media/screenshots/full/openz_screenshot_02.jpg"><img src="media/screenshots/web/openz_screenshot_02.jpg" alt="OpenZ screenshot"></a></td>
-    <td width="50%"><a href="media/screenshots/full/openz_screenshot_03.jpg"><img src="media/screenshots/web/openz_screenshot_03.jpg" alt="OpenZ screenshot"></a></td>
+    <td width="50%"><a href="media/screenshots/full/openz_screenshot_30.jpg"><img src="media/screenshots/web/openz_screenshot_30.jpg" alt="OpenZ screenshot"></a></td>
+    <td width="50%"><a href="media/screenshots/full/openz_screenshot_33.jpg"><img src="media/screenshots/web/openz_screenshot_33.jpg" alt="OpenZ screenshot"></a></td>
   </tr>
   <tr>
     <td width="50%"><a href="media/screenshots/full/openz_screenshot_04.jpg"><img src="media/screenshots/web/openz_screenshot_04.jpg" alt="OpenZ screenshot"></a></td>
@@ -159,7 +166,7 @@ feeling of the original. This is where it started, and where it is now:
   </tr>
 </table>
 
-<p align="center"><b><a href="docs/SCREENSHOTS.md">More screenshots (all 28, in 4K)</a></b></p>
+<p align="center"><b><a href="docs/SCREENSHOTS.md">More screenshots (all 34)</a></b></p>
 
 ## How to install
 
