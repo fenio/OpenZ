@@ -20,7 +20,7 @@
 </p>
 
 <h2 align="center">
-  <a href="https://github.com/playopenz/OpenZ/releases/latest/download/OpenZ_1.1_win64.zip">⬇️ Download OpenZ 1.1 for Windows (free, 2.0 GB)</a>
+  <a href="https://github.com/playopenz/OpenZ/releases/latest/download/OpenZ_1.1_win64.zip">Download OpenZ 1.1 for Windows (free, 2.0 GB)</a>
 </h2>
 
 <p align="center">
@@ -30,7 +30,7 @@
 
 <p align="center">
   Unzip it, run <code>OpenZ.exe</code>, play. No install, no account, no launcher.<br>
-  <a href="#-how-to-install">How to install</a> ·
+  <a href="#how-to-install">How to install</a> ·
   <a href="docs/CONTROLS.md">Controls</a> ·
   <a href="docs/SCREENSHOTS.md">Screenshots</a> ·
   <a href="https://discord.gg/WjFqg35PsE">Discord</a> ·
@@ -40,7 +40,7 @@
 
 ---
 
-## 🌴 New in 1.1
+## New in 1.1
 
 - **Level 16: Jungle**, a third battlefield: ruins, waterfalls, wobbly rope bridges, rain, crocodiles in the swamp
   and monkeys on the temples.
@@ -52,7 +52,7 @@
 
 Full list: [change log](docs/CHANGELOG.md).
 
-## 🎬 Trailer (1.1)
+## Trailer (1.1)
 
 https://github.com/user-attachments/assets/d2f8f14e-e250-4ff4-ae1d-8252bc9c53f5
 
@@ -63,7 +63,7 @@ https://github.com/user-attachments/assets/d2f8f14e-e250-4ff4-ae1d-8252bc9c53f5
   </tr>
 </table>
 
-## 🤖 The legendary Z is 30. This is the remake we always wanted.
+## The legendary Z is 30. This is the remake we always wanted.
 
 Hi guys! The legendary **Z** is celebrating its 30th anniversary, and to commemorate it, the community gets the
 long-awaited faithful remake of the original Z, now in **full 3D**!
@@ -87,7 +87,7 @@ And that's not all: several completely new ideas and brand-new content have been
   </tr>
 </table>
 
-## ⚔️ What's inside
+## What's inside
 
 - **Pure Z gameplay.** Capture flags to take whole territories. More territory means faster factories. Storm the enemy
   fort, or blow it to pieces. No resources to mine, no base building: just war.
@@ -105,7 +105,7 @@ And that's not all: several completely new ideas and brand-new content have been
   re-created from scratch for OpenZ: new designs, new models, new recordings. No original assets or materials were
   used, and any likeness to other characters or real persons is purely coincidental.
 
-## 🎨 Graphics & polish
+## Graphics & polish
 
 OpenZ is built in **Unity 6** with the Universal Render Pipeline, and every model was shaped, rigged, animated and
 painted in **Blender**. The goal was simple: the Z you remember, at the visual standard of a modern game, in 4K at
@@ -138,7 +138,7 @@ feeling of the original. This is where it started, and where it is now:
   <img src="media/making/making_blender_models.jpg" alt="Blender renders of the robot line-up, the fort, and the vehicles and guns" width="100%">
 </p>
 
-## 📸 Screenshots
+## Screenshots
 
 <table>
   <tr>
@@ -159,9 +159,9 @@ feeling of the original. This is where it started, and where it is now:
   </tr>
 </table>
 
-<p align="center"><b><a href="docs/SCREENSHOTS.md">▶ More screenshots (all 28, in 4K)</a></b></p>
+<p align="center"><b><a href="docs/SCREENSHOTS.md">More screenshots (all 28, in 4K)</a></b></p>
 
-## 💾 How to install
+## How to install
 
 1. **[Download OpenZ_1.1_win64.zip](https://github.com/playopenz/OpenZ/releases/latest/download/OpenZ_1.1_win64.zip)** (2.0 GB).
 2. **Unzip it** anywhere (right click, *Extract All*).
@@ -184,29 +184,29 @@ PowerShell: `Get-FileHash OpenZ_1.1_win64.zip -Algorithm SHA256`
 
 **New to Z?** Read [how to play and all the controls](docs/CONTROLS.md), or open CONTROLS in the game's main menu.
 
-## 📣 This is only the beginning
+## This is only the beginning
 
 Together as a community we can bring Z back to its former glory: more restored classic levels, completely original
 new levels, new units and maybe even multiplayer. **Your feedback shapes what comes next!** Play it, report every bug
 you find, and tell us what you want to see. Every single report gets read.
 
 <h3 align="center">
-  <a href="https://docs.google.com/forms/d/e/1FAIpQLSfMuZs9-p1pCsRm59CQy4PBuZwE8VbOAJj_2TeER6gD3sf9ag/viewform?usp=sharing">🐞 Bug reports, feature requests and ideas: use the feedback form</a>
+  <a href="https://docs.google.com/forms/d/e/1FAIpQLSfMuZs9-p1pCsRm59CQy4PBuZwE8VbOAJj_2TeER6gD3sf9ag/viewform?usp=sharing">Bug reports, feature requests and ideas: use the feedback form</a>
 </h3>
 
 Screenshots and short clips help squash bugs much faster; the form lets you attach them. We are not taking code or
 art contributions right now: what we need most is players and their feedback.
 
-**Enjoying it?** Drop a ⭐ on this page and share OpenZ with every Z fan you know!
+**Enjoying it?** Drop a  on this page and share OpenZ with every Z fan you know!
 
-## 🛠️ Source code
+## Source code
 
 OpenZ is open source. The [`source`](source) folder holds the game code (C# and shaders) for reading. The **complete Unity project**
 with every model, texture, sound and scene is attached to each
 [release](https://github.com/playopenz/OpenZ/releases/latest) as `OpenZ_1.1_source_part1.zip` and
 `OpenZ_1.1_source_part2.zip`. See [Building OpenZ from source](docs/BUILDING.md) (Unity 6.3 LTS).
 
-## 📜 License
+## License
 
 - **Code:** [GNU GPL-3.0](LICENSE). OpenZ ports the gameplay rules of the GPL-3.0 **Zod Engine**, huge respect to its
   creators!
@@ -220,7 +220,7 @@ with every model, texture, sound and scene is attached to each
 
 Full credits: [CREDITS.md](docs/CREDITS.md).
 
-## ❓ FAQ
+## FAQ
 
 **What is new in the 1.1 update?**
 Pack your sunscreen and watch your step around the water, soldiers! 1.1 adds a whole new battlefield, **Level 16:
@@ -262,7 +262,7 @@ The same as in the original game, taken from the open-source Zod Engine: unit st
 and the CPU opponent. On top of that there are some updates and improvements, and every one of them is listed in the
 game's **Changes & Updates** screen.
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 OpenZ is an unofficial, fan-made faithful remake of Z (The Bitmap Brothers, 1996), created for its 30th anniversary.
 It is **not affiliated with or endorsed by Rebellion or The Bitmap Brothers**. *Z*, its names and its characters belong
