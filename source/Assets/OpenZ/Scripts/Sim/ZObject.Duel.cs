@@ -92,6 +92,7 @@ namespace OpenZ.Sim
         /// the target is at the very edge of range) or ZDuel.Stand (Zod's StopMove + Engage).</summary>
         internal int DuelStep(ZObject t, double dt, bool agro)
         {
+            if (ChargeStep(t, dt, agro, out int chargeResult)) return chargeResult;     // DV121: a jeep drives at a robot it runs over, where Zod stops and fires (Sim/ZObject.JeepCharge.cs)
             if (!ZWorld.DuelDeviation || !DuelCapable || t == null || !(t.Kind == ZKind.Vehicle || t.Kind == ZKind.Cannon)
                 || (ZWorld.NoTankDuelVsJeep && Type != "jeep" && t.Kind == ZKind.Vehicle && t.Type == "jeep"))   // combat_nb_v1 NB12: tanks do not manoeuvre against a jeep
             {
@@ -290,7 +291,7 @@ namespace OpenZ.Sim
             double de = Dist(ex, ey, t.CenterX, t.CenterY);
             if (de > AttackRadius - ZDuel.EndSlack) return false;
             if (de < ZPathing.MinSpacing(this, t) + 8) return false;
-            if (!t.IsDestroyableImpass && World.EngageBarrierBetween(ex, ey, t.CenterX, t.CenterY)) return false;
+            if (!t.IsDestroyableImpass && !t.ShuttleAirborne && World.EngageBarrierBetween(ex, ey, t.CenterX, t.CenterY)) return false;   // DV118: not for the flying shuttle
             if (LosActive && !World.Sight.ClearFrom(ex, ey, 0, t)) return false;          // DV23: the end point keeps a clear line
             if (agro)
             {

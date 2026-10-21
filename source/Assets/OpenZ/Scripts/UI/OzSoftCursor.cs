@@ -187,7 +187,7 @@ namespace OpenZ
             RefreshPrefs();
             float s = Screen.height / 1080f * Mathf.Clamp(prefsScale, 0.5f, 2f);
             sizePx = Mathf.Clamp(Mathf.RoundToInt(BaseSize * s * 0.5f) * 2, 16, 192);                 // even: the centre hotspot sits on a pixel corner
-            if (prefsHw && HardwareTick(name, frame)) { img.enabled = false; SetGallery(Gallery && Cursor.visible, frame); return; }
+            if (prefsHw && !OzTouch.SoftPointer && HardwareTick(name, frame)) { img.enabled = false; SetGallery(Gallery && Cursor.visible, frame); return; }
             if (!focused)
             {   // background window: the OS draws the kit's hardware cursor, no software one
                 img.enabled = false; SetGallery(false, 0);

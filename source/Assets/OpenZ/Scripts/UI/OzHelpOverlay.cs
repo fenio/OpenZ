@@ -60,7 +60,7 @@ namespace OpenZ
         {
             float s = Mathf.Clamp(OzText.UiScale, OzText.ScaleMin, OzText.ScaleMax);
             float cw = root.rect.width > 1f ? root.rect.width : OzLayout.RefW, ch = root.rect.height > 1f ? root.rect.height : OzLayout.RefH;
-            float column = Mathf.Max(Reach(OzLayout.Minimap, s), Reach(OzLayout.UnitPanelFor(cw / s), s));
+            float column = Mathf.Max(Reach(OzHudLayout.At(OzPanel.Minimap, OzLayout.Minimap), s), Reach(OzHudLayout.At(OzPanel.Unit, OzLayout.UnitPanelFor(cw / s)), s));
             float lowest = ch - column - Gap - OzLayout.PauseH;                                              // the lowest top edge that clears them
             float highest = (OzLayout.MenuButton.y + OzLayout.MenuButton.h) * s + Gap;
             if (OzLayout.TopStrip.w * 0.5f * s + Gap > cw * 0.5f - HomeX - OzLayout.PauseW)                  // the scaled top strip reaches over the panel's left edge

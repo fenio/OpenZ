@@ -58,6 +58,35 @@ namespace OpenZ
         /// <summary>Leave a scorch mark of about `radius` metres (x random 0.7-1.4) at `at` (x, z; the height is resampled).</summary>
         public static bool Add(Vector3 at, float radius, ScorchKind kind = ScorchKind.Explosion) => Ensure() && I.AddMark(at, radius, kind);
 
+        /// <summary>A lasting soot mark of the atlas laid flat at a place that is not the ground (a fort's roof): an object of its
+        /// own under parent, so it goes when its owner goes; it does not fade and is not one of the ground marks. variant = the
+        /// atlas tile (0 .. 8), opacity 0 .. 1. The caller frees the mesh (named "ScorchFlat") with the object.</summary>
+        public static GameObject Flat(Transform parent, Vector3 at, float radius, int variant, float rotDeg, float opacity)
+        {
+            if (!Ensure() || !I.mat) return null;
+            const int n = 7; const float span = 1f / Cols;
+            float half = radius * 1.3f; variant = Mathf.Clamp(variant, 0, Kinds - 1);
+            float u0 = (variant % Cols) * span, v0 = (variant / Cols) * span, pad = 2f / (Cols * Tile);
+            var v = new List<Vector3>(n * n); var uv = new List<Vector2>(n * n); var col = new List<Color32>(n * n); var tri = new List<int>((n - 1) * (n - 1) * 6);
+            for (int j = 0; j < n; j++)
+                for (int i = 0; i < n; i++)
+                {
+                    float fx = i / (n - 1f) * 2f - 1f, fz = j / (n - 1f) * 2f - 1f, rim = Mathf.Max(Mathf.Abs(fx), Mathf.Abs(fz));
+                    v.Add(new Vector3(fx * half, 0f, fz * half));
+                    uv.Add(new Vector2(u0 + pad + (fx * 0.5f + 0.5f) * (span - 2 * pad), v0 + pad + (fz * 0.5f + 0.5f) * (span - 2 * pad)));
+                    col.Add(new Color32(255, 255, 255, (byte)Mathf.RoundToInt((1f - PopOut.Smooth(rim, 0.86f, 1f)) * 255f)));
+                }
+            for (int j = 0; j < n - 1; j++)
+                for (int i = 0; i < n - 1; i++) { int k = j * n + i; tri.Add(k); tri.Add(k + n); tri.Add(k + n + 1); tri.Add(k); tri.Add(k + n + 1); tri.Add(k + 1); }
+            var m = new Mesh { name = "ScorchFlat" }; m.SetVertices(v); m.SetUVs(0, uv); m.SetColors(col); m.SetTriangles(tri, 0); m.RecalculateBounds();
+            var go = new GameObject("ScorchFlat"); if (parent) go.transform.SetParent(parent, false);
+            go.transform.SetPositionAndRotation(at, Quaternion.Euler(0f, rotDeg, 0f));
+            go.AddComponent<MeshFilter>().sharedMesh = m;
+            var r = go.AddComponent<MeshRenderer>(); r.sharedMaterial = I.mat; r.shadowCastingMode = ShadowCastingMode.Off; r.receiveShadows = false;
+            var b = new MaterialPropertyBlock(); b.SetFloat(OpacityId, Mathf.Clamp01(opacity)); r.SetPropertyBlock(b);
+            return go;
+        }
+
         /// <summary>
         /// `strength` (0..1) of a scorch's darkening, for `life` s (fades over the last 65 %).</summary>
         public static bool AddSand(Vector3 at, float radius, float life, float strength)
@@ -103,7 +132,7 @@ namespace OpenZ
             var p = ZGame.WorldToPx(new Vector3(x, 0, z));
             var c = g.World.Map.ClassAt(p.x >> 4, p.y >> 4);
             if (c != ZClass.Water && c != ZClass.DeepWater) return false;
-            float wy = WaterY();
+            float wy = OzWaterLevel.At(g.level, x, z, WaterY());                                              // each pool at its own height (level 16)
             return float.IsNegativeInfinity(wy) || h < wy + 0.1f;
         }
 
@@ -219,7 +248,7 @@ namespace OpenZ
                 var p = ZGame.WorldToPx(new Vector3(m.at.x, 0, m.at.z));
                 var c = g.World.Map.ClassAt(p.x >> 4, p.y >> 4);
                 if (c != ZClass.Water && c != ZClass.DeepWater) continue;
-                if (!float.IsNegativeInfinity(wy) && m.at.y < wy + 0.3f) continue;
+                float wym = OzWaterLevel.At(g.level, m.at.x, m.at.z, wy); if (!float.IsNegativeInfinity(wym) && m.at.y < wym + 0.3f) continue;
                 float age = now - m.born; m.fadeAt = Mathf.Min(m.fadeAt, age); m.life = Mathf.Min(m.life, age + 0.4f);
                 n++;
             }

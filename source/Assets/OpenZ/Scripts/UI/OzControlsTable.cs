@@ -15,15 +15,16 @@ namespace OpenZ
     ///    the new key (Esc cancels, a click elsewhere cancels), saved at once; a key used twice in the same context turns both
     ///    caps red and the footer names the pair; RESET TO DEFAULTS. Sounds: ui_hover on a cap, ui_click to start, ui_confirm
     ///    bound, ui_error bound with a conflict, ui_disabled reserved key, ui_cancel cancelled, ui_confirm reset (OzSoundLog AD rows).
-    ///  - Compact (pause menu, 460 x 600 u): the same table read-only, 20 rows, every action, the live bindings, "change keys in the main menu".
+    ///  - Compact (pause menu, 460 x 600 u): the same table read-only, 21 rows, every action, the live bindings, "change keys in the main menu".
     /// </summary>
     public sealed class OzControlsTable
     {
         // ------------------------------------------------------------------ metrics (canvas units)
-        /// <summary>FullH: the longer column (17 rows of 32 u + 2 section heads) ends at 696 u; the foot rule sits at FullH - 76 and the
-        /// RESET TO DEFAULTS button at FullH - 60, so the panel must be at least 696 + 12 + 76 = 784 u tall (720 u let the last
-        /// two rows run over the rule, the button and the status line). BuildFull warns in the log if a column outgrows it.</summary>
-        public const float FullW = 1120, FullH = 784;
+        /// <summary>FullH: the longer column (the right one: 16 rows of 32 u + 3 section heads) ends at 702 u, the left one (17 rows
+        /// + 2 section heads) at 696 u; the foot rule sits at FullH - 76 and the RESET TO DEFAULTS button at FullH - 60, so the panel
+        /// must be at least 702 + 12 + 76 = 790 u tall (720 u let the last two rows run over the rule, the button and the status
+        /// line). BuildFull warns in the log if a column outgrows it.</summary>
+        public const float FullW = 1120, FullH = 790;
         const float Pad = 32, ColGap = 40, HeadY = 22, RowsY = 84, RowStep = 32, RowH = 30, SecStep = 32, CapH = 24, CapText = 12, CapPad = 10, CapGap = 5, LabelSize = 14;
         const float CRowsY = 62, CRowStep = 30, CCapH = 18, CCapText = 10, CCapPad = 7, CKeyRight = 222, CLabelX = 232, CLabelSize = 11;
 
@@ -55,7 +56,7 @@ namespace OpenZ
             R("Attack-move / plain move", K("CTRL"), S("/"), K("ALT"), S("+"), K("RIGHT CLICK")),
             R("Attack an empty vehicle, gun or building", K("CTRL"), S("+"), K("RIGHT CLICK")),                         // a plain right-click never attacks them
             R("Only the unit nearest to the point", A(OzAction.NearestOnly), S("+"), K("RIGHT CLICK")),
-            R("Damaged vehicles: to repair and back", A(OzAction.RepairVehicles)),
+            R("Repair damaged vehicles · build menu open: set rally", A(OzAction.RepairVehicles)),
             R("Patrol (then right-click) · stop · hold", A(OzAction.Patrol), S("·"), A(OzAction.StopUnits), S("·"), A(OzAction.HoldPosition)),
         };
 
@@ -77,7 +78,8 @@ namespace OpenZ
             R(OzBindings.DefOf(OzAction.ExitCrew).label, A(OzAction.ExitCrew)),
             R(OzBindings.DefOf(OzAction.LastMessage).label, A(OzAction.LastMessage)),
             R("Game speed: slower / faster", K("-"), S("/"), K("+")),                                                // fixed keys, the numpad pair too (OzSpeedKeys)
-            R(OzBindings.DefOf(OzAction.HideHud).label, A(OzAction.HideHud)),
+            R(OzBindings.DefOf(OzAction.MinimalUi).label, A(OzAction.MinimalUi)),                                    // the MINIMAL UI key (OpenZHud.MinimalKey.cs)
+            R("Hide the HUD · arrange its panels", A(OzAction.HideHud), S("·"), A(OzAction.ArrangeHud)),
             R("Controls help · pause menu", A(OzAction.HelpOverlay), S("·"), K("ESC")),
         };
 
@@ -91,7 +93,7 @@ namespace OpenZ
             R("Attack-move / plain move", K("CTRL"), S("/"), K("ALT"), S("+"), K("R-CLICK")),
             R("Attack an empty vehicle, gun, building", K("CTRL"), S("+"), K("R-CLICK")),
             R("Only the unit nearest to the point", A(OzAction.NearestOnly), S("+"), K("R-CLICK")),
-            R("Damaged vehicles: to repair and back", A(OzAction.RepairVehicles)),
+            R("Repair vehicles · build menu: set rally", A(OzAction.RepairVehicles)),   // K327: both meanings of the key
             R("Patrol (then R-click) · stop · hold", A(OzAction.Patrol), S("·"), A(OzAction.StopUnits), S("·"), A(OzAction.HoldPosition)),   // CTL1
             R("Recall a group (again: fly there)", K("1 .. 0")),
             R("Store the selection as a group", K("CTRL"), S("+"), K("1 .. 0")),
@@ -102,7 +104,8 @@ namespace OpenZ
             R("Factory list · place a stored cannon", A(OzAction.FactoryList), S("·"), A(OzAction.PlaceCannon)),
             R("Exit crew · cycle the last 5 messages", A(OzAction.ExitCrew), S("·"), A(OzAction.LastMessage)),
             R("Game speed: slower / faster", K("-"), S("/"), K("+")),
-            R("Hide the HUD · help · this menu", A(OzAction.HideHud), S("·"), A(OzAction.HelpOverlay), S("·"), K("ESC")),
+            R(OzBindings.DefOf(OzAction.MinimalUi).label, A(OzAction.MinimalUi)),
+            R("Hide HUD / arrange it · help · menu", A(OzAction.HideHud), A(OzAction.ArrangeHud), S("·"), A(OzAction.HelpOverlay), S("·"), K("ESC")),
         };
 
         // ------------------------------------------------------------------ state
@@ -150,7 +153,7 @@ namespace OpenZ
                 float y = CRowsY + i * step;
                 if ((i & 1) == 0) { var band = Hud.Img(p, "Band" + i, OzUi.A(OzUi.GM800, 0.42f)); band.rectTransform.TL(OzLayout.OptX - 8, y - 4, w - 2 * OzLayout.OptX + 16, step - 2); }
                 t.Caps(p, rows[i].parts, CKeyRight, y + (step - 2 - 8 - CCapH) * 0.5f, CCapH, CCapText, CCapPad, null);
-                Hud.Label(p, "What" + i, rows[i].label, CLabelSize, OzUi.Ink2, 0f, OzStyle.Plain).At(CLabelX, y + (step - 10) * 0.5f, OzH.L, true, w - CLabelX - OzLayout.OptX + 4);
+                OzFreeCam.ControlsRow(Hud.Label(p, "What" + i, rows[i].label, CLabelSize, OzUi.Ink2, 0f, OzStyle.Plain).At(CLabelX, y + (step - 10) * 0.5f, OzH.L, true, w - CLabelX - OzLayout.OptX + 4), rows[i].label);   // the scroll row names the free camera while it is on
             }
             Hud.Label(p, "Foot", foot, 9, OzUi.Muted, 0.2f, OzStyle.Plain).At(OzLayout.OptX, h - 30, OzH.L, false, w - 2 * OzLayout.OptX);
             t.Refresh(true);
@@ -172,7 +175,7 @@ namespace OpenZ
                 }
                 if ((band++ & 1) == 0) { var b = Hud.Img(p, "Band", OzUi.A(OzUi.GM800, 0.45f)); b.rectTransform.TL(x - 10, y, w + 20, RowH); }
                 float capsW = Caps(p, r.parts, x + w, y + (RowH - CapH) * 0.5f, CapH, CapText, CapPad, addHot);
-                Hud.Label(p, "What", r.label, LabelSize, OzUi.Ink2, 0f, OzStyle.Plain).At(x, y + RowH * 0.5f, OzH.L, true, Mathf.Max(120f, w - capsW - 24f));
+                OzFreeCam.ControlsRow(Hud.Label(p, "What", r.label, LabelSize, OzUi.Ink2, 0f, OzStyle.Plain).At(x, y + RowH * 0.5f, OzH.L, true, Mathf.Max(120f, w - capsW - 24f)), r.label);   // the camera row names the free camera while it is on
                 y += RowStep;
             }
             return y - RowStep + RowH;

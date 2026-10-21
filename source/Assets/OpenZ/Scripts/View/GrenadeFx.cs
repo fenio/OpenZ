@@ -14,7 +14,7 @@ namespace OpenZ
     /// (g 9.8) and lands exactly when the sim explodes (flight = sim delay / gameSpeed).
     /// </summary>
     [DefaultExecutionOrder(101)]
-    public class GrenadeFx : MonoBehaviour
+    public partial class GrenadeFx : MonoBehaviour
     {
         public const float Size = 0.5f;
         public const float Release = 0.56f;           // s into grenade_throw
@@ -164,6 +164,7 @@ namespace OpenZ
         void LateUpdate()
         {
             float dt = Time.deltaTime, now = Time.time;
+            LookTick();                                                                                 // K350: the chosen grenade look (OzGrenadeLook.Variant 1 pineapple, 2 round band, 0 old), View/GrenadeFx.Look.cs
             int nb = 0, ns = 0;
             foreach (var g in pool)
             {
@@ -180,14 +181,14 @@ namespace OpenZ
                     g.pos = g.p0 + g.v * t + Vector3.down * (0.5f * g.g * t * t);
                     g.rot = g.rot * Quaternion.Euler(7f * Mathf.Rad2Deg * dt, 0f, 3f * Mathf.Rad2Deg * dt);
                     if (g.trail) g.trail.transform.position = g.pos;
-                    if (!g.clink && t >= g.flight * 0.88f) { g.clink = true; CombatAudio.I?.Play("grenade_land", g.pos, 0.4f, 0.1f, -1, OzSoundV3.BankGrenadeClink); OzSoundV3.GrenadeLanded(g.pos, g.flight - t); }   // sound_v3: 4 takes + 2nd bounce
+                    if (!g.clink && t >= g.flight * 0.88f && !OzAirShots.NoClinkUpThere(g.to, ref g.clink)) { g.clink = true; CombatAudio.I?.Play("grenade_land", g.pos, 0.4f, 0.1f, -1, OzSoundV3.BankGrenadeClink); OzSoundV3.GrenadeLanded(g.pos, g.flight - t); }   // sound_v3: 4 takes + 2nd bounce
                     if ((g.lightT -= dt) <= 0f && FxManager.I) { g.lightT = 0.12f; FxManager.I.AddLight(g.pos + Vector3.up * 0.2f, new Color(1f, 0.66f, 0.3f), 1.1f, 2.6f, 0.15f, 0.6f); }
                     if (t >= g.flight) { g.active = false; if (g.trail) g.trail.emitting = false; continue; }
                 }
                 if (nb < Cap) bodyM[nb++] = Matrix4x4.TRS(g.pos, g.rot, Vector3.one * Size);
                 if (ns + 1 < sparkM.Length)
                 {   // fuse spark: a hot core and a soft halo at the fuse tip, flickering
-                    var tip = g.pos + g.rot * (Vector3.up * 0.54f * Size);
+                    var tip = g.pos + g.rot * (Vector3.up * lookTip * Size);   // K350: lookTip 0.54 for the old grenade, the new look's fuse head + 0.02 m
                     FuseDrawn?.Invoke(tip, g.held ? Vector3.zero : g.v + Vector3.down * (g.g * Mathf.Min(g.age - g.release, g.flight)));   // vehicle_lights
                     float f = 0.75f + 0.5f * Mathf.PerlinNoise(g.age * 23f, g.GetHashCode() * 0.001f);
                     sparkM[ns++] = Matrix4x4.TRS(tip, Quaternion.identity, Vector3.one * 0.055f * f);

@@ -200,7 +200,7 @@ namespace OpenZ
             running = true; loser = team; impacted = false; flushing = false; endScreen = false;
             startTime = Time.time; realSinceFall = 0f; waveT0 = -1f; waveEnd = -100f;
             worstMs = Time.unscaledDeltaTime * 1000f; worstAt = 0f; worstLogged = false; impactReal = -1f;
-            probeNextLine = 1f; probeFixedStamp = 0; probeFrames = 0; probeSum = 0f; probeWorst = 0f; probeFixed = 0; probeFixedMs = 0; probeTicks = 0; probeRuleMs = 0; probeCpuMs = 0; probeGpuMs = 0; probeTimed = 0;
+            ZRuleProf.Ending.Mark(); probeNextLine = 1f; probeFixedStamp = 0; probeFrames = 0; probeSum = 0f; probeWorst = 0f; probeFixed = 0; probeFixedMs = 0; probeTicks = 0; probeRuleMs = 0; probeCpuMs = 0; probeGpuMs = 0; probeTimed = 0;
             var c = ZGame.PxToWorld(e.x, e.y); c.y = game.GroundY(c.x, c.z); fortCentre = c;
             var fort = game.World.GetAny(e.objId); if (fort != null) { fortCentre = game.CenterWorld(fort); }
             // footprints the fleeing robots never run into: buildings and rocks
@@ -559,7 +559,7 @@ namespace OpenZ
             foreach (var b in FindObjectsByType<Rigidbody>(FindObjectsSortMode.None)) { if (b.isKinematic) continue; bodies++; if (!b.IsSleeping()) awake++; }
             foreach (var p in FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None)) parts += p.particleCount;
             float n = Mathf.Max(1, probeFrames);
-            Debug.Log($"[OpenZ] ending profile +{probeNextLine:F0} s: {probeFrames} frames, average {probeSum / n:F0} ms, worst {probeWorst:F0} ms; per frame {probeFixed / n:F1} fixed updates taking {probeFixedMs / n:F1} ms and {probeTicks / n:F1} rule ticks taking {probeRuleMs / n:F1} ms"
+            Debug.Log($"[OpenZ] ending profile +{probeNextLine:F0} s: {probeFrames} frames, average {probeSum / n:F0} ms, worst {probeWorst:F0} ms; per frame {probeFixed / n:F1} fixed updates taking {probeFixedMs / n:F1} ms and {probeTicks / n:F1} rule ticks taking {probeRuleMs / n:F1} ms, {ZRuleProf.Ending.Take()}"
                       + (probeTimed > 0 ? $"; main thread {probeCpuMs / probeTimed:F1} ms, graphics card {probeGpuMs / probeTimed:F1} ms" : "")
                       + $"; moving bodies {awake} of {bodies}, particles {parts}, largest time step {Time.maximumDeltaTime:F2} s");
             probeNextLine += 1f; probeFrames = 0; probeSum = 0f; probeWorst = 0f; probeFixed = 0; probeFixedMs = 0; probeTicks = 0; probeRuleMs = 0; probeCpuMs = 0; probeGpuMs = 0; probeTimed = 0;

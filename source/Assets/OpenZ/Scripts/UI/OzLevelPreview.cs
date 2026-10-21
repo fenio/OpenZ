@@ -15,12 +15,15 @@ namespace OpenZ
         public OzLevelDef(string id, string scene, string number, string name, string mood, string wordmark, string objective, string goal, string[] chips)
         { Id = id; Scene = scene; Number = number; Name = name; Mood = mood; Wordmark = wordmark; Objective = objective; Goal = goal; FallbackChips = chips; }
 
-        /// <summary>OpenZ ships exactly two levels: Z level 2 (desert) and Z level 17 "Car Park" (city).</summary>
+        /// <summary>The levels in menu order: Z level 2 (desert), Z level 16 (jungle), Z level 17 "Car Park" (city).</summary>
         public static readonly OzLevelDef[] All =
         {
             new OzLevelDef("L02", "L02_Desert", "02", "DESERT", "DAY · DUST HAZE", "Wordmarks/mask_desert",
                 "CAPTURE THE FLAGS TO TAKE TERRITORY. BREAK INTO THE BLUE FORT TO WIN.", "Capture the flags. Break into the blue fort.",
                 new[] { "9 ZONES", "7 FLAGS", "2 FORTS", "72×90 TILES" }),
+            new OzLevelDef("L16", "L16_Jungle", "16", "JUNGLE", "DAY · SWAMP STEAM", "Wordmarks/mask_jungle",
+                "CAPTURE THE FLAGS TO TAKE TERRITORY. BREAK INTO THE BLUE FORT TO WIN.", "Capture the flags. Break into the blue fort.",
+                new[] { "15 ZONES", "13 FLAGS", "2 FORTS", "104×128 TILES" }),
             new OzLevelDef("L17", "L17_CarPark", "17", "CAR PARK", "NIGHT · CANAL FOG", "Wordmarks/mask_carpark",
                 "CAPTURE THE FLAGS TO TAKE TERRITORY. BREAK INTO THE BLUE FORT TO WIN.", "Capture the flags. Break into the blue fort.",
                 new[] { "16 ZONES", "14 FLAGS", "2 FORTS", "110×128 TILES" }),
@@ -73,6 +76,11 @@ namespace OpenZ
             Color32 ground = city ? new Color32(86, 86, 84, 255) : new Color32(158, 120, 80, 255), road = city ? new Color32(118, 116, 110, 255) : new Color32(126, 124, 118, 255),
                     water = city ? new Color32(92, 104, 58, 255) : new Color32(78, 168, 160, 255), deep = city ? new Color32(70, 82, 44, 255) : new Color32(56, 128, 128, 255),
                     cliff = city ? new Color32(172, 168, 158, 255) : new Color32(190, 136, 86, 255), cliffDark = city ? new Color32(138, 134, 126, 255) : new Color32(158, 106, 64, 255);
+            if (level == "L16")
+            {   // level 16: grass, grey road, brown swamp, brown rock (the in-game minimap's colours)
+                ground = new Color32(104, 122, 54, 255); road = new Color32(124, 122, 116, 255); water = new Color32(110, 96, 50, 255);
+                deep = new Color32(86, 74, 38, 255); cliff = new Color32(132, 104, 70, 255); cliffDark = new Color32(104, 80, 52, 255);
+            }
             var px = new Color32[tw * th];
             int Idx(int x, int yTop) => (th - 1 - yTop) * tw + x;
             var zoneOf = new int[mw * mh];

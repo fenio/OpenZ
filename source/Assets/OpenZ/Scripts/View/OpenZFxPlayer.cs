@@ -105,8 +105,10 @@ namespace OpenZ
             MeasureWater();
             string level = ZGame.I ? ZGame.I.level : null;
             waterTint = OpenZFxCatalog.RippleColorFor(level);
+            SoftWater = level == "L16";                                                                   // the swamp's own water look (soft swells, round drops, foam)
             var wEm = OpenZFxCatalog.RippleEmissionFor(level).linear * 0.6f;
-            foreach (var n in new[] { "m12_ripple", "m12_splash" }) { var ch = Ch(n); if (ch != null) SetLinear(ch.mat, "_EmissionColor", wEm); }
+            foreach (var n in new[] { "m12_ripple", "m12_splash", "m12_ripple_calm" }) { var ch = Ch(n); if (ch != null) SetLinear(ch.mat, "_EmissionColor", wEm); }
+            calmGlow = wEm;
             FxManager.Exploded -= OnFxManagerExploded;
             FxManager.Exploded += OnFxManagerExploded;
         }
@@ -131,6 +133,9 @@ namespace OpenZ
                 if (r.name.StartsWith("WAT_") && r.gameObject.activeInHierarchy) y = Mathf.Max(y, r.bounds.min.y + 0.02f);
             WaterY = y;
         }
+
+        /// <summary>Water surface height at a point: the tile's own height on a level with a water table, else the flat height.</summary>
+        public float WaterYAt(Vector3 p) => OzWaterLevel.At(ZGame.I ? ZGame.I.level : "", p.x, p.z, WaterY);
 
         // ------------------------------------------------------------------------------------------------ glb meshes
         void BakeLibrary()
@@ -533,11 +538,11 @@ namespace OpenZ
         public static bool IsWaterTile(Vector3 p) { var c = ClassAt(p); return c == ZClass.Water || c == ZClass.DeepWater; }
         /// <summary>Open water at p: a water tile whose walkable surface (terrain / river bed, or a bridge deck) is not above the
         /// water. Bridge decks over the river are ground, so rings, scorches and tread marks follow them.</summary>
-        public bool WetAt(Vector3 p, float groundY) => IsWaterTile(p) && (float.IsNegativeInfinity(WaterY) || groundY < WaterY + DeckClearance);
+        public bool WetAt(Vector3 p, float groundY) => IsWaterTile(p) && (float.IsNegativeInfinity(WaterY) || groundY < WaterYAt(p) + DeckClearance);
         public bool WetAt(Vector3 p) => WetAt(p, Ground(p.x, p.z));
         const float DeckClearance = 0.1f;
         /// <summary>Water surface under p, or the ground when there is no water there.</summary>
-        public float SurfaceY(Vector3 p) => IsWaterTile(p) && !float.IsNegativeInfinity(WaterY) ? Mathf.Max(WaterY, Ground(p.x, p.z)) : Ground(p.x, p.z);
+        public float SurfaceY(Vector3 p) => IsWaterTile(p) && !float.IsNegativeInfinity(WaterY) ? Mathf.Max(WaterYAt(p), Ground(p.x, p.z)) : Ground(p.x, p.z);
 
         public FxSurface SurfaceAt(Vector3 p)
         {
@@ -635,15 +640,17 @@ namespace OpenZ
             Seed(id);
             if (!mirror && !QuietBlast) Exploded?.Invoke(at, s);                               // mlrs_heavy_v1: cosmetic ripple blasts stay quiet
             float gy = Ground(at.x, at.z);
-            bool onWater = IsWaterTile(at) && !float.IsNegativeInfinity(WaterY) && WaterY >= gy - 0.05f;
-            float surf = onWater ? WaterY : gy;
+            bool onWater = IsWaterTile(at) && !float.IsNegativeInfinity(WaterY) && WaterYAt(at) >= gy - 0.05f;
+            float surf = onWater ? WaterYAt(at) : gy;
             at.y = Mathf.Max(at.y, surf + OpenZFxCatalog.M12FloorClamp);                     // floor clamp
             var flat = new Vector3(at.x, surf, at.z);
+            bool airBurst = OzShuttleBreakup.IsAirBurst(at, gy, kind);                          // K256e: up in the air (at the flying shuttle): nothing of it on the ground under it
+            if (!mirror) OzShuttleBreakup.NoteBlastFx(at, flat, at.y - gy, airBurst, !onWater && !airBurst && (groundLights || shockRings));   // the proof's count
             if (!mirror && !QuietBlast && !onWater && at.y - gy <= OpenZFxCatalog.ScorchMaxHeight) CraterField.OnBlast(flat, s, kind);
 
             // --- M12 impact handler: camera, ground light, scorch
             if (!mirror) Shake.Impact(at, s);
-            if (groundLights && !onWater) GroundLight(flat, s, false, true);                // fx_look: blast flash (longer, stronger)
+            if (groundLights && !onWater && !airBurst) GroundLight(flat, s, false, true);                // fx_look: blast flash (longer, stronger)
             if (scorchMarks && !onWater && at.y - gy <= OpenZFxCatalog.ScorchMaxHeight)
                 Scorch(flat, s, kind == FxBlastKind.Vehicle || kind == FxBlastKind.Building || kind == FxBlastKind.Nuke ? 2 : 1);
             if (kind == FxBlastKind.Building) Shake.Impact(at, OpenZFxCatalog.ShakeCollapse);
@@ -660,7 +667,7 @@ namespace OpenZ
                     Ripple(flat, s * 0.6f, OpenZFxCatalog.RippleLife * 1.2f);
                     Ripple(flat, s * 1.1f, OpenZFxCatalog.RippleLife * 2.2f);
                 }
-                else EmitGolden(OpenZFxCatalog.M12Dust, at, s);
+                else if (!airBurst) EmitGolden(OpenZFxCatalog.M12Dust, at, s);                // K256e: no ground dust in mid-air
                 if (rubble && !onWater)
                 {   // fx_look: rubble sized for the RTS camera + chunks thrown high on big blasts
                     float rs = OpenZFxCatalog.RubbleSizeOf(s);
@@ -669,11 +676,11 @@ namespace OpenZ
                 }
                 EmitGolden(OpenZFxCatalog.M12Fire, at, onWater ? s * 0.35f : s);
                 EmitGolden(OpenZFxCatalog.M12BlastCore, at, onWater ? s * 0.55f : s);        // fx_look: small hot core (was M12Core: a white disc)
-                if (!onWater) EmitGolden(OpenZFxCatalog.M12BlastSmoke, at, s);               // fx_look: billowing lit smoke that darkens
+                if (!onWater) EmitGolden(OpenZFxCatalog.M12BlastSmoke, at, s, 1f, airBurst ? OzShuttleBreakup.AirBurstSmoke : (Color?)null);   // K256e: an air burst's smoke is dark               // fx_look: billowing lit smoke that darkens
             }
             EmitGolden(OpenZFxCatalog.M12Sparks, at, s);                                     // the additive "squares"
             if (!mirror) BlastEmbers(at, gy, s);                                             // fx_look: burning bits thrown high
-            if (shockRings && !onWater) RingM12(flat, s);
+            if (shockRings && !onWater && !airBurst) RingM12(flat, s);
             DebrisRequested?.Invoke(at, s, kind);
 
             bool tnt = kind == FxBlastKind.Building || kind == FxBlastKind.Barrel || kind == FxBlastKind.Nuke;
@@ -682,13 +689,13 @@ namespace OpenZ
             bool hero = tnt || vehicle || (large && id % 4 == 0);
             float vr = legRadius * (tnt ? 1.2f : vehicle ? OpenZFxCatalog.LegVehicleMul : large ? OpenZFxCatalog.LegLargeMul : 1f) * (hero ? OpenZFxCatalog.LegHeroMul : 1f);
             var hot = OpenZFxCatalog.LegHotColor(kind);
-            if (shockRings && !onWater && large)
+            if (shockRings && !onWater && large && !airBurst)
             {
                 float life = hero ? OpenZFxCatalog.LegOuterRingLifeHero : tnt ? OpenZFxCatalog.LegOuterRingLifeTnt : OpenZFxCatalog.LegOuterRingLife;
                 float mul = hero ? OpenZFxCatalog.LegOuterRingMulHero : tnt ? OpenZFxCatalog.LegOuterRingMulTnt : OpenZFxCatalog.LegOuterRingMul;
                 RingLeg(flat, vr * mul, life, 0f, tnt ? OpenZFxCatalog.LegOuterRingColorTnt : OpenZFxCatalog.LegOuterRingColor);
             }
-            if (shockRings && !onWater && hero && (tnt || !OpenZFxCatalog.LegEchoRingTntOnly))   // fx_look: echo ring on TNT kinds only
+            if (shockRings && !onWater && hero && !airBurst && (tnt || !OpenZFxCatalog.LegEchoRingTntOnly))   // fx_look: echo ring on TNT kinds only
                 RingLeg(flat, vr * OpenZFxCatalog.LegEchoRingMul, OpenZFxCatalog.LegEchoRingEnd - OpenZFxCatalog.LegEchoRingDelay, OpenZFxCatalog.LegEchoRingDelay, OpenZFxCatalog.LegEchoRingColor);
             if (pointLights)
             {
@@ -698,7 +705,7 @@ namespace OpenZ
                 AddLight(at + Vector3.up * OpenZFxCatalog.BlastLightLift, hot, I0 * OpenZFxCatalog.BlastLightGain, range * OpenZFxCatalog.BlastLightRangeMul,
                     life * OpenZFxCatalog.BlastLightLifeMul, OpenZFxCatalog.LegLightDecayPow, 0f, true);   // fx_v2: lifted, stronger, longer
             }
-            if (legGlow) LegGlow(at, gy, vr, large, hero, hot);
+            if (legGlow) LegGlow(at, airBurst ? at.y - 0.6f : gy, vr, large, hero, hot);   // K256e: an air burst's sparks and fire clouds round it, not on the ground
         }
 
         /// <summary>fx_look: glowing embers / burning bits thrown high (7 per unit of s, max 24) on leg_spark: arcs, bounces, fades.</summary>
@@ -777,7 +784,8 @@ namespace OpenZ
         /// <summary>splash(at, s): 12 droplets + ripple(at, s). at = the water surface.</summary>
         public void Splash(Vector3 at, float s = 1f)
         {
-            if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterY;
+            if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterYAt(at);
+            if (SoftWater) { SoftSplash(at, s); return; }
             EmitGolden(OpenZFxCatalog.M12Splash, at, s, 1f, waterTint);
             Ripple(at, s);
         }
@@ -786,19 +794,89 @@ namespace OpenZ
         public void Droplets(Vector3 at, float s, int count)
         {
             var L = OpenZFxCatalog.M12Splash; L.count = Mathf.Clamp(count, 1, 12);
-            if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterY;
+            if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterYAt(at);
+            if (SoftWater) { SoftDrops(at, s, Mathf.Clamp(count, 1, 12), 0.75f); return; }
             EmitGolden(L, at, s, 1f, waterTint);
         }
 
         /// <summary>ripple(at, s): a flat ring on the water at y + .09, .75 s (.2 + 6 t), fading 1 - smoothstep(.15,1,t).</summary>
         public void Ripple(Vector3 at, float s = 0.5f, float life = OpenZFxCatalog.RippleLife, float lift = OpenZFxCatalog.RippleLift)
         {
-            if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterY;
+            if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterYAt(at);
             // 4 m L02 river; the ring now ends at the nearest bank (+ .4 m under the wet band)
             float maxR = WaterClearance(at, 4.65f * s) + 0.4f;
             if (4.65f * s > maxR) s = Mathf.Max(0.12f, maxR / 4.65f);
+            if (SoftWater) { SoftSwell(at, s, life, lift, 1f); return; }
             EmitP(Ch("m12_ripple"), new Vector3(at.x, at.y + lift, at.z), Vector3.zero, life, 2f * OpenZFxCatalog.RippleScale * s,
                 waterTint, 1f);
+        }
+
+        // ------------------------------------------------------------------------------------------------ the soft water look
+        /// <summary>Level 16: the water's signs are drawn soft: a ring is a few broad swells that spread, thin out and fade (a light
+        /// crest, a darker trough, in the water's own tone), a splash is a short crown of round drops with a foam patch that spreads
+        /// and dissolves and a little mist, all sized to what made them and lit by the hour. Fewer, better ones: a swell lives a
+        /// little longer than the old ring, and rings that would pile up on one spot within SoftSwellGap seconds are left out.</summary>
+        public static bool SoftWater;
+        public static float SoftSwellAlpha = 0.62f, SoftSwellLife = 1.35f, SoftSwellGap = 0.28f, SoftFoamAlpha = 0.55f, SoftMistAlpha = 0.20f;
+        public static Color SoftFoam = new Color(0.80f, 0.77f, 0.66f), SoftDrop = new Color(0.84f, 0.82f, 0.72f);
+        public static int SoftSwells, SoftSplashes, SoftSwellsLeftOut;
+        Vector3 softLastAt; float softLastT = -10f; int softSerial;
+
+        void SoftSwell(Vector3 at, float s, float life, float lift, float strength)
+        {
+            float now = Time.time;
+            // no pile of rings: a second one on the same spot right after the first adds nothing but lines
+            if (now - softLastT < SoftSwellGap && (at - softLastAt).sqrMagnitude < 0.6f * 0.6f) { SoftSwellsLeftOut++; return; }
+            softLastAt = at; softLastT = now;
+            EmitP(Ch("l16_swell"), new Vector3(at.x, at.y + lift, at.z), Vector3.zero, life * SoftSwellLife, 2f * OpenZFxCatalog.RippleScale * s,
+                waterTint, SoftSwellAlpha * strength);
+            SoftSwells++;
+        }
+
+        void SoftDrops(Vector3 at, float s, int count, float reach)
+        {
+            var ch = Ch("l16_drop"); if (ch == null) return;
+            float k = Mathf.Sqrt(Mathf.Max(0.05f, s));
+            for (int j = 0; j < count; j++)
+            {
+                float a = j * 2.399f + softSerial * 0.61f, r = UnityEngine.Random.value;
+                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                var vel = dir * ((0.7f + 1.1f * r) * k * reach * 1.5f) + Vector3.up * ((2.1f + 1.5f * UnityEngine.Random.value) * k);
+                EmitP(ch, at + dir * (0.12f * s) + Vector3.up * 0.04f, vel, 0.42f + 0.3f * UnityEngine.Random.value, (0.045f + 0.04f * r) * Mathf.Lerp(0.8f, 1.5f, Mathf.Clamp01(s)), SoftDrop, 0.9f);
+            }
+        }
+
+        void SoftSplash(Vector3 at, float s)
+        {
+            softSerial++;
+            SoftDrops(at, s, Mathf.Clamp(Mathf.RoundToInt(6f + 8f * s), 5, 18), 1f);
+            // the crown's body and its mist: a few soft puffs that rise a hand and are gone
+            int puffs = s < 0.45f ? 1 : s < 1f ? 2 : 3;
+            for (int j = 0; j < puffs; j++)
+                EmitP(Ch("m12_smoke"), at + new Vector3(UnityEngine.Random.Range(-0.15f, 0.15f) * s, 0.12f * s, UnityEngine.Random.Range(-0.15f, 0.15f) * s),
+                    Vector3.up * (0.5f + 0.5f * s), 0.38f + 0.14f * j, (0.32f + 0.18f * j) * Mathf.Max(0.35f, s), SoftFoam, SoftMistAlpha + 0.12f);
+            EmitP(Ch("l16_foam"), new Vector3(at.x, at.y + OpenZFxCatalog.RippleLift * 0.6f, at.z), Vector3.zero, 1.5f + 0.7f * Mathf.Clamp01(s), 0.85f * Mathf.Max(0.3f, s), SoftFoam, SoftFoamAlpha);
+            SoftSplashes++;
+            Ripple(at, s);
+        }
+
+        /// <summary>How much of the day's glow a calm ring keeps at full night, and its strength then (1 = as by day): after dark
+        /// the ring is lit like the water round it and only a little lighter.</summary>
+        public static float CalmRingNightGlow = 0.02f, CalmRingNightAlpha = 0.30f;
+        Color calmGlow;
+
+        /// <summary>The same ring for quiet signs on the water (a lurking or slowly swimming animal, a floating part), on a channel
+        /// of its own whose glow follows the night. By day it is the game's ring exactly.</summary>
+        public void RippleCalm(Vector3 at, float s = 0.5f, float life = OpenZFxCatalog.RippleLife, float lift = OpenZFxCatalog.RippleLift)
+        {
+            if (SoftWater) { Ripple(at, s, life, lift); return; }                                        // the soft swells are lit by the hour themselves
+            var ch = Ch("m12_ripple_calm"); if (ch == null) { Ripple(at, s, life, lift); return; }
+            if (IsWaterTile(at) && !float.IsNegativeInfinity(WaterY)) at.y = WaterYAt(at);
+            float maxR = WaterClearance(at, 4.65f * s) + 0.4f;
+            if (4.65f * s > maxR) s = Mathf.Max(0.12f, maxR / 4.65f);
+            float night = Mathf.Clamp01(DetailKit.Night);
+            SetLinear(ch.mat, "_EmissionColor", calmGlow * Mathf.Lerp(1f, CalmRingNightGlow, night));
+            EmitP(ch, new Vector3(at.x, at.y + lift, at.z), Vector3.zero, life, 2f * OpenZFxCatalog.RippleScale * s, waterTint, Mathf.Lerp(1f, CalmRingNightAlpha, night));
         }
 
         /// <summary>Distance (m) from p to the nearest tile that is not water, searched up to `upTo` m (2 m Zod tiles).</summary>
@@ -896,6 +974,7 @@ namespace OpenZ
                                  OpenZFxCatalog.TracerSleeveWidth, OpenZFxCatalog.TracerSleeveColor, OpenZFxCatalog.TracerSleeveAlpha);
             }
             ShotTraced?.Invoke(from, to, life, w);                                           // vehicle_lights: night glow
+            if (surface == FxSurface.Auto && OzShuttleAim.IsSkyMiss(to)) return life;                     // DV118: a miss past the flying shuttle flies on into the sky (no impact)
             if (surface == FxSurface.Auto) surface = SurfaceAt(to);
             if (OpenZHitSparks.Take(Time.time + life, to, dir, w, surface)) return life;     // hitsparks_v1: robots / armour = HDR streak burst + ricochet
             var pi = new PendingImpact { at = Time.time + life, pos = to, surface = surface, bolt = w == FxWeapon.Bolt };
@@ -1043,13 +1122,14 @@ namespace OpenZ
             }
             Proj p = null;
             foreach (var x in projs) if (!x.active) { p = x; break; }
-            if (p == null) { if (projs.Count >= 96) return; p = new Proj(); projs.Add(p); }
+            if (p == null) { if (projs.Count >= OzAirShots.MaxLive) { p = OzAirShots.On ? OldestProjectile() : null; if (p == null) return; } else { p = new Proj(); projs.Add(p); } }   // K337: full = the oldest ends first (was: the new one was not drawn)
             p.active = true; p.w = w; p.spec = spec; p.pos = p.prev = from; p.age = 0f; p.life = duration; p.g = g;
             p.vel = (to - from) / duration; p.vel.y += g * duration * 0.5f;
             p.ease = ease && RocketEasing && w != FxWeapon.Grenade; p.from = from; p.to = to;
             p.simEnd = p.ease ? NextSimEnd : -1; NextSimEnd = -1;
             if (p.ease) p.vel *= RocketEaseStart / (1f - RocketEaseRamp * (1f - RocketEaseStart) * 0.5f);   // out of the tube slower
             p.smokeRemainder = 0f; p.legTimer = 0f; p.legStep = 0; p.spinX = Rand() * 6.28f; p.spinZ = Rand() * 6.28f; p.index = serial++;
+            if (OzAirShots.On) OnAirLaunch(p, to);                                                     // K337: bound to its round at the flying shuttle (OpenZFxPlayer.AirShots.cs)
         }
 
         /// <summary>Real seconds a projectile flies: the sim's missile delay (Zod distance / attack_missile_speed, in sim seconds)
@@ -1098,6 +1178,7 @@ namespace OpenZ
             {
                 if (!p.active) continue;
                 p.age += dt;
+                if (AirShotEnd(p)) continue;                                                           // K337: the hard cap; a sure miss at its cap or a salvo's extra with its round: a small air burst
                 if (p.simEnd >= 0 && ZGame.I && ZGame.I.World != null)
                 {
                     // frame CombatView draws its blast (it rests on its impact point for at most a frame before), never a frame or two early
@@ -1222,7 +1303,8 @@ namespace OpenZ
                                float size, Color color, float alpha, float size2 = 0f, Color color2 = default, float alpha2 = 0f)
         {
             speed = Mathf.Max(0.5f, speed);
-            if (!ShotClearance.Bend(from, to, out var w))
+            bool k394Bent = ShotClearance.Bend(from, to, out var w); OzK394RoofShots.Note(from, to, k394Bent, w);   // K394: the roof rounds' check (one null test when it is off)
+            if (!k394Bent)
             {
                 var dd = to - from; float dist = dd.magnitude; if (dist < 1e-3f) return headLife;
                 var sd = dd / dist; var p0 = from + sd * start;
@@ -1448,7 +1530,7 @@ namespace OpenZ
             if (best == null || bestScore > I0 * 1.2f) return;
             if (OzMotion.Reduced && life < 0.15f) { I0 *= 0.55f; life = 0.15f; flicker = 0f; OzCalm.Note("flash light"); }
             best.age = 0f; best.life = Mathf.Max(0.02f, life); best.intensity = I0; best.pow = decayPow; best.flicker = flicker; best.whiteHot = whiteHot; best.color = color;
-            best.l.transform.position = at; best.l.range = Mathf.Max(0.5f, range); best.l.color = color; best.l.enabled = true;
+            best.l.transform.position = at; best.l.range = Mathf.Max(0.5f, range); best.l.color = color; best.l.enabled = true; FireLightStyle(best);
         }
 
         void StepLights(float dt)
@@ -1462,7 +1544,7 @@ namespace OpenZ
                 active++;
                 float k = x.age / x.life;
                 float env = Mathf.Pow(1f - k, x.pow);
-                float fl = x.flicker > 0f ? 1f + x.flicker * (0.55f * Mathf.Sin(t * 8.3f + x.seed) + 0.45f * Mathf.Sin(t * 23.7f + x.seed * 2f)) : 1f;
+                float fl = x.flicker > 0f ? FireFlicker(x, t) : 1f;                                    // item 400: a fire light's own phase and rate (OpenZFxPlayer.FireBeat.cs)
                 bool hot = x.whiteHot && x.age < OpenZFxCatalog.WhiteHotTime;
                 x.l.intensity = x.intensity * env * fl * (hot ? OpenZFxCatalog.WhiteHotGain : 1f);
                 x.l.color = hot ? Color.Lerp(new Color(1f, 0.95f, 0.85f), x.color, x.age / OpenZFxCatalog.WhiteHotTime) : x.color;
@@ -1529,7 +1611,7 @@ namespace OpenZ
             {
                 float y = Ground(p.x, p.z);
                 bool water = WetAt(p, y);                                                        // open water only: decks keep the ring
-                if (onWaterSurface && water && !float.IsNegativeInfinity(WaterY)) y = Mathf.Max(y, WaterY);
+                if (onWaterSurface && water && !float.IsNegativeInfinity(WaterY)) y = Mathf.Max(y, WaterYAt(p));
                 bv.Add(new Vector3(p.x, y + lift, p.z)); bn.Add(Vector3.up); bu.Add(new Vector2(p.x - c.x, p.z - c.z));
                 bc.Add(new Color(1f, 1f, 1f, maskWater && water ? 0f : 1f));
             }

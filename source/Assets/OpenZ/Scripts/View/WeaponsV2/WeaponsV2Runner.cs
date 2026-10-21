@@ -91,6 +91,7 @@ namespace OpenZ
         sealed class Rig
         {
             public int id; public UnitView view; public RobotWeaponPose pose; public bool robot;
+            public bool hatch;                           // DV87: the rig of a light / medium / heavy tank = its hatch driver's own weapon (BoardingView.DriverFire.cs): no view, the rounds leave BoardingView.DriverMuzzleNow
             public MgBurst mg; public SniperCadence snipe; public int snipeTarget = -1;
             public int lastTarget = -1; public Vector3 lastTo, lastOffset; public bool lastHit, lastDriver; public ZEvent lastEvent;
             public Vector3 fallbackFrom; public float smokeUntil = -100f, smokeNext, glintNext, dotNext, lastRicochet = -100f;
@@ -156,7 +157,7 @@ namespace OpenZ
 
         Rig RigFor(ZObject a, UnitView av)
         {
-            if (!rigs.TryGetValue(a.Id, out var r)) { r = new Rig { id = a.Id, robot = a.Kind == ZKind.Robot }; rigs[a.Id] = r; }
+            if (!rigs.TryGetValue(a.Id, out var r)) { r = new Rig { id = a.Id, robot = a.Kind == ZKind.Robot, hatch = a.Kind == ZKind.Vehicle && a.HasLid }; rigs[a.Id] = r; }   // DV87: hatch = a tank: only its hatch driver's shots come here (the tank's own gun fires shells)
             if (!r.view && av) r.view = av;
             if (!r.pose && r.robot && r.view) { r.pose = r.view.GetComponent<RobotWeaponPose>(); if (!r.pose) r.pose = RobotWeaponPose.Attach(r.view); }
             return r;
@@ -180,6 +181,7 @@ namespace OpenZ
                 if (want.sqrMagnitude > 0.01f && Vector3.Dot(dir, want.normalized) < 0.2f) dir = want.normalized;   // grenade throw / odd clip frame
                 return p;
             }
+            if (r.hatch && BoardingView.DriverMuzzleNow(r.id, out var hatchMuzzle)) r.fallbackFrom = hatchMuzzle;   // DV87: a tank's hatch driver: his muzzle right now (after WeaponHold), so a burst and a second bolt stay on the moving tank
             p = r.view && r.view.isActiveAndEnabled ? r.view.MuzzlePos() : r.fallbackFrom;
             var d = toward - p; dir = d.sqrMagnitude > 1e-4f ? d.normalized : Vector3.forward;
             return p;
@@ -188,6 +190,7 @@ namespace OpenZ
         /// <summary>A miss (CombatView scatters it around the target in the air) continues along the shot until it meets the ground.</summary>
         Vector3 GroundHit(Vector3 from, Vector3 to)
         {
+            if (OzShuttleAim.IsSkyMiss(to)) return to;                                                 // DV118: a miss past the flying shuttle flies on into the sky
             float gy = game.GroundY(to.x, to.z);
             if (to.y <= gy + 0.15f) return new Vector3(to.x, gy + 0.05f, to.z);
             var d = to - from;
@@ -414,7 +417,7 @@ namespace OpenZ
             NoteMps("grunt bolt", LegacyMatch.ShotSpeed(Speed));
             if (Live(out var z)) { float fl = z.Shot(from, S.to, FxWeapon.Bolt, LegacyMatch.SurfaceOf(t, S.e.flag), LegacyMatch.ShotSpeed(Speed)); if (S.kill) BlastWave.NoteDrawn(S.a, t, fl); }
             else FxManager.I?.Bullet(from, S.to);
-            if (CombatAudio.I) CombatAudio.I.PlayPitched("bolt", from, LegacyMatch.GainBolt, 0.2f, S.a, 1f, WeaponsV2.Pick(LegacyMatch.BankBolt));
+            if (CombatAudio.I && !OzHeroSquadView.PlayShot(S.a, from, CombatAudio.I)) CombatAudio.I.PlayPitched("bolt", from, LegacyMatch.GainBolt, 0.2f, S.a, 1f, WeaponsV2.Pick(LegacyMatch.BankBolt));   // DV108: a hero's shot: its own three sounds
             MetalPing(S, t, from);
             GruntShots++;
         }
@@ -451,6 +454,7 @@ namespace OpenZ
             {
                 if (r.mg == null) continue;
                 if (r.view && (r.view.Dying || r.view.Reacting)) { r.mg.ArmedUntil = -1f; r.mg.Clip = -1; continue; }   // review: a dead psycho stops firing (rounds came out of the ragdoll up to ~1 s); rebase: so does a knocked-down one (deaths_mech_v1 draws its held shots when it is up)
+                if (r.hatch && !BoardingView.DriverMuzzleNow(r.id, out _)) { r.mg.ArmedUntil = -1f; r.mg.Clip = -1; continue; }   // DV87: a tank's hatch driver dropped back in: his machine gun stops with him (no round out of a shut hatch)
                 int started = r.mg.Step(now, out int due);
                 if (started >= 0)
                 {
@@ -481,7 +485,7 @@ namespace OpenZ
             else
             {
                 var off = Random.insideUnitCircle.normalized * Random.Range(0.7f, 2.2f);
-                to = HitSurface.MissGround(from, aimAt + new Vector3(off.x, 0f, off.y));                // IM1: where the line lands
+                to = OzShuttleAim.High(t) ? OzShuttleAim.SkyMiss(from, t) : HitSurface.MissGround(from, aimAt + new Vector3(off.x, 0f, off.y));                // IM1: where the line lands
             }
             var d = to - from; float dist = d.magnitude; if (dist < 0.1f) return;
             var sd = d / dist;
@@ -544,6 +548,7 @@ namespace OpenZ
             z.EmitChannel(Ch("wv2_glow", "leg_cloud"), from + dir * 0.1f, dir * 0.3f, 0.14f, 1.0f * s, LaserGlow, 1f);
             z.EmitChannel("m12_core", from, Vector3.zero, 0.07f, 0.32f * s, LaserCore, 1f);
             z.AddLight(from + dir * 0.3f, LaserLight, 6f, 4.8f, 0.14f);
+            if (r.robot) z.LaserGroundFlash(r.view ? r.view.transform.position : from, s);         // a short green flash on the ground at his feet
             LaserBolt(r, from, dir, to0, S.e.flag, S.t, true, S.kill);
             for (int k = 1; k < LaserBoltsPerShot; k++)
                 volleys.Add(new Volley { at = Time.time + LaserBoltGap * k, a = r.id, to = S.to + Random.insideUnitSphere * 0.25f, hit = S.e.flag, target = S.t });
@@ -561,6 +566,7 @@ namespace OpenZ
                 volleys.RemoveAt(i--);
                 if (!rigs.TryGetValue(v.a, out var r) || !Live(out var z)) continue;
                 if (r.view && (r.view.Dying || r.view.Reacting)) continue;                             // rebase: no second laser bolt out of a knocked-down robot
+                if (r.hatch && !BoardingView.DriverMuzzleNow(r.id, out _)) continue;                   // DV87: nor out of a hatch whose driver dropped back in
                 var t = game.World.GetAny(v.target);
                 // (halfway to a tank's centre put the second zap up to ~0.75 m inside the hull, hidden) and a miss stays a miss
                 var to = v.hit && t != null && !t.Destroyed && t.Kind == ZKind.Robot && game.Views.TryGetValue(t.Id, out var tv) && tv ? v.to + (AimPosOf(t) - v.to) * 0.5f : v.to;
@@ -660,7 +666,7 @@ namespace OpenZ
             if (h.surf == FxSurface.Water) { var w = new Vector3(h.pos.x, z.SurfaceY(h.pos), h.pos.z); z.Droplets(w, 0.35f, 7); z.Ripple(w, 0.35f); return; }
             // streaks, bounce, flash, light, ricochet); a driver hit / snipe already got its seat burst from CombatView (never twice)
             if (h.hit && h.driver && OpenZHitSparks.Active) return;
-            if (h.hit && (h.surf == FxSurface.Unit || h.surf == FxSurface.Metal) && OpenZHitSparks.Burst(h.pos, h.dir, FxWeapon.Sniper, h.surf)) return;
+            if (h.hit && (h.surf == FxSurface.Unit || h.surf == FxSurface.Metal) && OpenZHitSparks.Burst(h.pos, h.dir, FxWeapon.Sniper, h.surf, 1f, !UnitView.HeadshotRound(h.target, h.shooter))) return;   // K248b: a headshot round's own ricochet is silent (the head pop is that moment's sound)
             z.EmitChannel("m12_core", h.pos, Vector3.zero, 0.09f, 0.5f, OpenZFxCatalog.M12Core.color, 1f);
             for (int i = 0; i < 10; i++)
             {
@@ -680,6 +686,7 @@ namespace OpenZ
             {
                 var h = hits[i]; if (now < h.at) continue;
                 hits.RemoveAt(i--);
+                if (!h.hit && OzShuttleAim.IsSkyMiss(h.pos)) continue;                                   // DV118: a miss that flew on into the sky has no impact
                 if (h.anchored && HitSurface.Now(h.anc, out var np, out _)) h.pos = np;                       // IM1: the body moved during the flight
                 if (!z) continue;
                 switch (h.kind)

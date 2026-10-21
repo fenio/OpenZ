@@ -22,6 +22,7 @@ namespace OpenZ
             public bool plate; public float plateHx, plateHz, plateRc, plateTop, plateBottom;
             public float lidR, lidT = 0.06f, lidDome = 0.022f;
             public bool useFrac; public Vector3 frac;   // vehicles_nb_v1 NB24: centre = a fraction of the parent's mesh bounds, sizes in metres
+            public float yaw;                           // DV87: the hatch frame turned about the roof's up axis, deg (the hinge sits on the frame's +z side)
         }
 
         // Measured on the GLBs (Unity axes, the models' own metres, rest pose). Light: square cut-out x +-0.565, z -0.08..1.08
@@ -42,6 +43,12 @@ namespace OpenZ
             // |z| <= 0.11 whose underside is 0.23 up): centre 0.689 / 0.537 / 0.702 of the Model mesh bounds (+z side, away from the door)
             ["crane"] = new Spec { parent = "Model", prefix = "crane_", useFrac = true, frac = new Vector3(0.689f, 0.537f, 0.702f), tilt = 0f,
                                    rOut = 0.32f, rIn = 0.25f, bottom = -0.03f, top = 0.09f, floor = -0.25f, plate = false, lidR = 0.305f, lidT = 0.05f },
+            // DV87: the APC driver's roof hatch on the front roof plate, behind the windscreen (measured on the kit body OZ_APC_Live.glb, GLB units:
+            // the plate x -0.43..-0.13, z -0.20..+0.20, top y 0.4596, flat within 1.3 cm under the collar): centre 0.647 / 0.967 / 0.500 of
+            // the Model mesh bounds = 0.71 m in front of the middle, 2.16 m in front of the rear dome; the collar (0.68 m) stays on the plate
+            // (0.76 m long, 1.01 m wide); the dark floor sits 2 cm above the plate; yaw -90: the hinge at the rear (the Model's -x)
+            ["apc"] = new Spec { parent = "Model", prefix = "apc_", useFrac = true, frac = new Vector3(0.647f, 0.967f, 0.5f), tilt = 0f, yaw = -90f,
+                                 rOut = 0.34f, rIn = 0.27f, bottom = -0.03f, top = 0.10f, floor = 0.02f, plate = false, lidR = 0.325f, lidT = 0.05f },
         };
 
         const int Seg = 48;
@@ -64,6 +71,19 @@ namespace OpenZ
             if (!rh.Build(root)) { return null; }
             var tp = root.GetComponent<TeamPaint>(); if (tp) tp.Apply();                                  // team / charred blocks on the new parts
             return rh;
+        }
+
+        /// <summary>DV87 (WheeledWreckBreakup.Tear, the APC): the roof hatch leaves the wreck with the blast: its lid flies off as a
+        /// wreck piece of its own, the collar goes. Two of the three modelled APC wrecks are torn open right under it
+        /// (apc_crane_rebuild_v1: the roof hole of V2 and the front roof hole of V3); a whole collar would hang over the hole.</summary>
+        public static bool BreakOff(UnitView v, Vector3 centre, float power, int id)
+        {
+            var rh = v ? v.GetComponent<RoundHatch>() : null;
+            if (!rh || !rh.Frame) return false;
+            var lid = rh.Hinge; rh.Hinge = null;
+            if (lid && !WreckPieces.Single(lid, centre, power * 0.8f, id + 4409)) Destroy(lid.gameObject);
+            Destroy(rh.Frame.gameObject); rh.Frame = null;
+            return true;
         }
 
         bool Build(Transform root)
@@ -108,7 +128,7 @@ namespace OpenZ
                 unit = Mathf.Abs(root.lossyScale.x) / Mathf.Max(1e-4f, Mathf.Abs(parent.lossyScale.x));
             }
             frame.localPosition = center; frame.localScale = Vector3.one * unit;
-            frame.localRotation = Quaternion.AngleAxis(-spec.tilt, Vector3.right);                    // -x rotation lifts +z (the rear)
+            frame.localRotation = Quaternion.AngleAxis(spec.yaw, Vector3.up) * Quaternion.AngleAxis(-spec.tilt, Vector3.right);   // -x rotation lifts +z (the rear); DV87: yaw first turns the hinge side (0 for every tank and the crane)
             Frame = frame;
 
             Part(frame, "OZ_Hatch_Collar", CollarMesh(), mats[0], mats[2]);

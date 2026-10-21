@@ -436,7 +436,7 @@ namespace OpenZ
             for (int i = 0; i < 10; i++)
             {   // dust wall rolling out behind the shock ring
                 float r = 6f + i * 5f;
-                fx.DemolitionDust(at, r * 2f, r * 2f, 1.5f + i * 0.18f);
+                if (!OzBlastFog.Skirt(at, r, i)) fx.DemolitionDust(at, r * 2f, r * 2f, 1.5f + i * 0.18f);   // item 211: a ring of soft ground fog (OzBlastFog.cs); off = the old puffs
                 yield return new WaitForSeconds(0.3f);
             }
         }

@@ -38,7 +38,7 @@ namespace OpenZ
 
     /// <summary>One shot of a level's briefing shot list (plain data; tune in Play, e.g. ZodShotList.L02.shots[2].pitchB = 15).</summary>
     [Serializable]
-    public sealed class ZodCineShotDef
+    public sealed partial class ZodCineShotDef                                                // + ZodFlyover.L16.cs: the cut anchors
     {
         public string name;
         public ZodCineSubject subject;
@@ -75,7 +75,7 @@ namespace OpenZ
     /// rebuild): the level start time of day, the city's warm sunrise, the briefing grade and both shot lists. A missing or empty part keeps
     /// the code defaults.</summary>
     [Serializable]
-    public sealed class ZodBriefingLookFile
+    public sealed partial class ZodBriefingLookFile                                           // + ZodFlyover.L16.cs: L16
     {
         /// <summary>DayNight time of day every level starts at (below 0 = DayNight.SunriseStart's default).</summary>
         public float startTod = -1f;
@@ -90,7 +90,7 @@ namespace OpenZ
 
     /// <summary>The briefing shot list of one level (data). Shot order: the whole map, the sunrise, the enemy
     /// fort, then our base easing into the RTS start camera (the hand-back).</summary>
-    public sealed class ZodShotList
+    public sealed partial class ZodShotList                                                   // + ZodFlyover.L16.cs: L16, cut anchors, briefing room
     {
         public string level;
         public ZodCineShotDef[] shots;
@@ -142,7 +142,7 @@ namespace OpenZ
             }
         };
 
-        public static ZodShotList For(string level) { EnsureFile(); return level == "L17" ? L17 : L02; }
+        public static ZodShotList For(string level) { EnsureFile(); return level == "L17" ? L17 : level == "L16" ? L16 : L02; }
 
         // ---------------------------------------------------------------------------------------- the tuned data file
         public const string JsonPath = "OpenZ/Zod/briefing_shots";
@@ -165,6 +165,7 @@ namespace OpenZ
                 File = f;
                 if (f.L02 != null && f.L02.Length > 0) L02.shots = f.L02;
                 if (f.L17 != null && f.L17.Length > 0) L17.shots = f.L17;
+                LoadL16(f);                                                                   // ZodFlyover.L16.cs: the jungle list and its numbers
                 if (f.startTod >= 0f) DayNight.SunriseStart = f.startTod;
                 if (f.morningWarmth >= 0f) DayNight.MorningWarmth = f.morningWarmth;
                 ZodFlyover.BriefExposure = f.briefExposure; ZodFlyover.BriefTemperature = f.briefTemperature;
@@ -181,6 +182,7 @@ namespace OpenZ
             var f = new ZodBriefingLookFile { startTod = DayNight.SunriseStart, morningWarmth = DayNight.MorningWarmth,
                 briefExposure = ZodFlyover.BriefExposure, briefTemperature = ZodFlyover.BriefTemperature,
                 morningSunLift = DayNight.MorningSunLift, morningAmbientLift = DayNight.MorningAmbientLift, L02 = L02.shots, L17 = L17.shots };
+            SaveL16(f);                                                                       // ZodFlyover.L16.cs
             return JsonUtility.ToJson(f, true);
         }
 
@@ -256,6 +258,7 @@ namespace OpenZ
             var breaks = new List<float>();
             if (line?.cues != null) foreach (var c in line.cues) if (c != null) breaks.Add(preroll + c.start - CutLead);
             Fit(Mathf.Max(4f, preroll + end), breaks);
+            Anchor(preroll, Mathf.Max(4f, preroll + end), line);                                      // ZodFlyover.L16.cs: cuts anchored on words of the line (none = nothing changes)
             Debug.Log($"[ZodFlyover] shot list {cineLevel} ({game.level}): {LastPlan}");
         }
 
@@ -447,6 +450,7 @@ namespace OpenZ
             var s = cine[i];
             float u = Mathf.Clamp01((t - s.start) / Mathf.Max(0.05f, s.dur));
             Put(Eval(s, u), s.home && u >= 0.9999f, s.floor);
+            L16Danger(s.name, t - s.start, s.dur, hold);
             BriefGrade(i == cine.Count - 1 ? 1f - CineEase(ZodCineEase.InOut, u) : 1f);
             float a = 0f;
             if (!hold)

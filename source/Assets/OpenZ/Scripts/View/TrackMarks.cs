@@ -308,7 +308,7 @@ namespace OpenZ
         void Step(Runner r, float dt)
         {
             var v = r.v;
-            if (!v.isActiveAndEnabled || v.Dying || v.Obj.Destroyed || r.gait == Gait.None) { Break(r); return; }
+            if (!v.isActiveAndEnabled || v.Dying || v.Obj.Destroyed || r.gait == Gait.None || ZodBriefing.EndingHides(v)) { Break(r); return; }   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs): no prints, no dust
             var t = v.transform; var pos = t.position;
             var mv = pos - r.lastPos; mv.y = 0f; float md = mv.magnitude;
             float jump = 4f + 1.5f * Mathf.Max(r.maxSpeed, 3f) * dt;                                    // a frame hitch at 4x is no teleport
@@ -571,7 +571,7 @@ namespace OpenZ
             if (o.Kind == ZKind.Robot) BindRobot(r);
             else if (o.Kind == ZKind.Vehicle)
             {
-                if (!BindMech(r)) BindVehicle(r, o.Type == "jeep");
+                if (!o.IsShuttle && !BindMech(r)) BindVehicle(r, o.Type == "jeep");   // DV118: the shuttle leaves no tracks
                 r.maxSpeed = o.MoveSpeed > 0 ? o.MoveSpeed * (float)ZConst.ROAD_SPEED / 8f : 6f;             // px/s -> m/s on a road (UnitView.cs:342)
             }
             return r;

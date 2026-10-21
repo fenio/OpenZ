@@ -93,7 +93,7 @@ namespace OpenZ
     /// Sets the owner colour on every renderer below this object (OpenZ/TeamLit reads _TeamColor, linear).
     /// </summary>
     [ExecuteAlways, DisallowMultipleComponent]
-    public class TeamPaint : MonoBehaviour
+    public partial class TeamPaint : MonoBehaviour
     {
         static readonly int TeamColorId = Shader.PropertyToID("_TeamColor");
         /// <summary>Robots only: their team paint is this much brighter, so an all-plate robot reads as its team colour by day
@@ -109,6 +109,10 @@ namespace OpenZ
         /// <summary>1 = alive. A dead robot's glows fade through this (OzGlowFade): its glow parts, its emissive parts and the
         /// team glow of its paint are drawn at this share, and stay there through every later paint step of the death.</summary>
         public float GlowLevel { get => glowLevel; set { value = Mathf.Clamp01(value); if (Mathf.Approximately(glowLevel, value)) return; glowLevel = value; Apply(); } }
+        float deadLevel;
+        /// <summary>0 = alive .. 1 = dead (item 228): a dead robot's whole figure is drawn greyer, luminance kept, by TeamLit (_OZDead per
+        /// renderer, robot bodies only; OzDeadTint has the numbers). OzGlowFade raises it over OzDeadTint.Seconds after the death.</summary>
+        public float DeadLevel { get => deadLevel; set { value = Mathf.Clamp01(value); if (Mathf.Approximately(deadLevel, value)) return; deadLevel = value; Apply(); } }
         /// <summary>A stage that shows robot models under its own lighting keeps the plain paint (no robot gain).</summary>
         public bool PlainPaint { get => plainPaint; set { if (plainPaint == value) return; plainPaint = value; Apply(); } }
         /// <summary>True when this paint belongs to a robot body: a bound robot unit, or any figure made from a robot model that is
@@ -162,6 +166,7 @@ namespace OpenZ
             // Z's colours come from unlit 2D sprites; under 3D lighting the neutral 115 grey reads as charcoal, so the
             // neutral paint albedo is lifted to read as the same grey on screen (red/blue are saturated enough).
             if (team == Team.Neutral) { c *= 3.0f; c.a = 1; }   // x2.2 read khaki-brown under the warm key; toy-clean light warm grey
+            c = EasedPaint(c);                                                        // K389: a capture's ease (TeamPaint.Ease.cs; unchanged without one)
             float k = 1f - 0.78f * charred;
             foreach (var r in GetComponentsInChildren<Renderer>(true))
             {
@@ -172,11 +177,12 @@ namespace OpenZ
                 for (int i = 0; i < mats.Length; i++)
                 {
                     r.GetPropertyBlock(block, i);
-                    block.SetColor(TeamColorId, robot ? new Color(c.r * k * RobotTeamGain, c.g * k * RobotTeamGain, c.b * k * RobotTeamGain, c.a * k) : c * k);
+                    block.SetColor(TeamColorId, robot ? new Color(c.r * k * RobotTeamGain, c.g * k * RobotTeamGain, c.b * k * RobotTeamGain, c.a * k) : c * k);   // robots: their brighter team paint (RobotTeamGain)
                     // teamcolor_v2: vivid accent colour + neutral / owned flag, team rim / night glow, this part's team panel
-                    var viv = TeamColors.VividLinear(team);
+                    var viv = EasedVivid(TeamColors.VividLinear(team), mats[i]);                     // K389: a capture's ease (TeamPaint.Ease.cs)
                     block.SetVector(VividId, new Vector4(viv.x * k, viv.y * k, viv.z * k, viv.w));
-                    block.SetVector(GlowId, TeamColors.GlowLinear(team) * (k * glowLevel));
+                    block.SetVector(GlowId, EasedGlow(TeamColors.GlowLinear(team)) * (k * glowLevel));
+                    block.SetFloat(OzDeadTint.DeadId, robot ? deadLevel : 0f);                           // item 228: a dead robot's whole figure turns greyer, luminance kept, as its glows go out (TeamLit _OZDead, OzDeadTint.cs)
                     PanelFor(r, mats[i], out var panelRect, out var panelY);
                     block.SetVector(PanelId, panelRect); block.SetVector(PanelYId, panelY);
                     var fc = FortCream.linear; bool mine = host == this;   /* not the gunner under the gun */

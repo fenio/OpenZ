@@ -137,9 +137,9 @@ namespace OpenZ
         {
             rects.Clear();
             float ch = OzLayout.RefH / Mathf.Clamp(uiScale, OzText.ScaleMin, OzText.ScaleMax), cw = sw * ch / sh;
-            Add(OzLayout.TopStrip, cw, ch); Add(OzLayout.TerrTab, cw, ch); Add(OzLayout.MenuButton, cw, ch);
-            Add(OzLayout.CommandBar, cw, ch); Add(OzLayout.Minimap, cw, ch);
-            var pr = OzLayout.UnitPanelFor(cw);
+            Add(OzHudLayout.At(OzPanel.Status, OzLayout.TopStrip), cw, ch); Add(OzHudLayout.At(OzPanel.Status, OzLayout.TerrTab), cw, ch); Add(OzHudLayout.At(OzPanel.Menu, OzLayout.MenuButton), cw, ch);
+            Add(OzHudLayout.At(OzPanel.Command, OzLayout.CommandBar), cw, ch); Add(OzHudLayout.At(OzPanel.Minimap, OzLayout.Minimap), cw, ch);
+            var pr = OzHudLayout.At(OzPanel.Unit, OzLayout.UnitPanelFor(cw));
             Add(pr, cw, ch);
             Add(new OzRect(pr.a, pr.x + OzLayout.AlertTab.x, pr.y + OzLayout.AlertTab.y, OzLayout.AlertTab.w, OzLayout.AlertTab.h), cw, ch);
             Add(new OzRect(pr.a, pr.x + ExitX, pr.y + ExitY, ExitW, ExitH), cw, ch);

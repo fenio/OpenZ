@@ -144,6 +144,25 @@ namespace OpenZ
             I.OnEvent(e, a, b);
         }
 
+        /// <summary>DV87 (BoardingView.DriverFire.cs): the tesla bolt of an Electrobot who drives a tank, fired from its open hatch (the sim's
+        /// DriverShot, Sim/ZObject.DriverFire.cs). The same bolt as on foot with its sparks, light and sounds, from the point `from`
+        /// between his arms: he holds no gun in a hatch, so no gun recoils and the hull does not jolt. e carries the ElectroBolt fields
+        /// (value = HP removed, flag = stunned, flag2 = killed).</summary>
+        public static void DriverBolt(Vector3 from, ZEvent e, ZObject vehicle, ZObject target)
+        {
+            if (!Enabled) return;
+            if (!I)
+            {
+                if (!AutoCreate || !ZGame.I) return;
+                new GameObject("OpenZElectroFx").AddComponent<OpenZElectroFx>();
+            }
+            if (!I || !I.ready || !I.isActiveAndEnabled) return;
+            I.driverBolt = true; I.driverFrom = from;
+            try { I.Bolt(e, vehicle, target); }
+            finally { I.driverBolt = false; }
+        }
+        bool driverBolt; Vector3 driverFrom;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         static void Boot() { SceneManager.sceneLoaded -= OnSceneLoaded; SceneManager.sceneLoaded += OnSceneLoaded; }
 
@@ -238,7 +257,7 @@ namespace OpenZ
             follow = null; local = default;
             if (tv)
             {
-                var aim = tv.AimPos() + new Vector3(R(-0.3f, 0.3f), R(-0.2f, 0.4f), R(-0.3f, 0.3f));
+                var aim = OzShuttleAim.HitAim(t, tv.AimPos()) + new Vector3(R(-0.3f, 0.3f), R(-0.2f, 0.4f), R(-0.3f, 0.3f));   // DV118: the flying ship's hull
                 Vector3 p = aim;
                 if (HitSurface.OnTarget(tv, from, aim, out var hp, out _)) p = hp;
                 follow = tv.transform; local = follow.InverseTransformPoint(p);
@@ -335,8 +354,10 @@ namespace OpenZ
             windups.Remove(a.Id);
             var av = View(a.Id); var tv = t != null ? View(t.Id) : null;
             var from = Emitter(av, a, out var dir, out var ev);
-            var end = HitPoint(t, tv, from, out var follow, out var local);
+            if (driverBolt) { from = driverFrom; av = null; ev = null; }                             // DV87: from the hatch driver's hands: no gun and no hull to kick
+            var end = HitPoint(t, tv, from, out var follow, out var local); if (t == null) SniperCoverView.ZapMissAt(e, ref end);   // DV122: a zap that missed a kneeling / lying sniper strikes the ground beside him (View/SniperCoverView.cs)
             var d = end - from; if (d.sqrMagnitude > 1e-4f) dir = d.normalized;
+            OzShuttleAim.NoteBolt(a, t, from, end);                                                  // DV118: the gallery's counts, the last hit on the ship
             if (bolts.Count >= 6) bolts.RemoveAt(0);                                               // budget: the oldest goes first
             var b = new BoltFx { attacker = a.Id, target = t != null ? t.Id : -1, av = av, ev = ev && ev.Bound ? ev : null, follow = follow, local = local, endWorld = end, startWorld = from,
                                  dir = dir, born = Time.time, seed = Seed(), stunned = e.flag, killed = e.flag2, lightSeed = R(0f, 10f), restrike = R(0.11f, 0.16f) };
@@ -402,7 +423,7 @@ namespace OpenZ
                     // the crackle: thin short filaments leaping off the bolt (re-placed every 33 ms, the Electro Wizard's sizzle)
                     for (int f = 0; f < (b.deploy ? 4 : 5); f++) b.strands.Add(new Strand { kind = 5, parent = m, width = r.Range(0.09f, 0.15f), strength = r.Range(0.5f, 0.9f) });
                 }
-                if (groundStrikes)
+                if (groundStrikes && !OzShuttleAim.AirId(b.target))                                       // DV118: no ground strikes from the flying shuttle
                 {
                     int gs = b.deploy ? 6 : 3 + r.Int(3);
                     for (int g = 0; g < gs; g++)
@@ -591,13 +612,13 @@ namespace OpenZ
                 }
                 for (int i = 0; i < 6; i++) fx.EmitChannel("wv2_glow", at + Random.insideUnitSphere * 0.4f, Random.insideUnitSphere * 1.5f, R(0.1f, 0.22f), R(0.4f, 0.9f), Ice, 1f);
                 fx.EmitChannel("m12_smoke", at + Vector3.up * 0.2f, new Vector3(0.05f, 0.7f, 0.03f), 1.4f, 1.1f, new Color(0.60f, 0.66f, 0.76f), 0.42f);   // ozone puff
-                fx.GroundLight(flat, 1.2f, true);                                                    // the blue ground light (+ our ground wash)
+                if (!OzShuttleAim.AirId(b.target)) fx.GroundLight(flat, 1.2f, true);                                                    // the blue ground light (+ our ground wash)
                 if (cameraKick > 0f && !b.deploy) fx.Shake?.Impact(at, 0.9f * cameraKick);
                 if (b.deploy) fx.Shake?.Impact(at, 0.7f * cameraKick);
             }
             if (bloomSustain > 0f && vis) sustainUntil = Time.time + 0.22f;
-            rings.Add(new GroundRing { c = flat, born = Time.time, life = 0.35f, r1 = b.deploy ? 5f : 4f });
-            if (groundWash > 0f) rings.Add(new GroundRing { c = flat, born = Time.time, life = strikeSeconds, r1 = groundWash * (b.deploy ? 1.3f : 1f), disc = true, gain = groundWashGain });
+            if (!OzShuttleAim.AirId(b.target)) rings.Add(new GroundRing { c = flat, born = Time.time, life = 0.35f, r1 = b.deploy ? 5f : 4f });   // DV118: no ground ring under the flying shuttle
+            if (groundWash > 0f && !OzShuttleAim.AirId(b.target)) rings.Add(new GroundRing { c = flat, born = Time.time, life = strikeSeconds, r1 = groundWash * (b.deploy ? 1.3f : 1f), disc = true, gain = groundWashGain });
             if (at.y - flat.y < 3f)
             {
                 ScorchDecals.Add(flat, 0.8f, ScorchKind.Contact);
@@ -833,7 +854,7 @@ namespace OpenZ
                     r.GetPropertyBlock(mpb, i); mpb.SetVector(EmissionId, sum); r.SetPropertyBlock(mpb, i);
                 }
                 // ---- the timer ring on the ground (draining), light, buzz
-                if (Full && fx.stunRing && vis)
+                if (Full && fx.stunRing && vis && !OzShuttleAim.Air(obj))                       // K256e: no stun timer ring on the ground under the flying shuttle
                 {
                     var g = view.transform.position; g.y = Ground(g.x, g.z);
                     fx.Arcs.Ring(g, radius, 0.09f, 0.3f, 2.4f, 1.3f, Ice, 0.85f * fadeOut, Mathf.Clamp01(left / (float)ZElectro.Seconds(ZElectro.StunTicks) * GameSpeed), GroundF, 0.12f, 40);

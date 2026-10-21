@@ -76,9 +76,9 @@ namespace OpenZ.Sim
         public IReadOnlyList<ZObject> Units => units;
 
         // ------------------------------------------------------------------ classification
-        public static bool Separable(ZObject o) => o != null && o.IsUnit && !o.Destroyed && o.KillAt < 0 && !o.IsFortDefender;   // fort_defender_v1 DV41: on the roof, never in the ground traffic
+        public static bool Separable(ZObject o) => o != null && o.IsUnit && !o.ShuttleAirborne && !o.Destroyed && o.KillAt < 0 && !o.IsFortDefender;   // fort_defender_v1 DV41: on the roof, never in the ground traffic
         /// <summary>Never moves: cannons, empty (neutral) vehicles, units without speed.</summary>
-        public static bool Static(ZObject o) => o.Kind == ZKind.Cannon || o.MoveSpeed <= 0 || o.Owner == Team.Neutral || o.Stunned;   // electrobot_v1 DV45: never pushed, never "stuck", others go round
+        public static bool Static(ZObject o) => o.Kind == ZKind.Cannon || o.IsShuttle || o.MoveSpeed <= 0 || o.Owner == Team.Neutral || o.Stunned;   // electrobot_v1 DV45: never pushed, never "stuck", others go round
         public static int Radius(ZObject o) => o.Kind == ZKind.Robot ? (o.Type == "tough" || o.Type == ZElectro.Type ? ToughRadius : RobotRadius) : o.Kind == ZKind.Vehicle ? VehicleRadiusOf(o.Type) : CannonRadius;   // electrobot_v1: Tough radius
 
         /// <summary>
@@ -87,7 +87,7 @@ namespace OpenZ.Sim
         public static bool ChassisRadii = true;   // false = one 16 px radius for every vehicle (A/B for the stress test)
         public static int VehicleRadiusOf(string type) => !ChassisRadii ? VehicleRadius : type switch
         {
-            "crane" => 22, "apc" => 21, "heavy" => 20, "missile_launcher" => 19, "medium" => 18, "light" => 17, _ => VehicleRadius,
+            "crane" => 22, "apc" => 21, ZWorld.ShuttleType => ZWorld.ShuttleRadiusPx, "heavy" => 20, "missile_launcher" => 19, "medium" => 18, "light" => 17, _ => VehicleRadius,
         };
         /// <summary>Minimum centre distance of two units (robots 12 px = 1.5 m, robot-vehicle 22 px, vehicles 32 px).</summary>
         public static int MinSpacing(ZObject a, ZObject b) => Radius(a) + Radius(b);
@@ -102,13 +102,17 @@ namespace OpenZ.Sim
         /// <summary>Pairs allowed to overlap: a robot boarding its vehicle / cannon, Zod's scripted building moves, and the members
         /// of a squad just built, while they all still walk out of the factory door (Zod creates them on one pixel).</summary>
         public static bool PairExempt(ZObject a, ZObject b) =>
+            (a.IsShuttle || b.IsShuttle) ? ZWorld.ShuttlePairExempt(a, b) :                                  // K256e (DV118): the landed shuttle is a hard obstacle: only a unit in a building's door stage passes (Sim/ZWorld.ShuttleGround.cs)
             a.PathInBuildingStage || b.PathInBuildingStage || a.FortRushOn || b.FortRushOn || Boards(a, b) || Boards(b, a) ||   // boarding_nb_v1 DV34: through the fort door
             (SameSquad(a, b) && a.PathMode == WpMode.ForceMove && b.PathMode == WpMode.ForceMove) ||   // a fresh squad walking out of its factory door
+            (SameSquad(a, b) && (a.ShuttleFileBound || b.ShuttleFileBound)) ||                         // DV118: a squad walking in file to the shuttle's back slots passes its own (Sim/ZWorld.ShuttleRamp.cs)
             ZWorld.RunOverPair(a, b) || ZWorld.RunOverPair(b, a) ||                                  // DV65: a moving enemy vehicle drives into the robot (ZWorld.RunOver.cs)
             YieldPair(a, b) || YieldPair(b, a) ||                                                    // vehicles first: a robot stepping aside for a moving vehicle of its team (ZYield.cs)
-            Squeeze(a, b) || Squeeze(b, a);                                                          // DV66: a robot stepping out of a wedge past a parked hull (ZStuckGuard)
+            Squeeze(a, b) || Squeeze(b, a) ||                                                        // DV66: a robot stepping out of a wedge past a parked hull (ZStuckGuard)
+            OverlapPair(a, b) ||                                                                     // the option FRIENDLY UNITS OVERLAP: moving units of one team pass through each other (ZPathing.Overlap.cs)
+            FortRunPair(a, b);                                                                       // DV102: in the wide ring of the enemy fort its own team passes through (ZObject.FortRun.cs)
         static bool Squeeze(ZObject a, ZObject b) => a.World != null && a.World.Time < a.PS.squeezeUntil && Static(b) && !b.Stunned;
-        static bool Boards(ZObject a, ZObject b) => a.Waypoints.Count > 0 && a.Waypoints[0].mode == WpMode.Enter && a.Waypoints[0].refId == b.Id;
+        static bool Boards(ZObject a, ZObject b) => a.Waypoints.Count > 0 && a.Waypoints[0].mode == WpMode.Enter && a.Waypoints[0].refId == b.Id && !b.IsShuttle;   // DV118: the shuttle is boarded at its ramp foot, outside the spacing
         static double CX(ZObject o) => o.LocX + o.XOver + o.WidthPix * 0.5;
         static double CY(ZObject o) => o.LocY + o.YOver + o.HeightPix * 0.5;
         /// <summary>The unit plans through destroyable rocks (Zod: it blasts them on the way, zobject.cpp:3716-3747), unless it
@@ -141,6 +145,8 @@ namespace OpenZ.Sim
                 RecordTrails();                                                           // DV44: squad leaders' trails (ZCommit.Follow.cs)
                 SettleTick();                                                             // DV44: arrived units settle (ZCommit.Settle.cs)
                 UnstickTick();                                                            // pathing v3 DV47: stuck in a tight place: over soft blockers (ZPathV3.cs)
+                CalmTick();                                                               // b49: how close a pressed unit may come to its own team (ZCalm.cs)
+                PassTick();                                                               // DV105: a pass that is over: back onto the line it left (ZOvertake.cs)
             }
             catch (Exception e) { Fail(e); }
         }

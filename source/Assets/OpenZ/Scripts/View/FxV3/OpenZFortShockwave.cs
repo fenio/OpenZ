@@ -31,7 +31,7 @@ namespace OpenZ
     /// level-load cache (<see cref="CacheProps"/>, OpenZNukePrewarm). <see cref="ShakeScale"/> = 0 while NukeGlowCheck measures.
     /// </summary>
     [DefaultExecutionOrder(900)]   // LateUpdate after UnitView (0), FortGunView (45), OpenZEnding (-49): the jolt sits on top of the pose
-    public sealed class OpenZFortShockwave : MonoBehaviour
+    public sealed partial class OpenZFortShockwave : MonoBehaviour                                 // item 215: + OpenZFortShockwave.Surface.cs (the wave over the ground)
     {
         public static bool Enabled = true;
         public static float ShakeScale = 1f;
@@ -237,6 +237,7 @@ namespace OpenZ
         void UpdateRing(float k)
         {
             if (!frontMat && !trailMat) return;
+            if (SurfaceRing && SurfaceRingUpdate(k)) return;                                           // item 215: the ring runs over the ground (OpenZFortShockwave.Surface.cs)
             float r0 = radius * (TrailInner - 0.02f), r1 = radius * 1.02f, rm = (r0 + r1) * 0.5f;
             for (int i = 0; i <= Seg; i++)
             {
@@ -261,6 +262,7 @@ namespace OpenZ
         void UpdateWave(float k)
         {
             if (!waveMat) return;
+            if (SurfaceRing && SurfaceWaveUpdate(k)) return;                                           // item 215: the refraction wall on the front over the ground
             for (int i = 0; i <= WaveSeg; i++)
             {
                 float a = i * Mathf.PI * 2f / WaveSeg, c = Mathf.Cos(a), s = Mathf.Sin(a);
@@ -319,6 +321,7 @@ namespace OpenZ
 
         void UpdateGroundDistort(float k)
         {
+            if (SurfaceRing && SurfaceGroundDistortUpdate(k)) return;                                  // item 215: the shimmer on the ground the front ran over
             bool calm = OzMotion.Reduced;
             if (gRingMat && gRingMesh)
             {
@@ -365,6 +368,7 @@ namespace OpenZ
                 float a = phase + j * Mathf.PI * 2f / count + Random.Range(-0.08f, 0.08f);
                 float c = Mathf.Cos(a), s = Mathf.Sin(a);
                 var p = new Vector3(centre.x + c * radius, 0f, centre.z + s * radius);
+                if (SurfaceRing && !DustOnSurface(a, ref p)) continue;                                 // item 215: the dust wall on the front over the ground
                 if (cam)
                 {
                     var vp = cam.WorldToViewportPoint(new Vector3(p.x, Ground(p.x, p.z), p.z));
@@ -372,9 +376,10 @@ namespace OpenZ
                 }
                 if (fx.WetAt(p)) continue;                                                             // no dust on water
                 p.y = Ground(p.x, p.z) + 0.5f;
+                if (SurfaceRing && !DustHeight(ref p)) continue;                                       // item 215: the dust stands on the ground past the map's edge too
                 var v = new Vector3(c, 0f, s) * outV * Random.Range(0.8f, 1.1f) + Vector3.up * Random.Range(0.8f, 1.8f);
                 float size = Random.Range(5f, 7.5f) * (0.6f + 0.4f * k);
-                fx.EmitChannel("m12_dust", p, v, Random.Range(1.4f, 2.0f), size, dustColor, 0.22f + 0.18f * k);
+                if (!OzBlastFog.Wall(p, v, size, dustColor, k)) fx.EmitChannel("m12_dust", p, v, Random.Range(1.4f, 2.0f), size, dustColor, 0.22f + 0.18f * k);   // item 211: soft ground fog (OzBlastFog.cs); same place, time and reach
             }
         }
 
@@ -545,6 +550,7 @@ namespace OpenZ
             foreach (var p in props) if (p.t && p.has) p.t.SetPositionAndRotation(p.baseProp, p.baseRot);
             foreach (var m in new[] { frontMat, trailMat, waveMat, gRingMat, areaMat }) if (m) Destroy(m);
             if (ringMesh) Destroy(ringMesh); if (waveMesh) Destroy(waveMesh); if (gRingMesh) Destroy(gRingMesh); if (areaMesh) Destroy(areaMesh);
+            SurfaceDestroy();                                                                         // item 215
             if (last == this) last = null;
         }
 

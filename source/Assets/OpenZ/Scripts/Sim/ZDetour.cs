@@ -19,10 +19,11 @@ namespace OpenZ.Sim
 
         bool Detour(ZObject o)
         {
+            if (CalmKeepsRoute(o)) return false;                                            // b49: alone = straight; a route is kept (ZCalm.cs)
             var (gxp, gyp) = o.PathFinalPoint;
             var pts = Search(o, gxp, gyp, true, out bool found);
             pts = ParkedDetour(o, gxp, gyp, pts, ref found);                                // boarding_nb_v1 DV36: no local way round: the whole map
-            if (DetourTooLong(o, pts) || LongWayToNearGoal(o, pts) || NoWayRound(o, ref pts)) return false;   // DV44: not a long way round standing units, nor a "detour" straight through them (ZCommit.Settle.cs)
+            if (DetourTooLong(o, pts) || LongWayToNearGoal(o, pts) || NoWayRound(o, ref pts) || CalmKeepsGoal(o, pts, found)) return false;   // DV44: not a long way round standing units, nor a "detour" straight through them (ZCommit.Settle.cs); b49: nor one that ends short of the point the player ordered (ZCalm.cs)
             if (pts == null || BridgeRejectsPath(o, pts)) return false;                     // (never back against the flow on a deck, ZBridges.cs)
             pts = NoBackSteps(o, pts);                                                      // DV44 (ZCommit.cs)
             var (endX, endY) = pts[pts.Count - 1]; int nPts = pts.Count;                   // (PathSetPoints takes the first point off the list: a one-point detour left it empty)
@@ -40,7 +41,7 @@ namespace OpenZ.Sim
         public List<(int x, int y)> CheckPath(ZObject o, List<(int x, int y)> pts)
         {
             if (!Enabled || pts == null || pts.Count == 0) return pts;
-            try { return NoBackSteps(o, ParkedPath(o, BridgePath(o, CheckPathCore(o, pts)))); } catch (Exception e) { Fail(e); return pts; }   // boarding_nb_v1 DV36: round parked units; DV44 NoBackSteps (ZCommit.cs)
+            try { return NoBackSteps(o, ParkedPath(o, CalmStraight(o, BridgePath(o, CheckPathCore(o, pts))))); } catch (Exception e) { Fail(e); return pts; }   // boarding_nb_v1 DV36: round parked units; DV44 NoBackSteps (ZCommit.cs)
         }
 
         List<(int x, int y)> CheckPathCore(ZObject o, List<(int x, int y)> pts)

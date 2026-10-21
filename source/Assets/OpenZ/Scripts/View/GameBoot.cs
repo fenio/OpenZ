@@ -20,6 +20,7 @@ namespace OpenZ
             if (TestMode) { QualitySettings.vSyncCount = 0; Application.targetFrameRate = 30; }
             else
             {
+                CapFps = OzFpsCap.Saved;                                                 // FRAME RATE LIMIT (Options): 60 unless the player chose 30
                 if (!Application.isEditor && DevArg("-ozdev") && DevArg("-cap72")) { CapFps = 72; Debug.Log("[OpenZ] -ozdev -cap72: capture session, 72 fps cap (OBS take recipe)"); }
                 QualitySettings.vSyncCount = 0; Application.targetFrameRate = CapFps;
             }

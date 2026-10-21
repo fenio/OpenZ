@@ -46,6 +46,7 @@ namespace OpenZ.Sim
             {
                 s.tracked = wp; s.level = s.carryLevel; s.carryLevel = 0; s.best = double.MaxValue; s.lastProgress = now;
                 s.blockRepaths = 0; s.recentered = false; s.nextDetour = -1; s.laneWaitSince = -1; s.stillX = double.NaN;
+                if (CalmFresh(o)) return;                                                     // b49: the resumed order's path does not exist yet in this tick: measure it from the next one (ZCalm.cs)
             }
             if (s.giveUp || s.arrive || s.reissue || s.hasRetarget) return;                  // an action is already queued
             if (BridgeParked(o)) { s.lastProgress = now; s.stillX = double.NaN; s.rebase = true; return; }   // waiting for its bridge turn: it comes (ZBridges.cs)
@@ -119,7 +120,7 @@ namespace OpenZ.Sim
         {
             if (da <= 40 && !StrictLaneParkingFor(o)) return false;                                 // the goal itself is here (DV44: not from inside a lane zone the goal is not in, ZCommit.Settle.cs)
             double lx = o.LocX + o.XOver, ly = o.LocY + o.YOver;
-            foreach (var L in Lanes)
+            foreach (var L in LanesAt(o))
                 if (lx + 1 < L.KX1 && L.KX0 < lx + o.WidthPix - 1 && ly + 1 < L.KY1 && L.KY0 < ly + o.HeightPix - 1 &&
                     !(gx >= L.KX0 && gx < L.KX1 && gy >= L.KY0 && gy < L.KY1))
                     if (da > 40 || L.Bridge) return true;                                     // deck, approach or mouth: the way in / out stays clear (DV44 strict: bridge decks / approaches)
@@ -138,7 +139,7 @@ namespace OpenZ.Sim
             if (now - s.stillSince < WatchdogTime) return false;
             s.stillSince = now; s.Watchdogs++;
             while (o.Waypoints.Count > 1 && o.Waypoints[0].refId <= RefStepAside && o.Waypoints[0].refId >= RefRegroup) o.Waypoints.RemoveAt(0);
-            if (o.HumanDirectOrder) { s.reissue = true; s.nextShove = now + 3; s.ghostUntil = now + 1.0; Log(o, "watchdog on a direct player order: re-path + pass through 1 s (DV16)"); return true; }
+            if (o.HumanDirectOrder || CalmKeepsMove(o)) { s.reissue = true; s.nextShove = now + 3; s.ghostUntil = now + 1.0; Log(o, "watchdog on a direct player order: re-path + pass through 1 s (DV16)"); return true; }   // b49: his move too while it is far from its goal (ZCalm.cs)
             s.giveUp = true; s.nextShove = now + 3;
             if (o.Waypoints.Count > 0) s.Remember(o.Waypoints[0].refId, now + UnreachableMemory);
             s.lastReason = $"watchdog: no movement for {WatchdogTime} s";
@@ -199,6 +200,7 @@ namespace OpenZ.Sim
             if (wp.mode == WpMode.ForceMove && ZWorld.ExitLanesDeviation && !o.PathInBuildingStage && W.ExitBlocked(o, wp.x, wp.y) && W.FreeExitCell(o, o.CenterX, o.CenterY, wp.x, wp.y, out int efx, out int efy, true) &&
                 Math.Abs(efx - wp.x) + Math.Abs(efy - wp.y) > 4)
             { s.hasRetarget = true; s.retargetX = efx; s.retargetY = efy; W.ExitStuckRedirects++; Log(o, $"DV66: exit move blocked by a parked unit: to the free cell ({efx},{efy})"); return; }
+            if (CalmWedgeEnds(o, wp)) return;                                                // b49: not a fourth time for the same walk back to its leader (ZCalm.cs)
             if (ZWorld.ExitLanesDeviation && wp.mode != WpMode.ForceMove && wp.refId != RefBackOff && wp.refId != RefStepAside && o.IsRobot && ParkedHolder(o) && !o.PathInBuildingStage &&
                 W.NearestFreeCell(o, 3, out int wfx, out int wfy))
             {   // DV66 review round 1: wedged against a parked hull with no way round (a door, a wall): step out to the nearest free cell
@@ -236,7 +238,7 @@ namespace OpenZ.Sim
             var (fx, fy) = o.PathFinalPoint;
             if (lane != null && LaneAt(fx, fy) != lane && !o.IsMinion && BackOutOfLane(o, lane))
             { s.level = 2; return; }                                                          // never park on a bridge / in a gap: back out, then retry
-            if (o.HumanDirectOrder) { s.level = 1; s.reissue = true; s.Repaths++; Log(o, "stuck on a direct player order: re-path, never drop (DV16)"); return; }
+            if (o.HumanDirectOrder || CalmKeepsMove(o)) { s.level = 1; s.reissue = true; s.Repaths++; Log(o, "stuck on a direct player order: re-path, never drop (DV16)"); return; }   // b49: his move too while it is far from its goal (ZCalm.cs)
             s.level = 3;
             s.giveUp = true;
             if (wp.mode != WpMode.Move && wp.mode != WpMode.Dodge) s.Remember(wp.refId, now + UnreachableMemory);

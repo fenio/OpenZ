@@ -120,6 +120,7 @@ namespace OpenZ.Sim
             if (crew.Veteran || crew.Kills < VeteranKills) return;
             crew.Veteran = true; crew.PromotedAt = Time;
             foreach (var m in crew.Minions) if (m != null) { m.Veteran = true; m.PromotedAt = Time; }
+            VeteranHeal(crew);                                                      // DV110: the new veteran crew gets 15 % of its full health back, never above full (ZWorld.Kc5Rules.cs)
             if ((int)crew.Owner >= 0 && (int)crew.Owner < Promotions.Length) Promotions[(int)crew.Owner]++;
             Emit(ZEventType.Promoted, crew, null, crew.CenterX, crew.CenterY, crew.Kills);          // view: star, Alan's line
         }

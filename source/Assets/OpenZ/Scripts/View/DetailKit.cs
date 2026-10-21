@@ -287,12 +287,12 @@ namespace OpenZ
                         c.t.Rotate(c.w * dt, Space.World);
                         bool wet = game && OpenZFxPlayer.IsWaterTile(p) || (game && (p.x < 0f || p.z > 0f || p.x > game.World.Map.width * 2f || p.z < -game.World.Map.height * 2f));
                         float g = game ? game.TerrainY(p.x, p.z) : 0f;
-                        if (wet && g < waterY - 0.05f && p.y <= waterY)
+                        float wyp = game ? OzWaterLevel.At(game.level, p.x, p.z, waterY) : waterY;                        // each pool at its own height (level 16)
+                        if (game && OzWaterLanding.OpenWaterAt(p, g, out float wyo)) { wet = true; wyp = wyo; }           // b27: also the drawn water over a land tile (the widened river, the water under a bridge, a ravine stream), at the height it is drawn
+                        if (wet && g < wyp - 0.05f && p.y <= wyp)
                         {
-                            p.y = waterY; c.t.position = p; c.water = true;
-                            var fx = OpenZFxPlayer.I;
-                            if (fx) { fx.Splash(p, 0.35f); fx.Ripple(p, 0.6f); }
-                            Sound("dst_debris_splash", p, 0.45f, "debris", 0.1f, -1, "sd_debris_splash_a", "sd_debris_splash_b");
+                            p.y = wyp; c.t.position = p; c.water = true;
+                            OzWaterLanding.Splash(p, c.t, "detail part", Mathf.Abs(c.v.y));                 // b27: the shared water landing rule (splash, rings and one sound by its size; it then sinks as before)
                             continue;
                         }
                         if (p.y <= g + 0.02f)

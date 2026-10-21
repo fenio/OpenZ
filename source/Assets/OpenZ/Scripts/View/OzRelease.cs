@@ -62,7 +62,7 @@ namespace OpenZ
     public static class OzVersion
     {
         public const string Product = "OpenZ";
-        public const string Number = "1.0";
+        public const string Number = "1.1";
 
         /// <summary>"1.0_20261006": folder / file safe (release\OpenZ_1.0_20261006).</summary>
         public static string Tag(DateTime d) => Number + "_" + d.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture);

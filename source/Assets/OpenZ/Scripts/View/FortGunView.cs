@@ -161,6 +161,7 @@ namespace OpenZ
             var l = transform.InverseTransformPoint(p);
             if (Mathf.Abs(l.x) > FortHalfX + 0.3f || Mathf.Abs(l.z) > FortHalfZ + 0.3f) return float.MinValue;
             var lm = transform.InverseTransformPoint(muzzle);
+            if (OzK394RoofShots.OnRoofDeck(lm) || OzK421RoofDefenders.OwnFort(transform, muzzle)) return float.MinValue;   // K394: a roof man's own fort is no block for his rounds (its parapet: OzK394RoofShots.OverParapet); K421: the roof defender known by who he is
             int own = -1; float od = 4.5f * 4.5f;
             for (int i = 0; i < TowerPads.Length; i++) { float ax = lm.x - TowerPads[i].x, az = lm.z - TowerPads[i].y, dd = ax * ax + az * az; if (dd < od) { od = dd; own = i; } }
             float top = WallTop; float r2 = (TowerR + 0.3f) * (TowerR + 0.3f);
@@ -214,6 +215,7 @@ namespace OpenZ
         readonly List<Ram> rams = new List<Ram>();
         static readonly Dictionary<Mesh, (Mesh head, Mesh ring)> splitCache = new Dictionary<Mesh, (Mesh, Mesh)>();
         static Material sRamDark, sRamSteel;
+        FortGunNeck neck; bool neckShown;                                                    // K255: the hydraulic neck (FortGunNeck.cs); the old two rams while it is not shown
         Quaternion yawRest, pitchRest; Vector3 yawRestPos, pitchRestPos, recoilRestPos;
         Vector3 yawAxisP, pitchAxisP, boreP; float yawSign = 1, pitchSign = 1, restHeading, restElev;
         float heading, headingVel, elev, elevVel, wantHeading, wantElev, aimHeading;
@@ -487,11 +489,13 @@ namespace OpenZ
             {
                 var e = ev[i];
                 if (e.type == ZEventType.Death && e.objId == Fort.Id) { if (!OpenZEnding.HoldFortToss) StartToss(); continue; }   // endings_v1
-                if (e.type == ZEventType.MissileExploded && e.objId == Fort.Id && !e.flag2) { ShellLanded(PxGround(e.x, e.y)); continue; }   // combat_nb_v1 NB27 (CombatView draws the blast)
+                if (e.type == ZEventType.MissileExploded && e.objId == Fort.Id && !e.flag2) { OzAirShots.FortLanding(e, Fort, game.World.GetAny(e.otherId)); ShellLanded(OzShuttleAim.AirAim(game.World.GetAny(e.otherId), PxGround(e.x, e.y), 0f)); continue; }   // combat_nb_v1 NB27 (CombatView draws the blast)
                 if (!tossed && e.type == ZEventType.MissileFired && e.objId == Fort.Id)
                 {   // DV7: the fort's own howitzer shell (real damage in the sim): fire now on the real flight time; the sim's
                     // MissileExploded draws the blast (CombatView), so this shell lands without a cosmetic one
-                    FireReal(PxGround(e.x, e.y), Mathf.Max(0.3f, e.value));
+                    var airTo = OzShuttleAim.AirAim(game.World.GetAny(e.otherId), PxGround(e.x, e.y), e.value);   // DV118: up to the flying shuttle
+                    OzShuttleAim.NoteFired(e, Fort, game.World.GetAny(e.otherId), muzzle ? muzzle.position : airTo, airTo);
+                    FireReal(airTo, Mathf.Max(0.3f, e.value));
                     continue;
                 }
                 if (ZWorld.FortGunDeviation) continue;                                          // DV7: the big gun fires its own real shots only
@@ -817,6 +821,7 @@ namespace OpenZ
                 r.rod = RamPart($"FortGunRam_{(x < 0 ? "L" : "R")}_Rod", sRamSteel);
                 rams.Add(r);
             }
+            neck = FortGunNeck.Build(yaw, head, sRamDark, sRamSteel);                         // K255: heavy telescopic rams, clevis, gland, lines
             PoseRams();
         }
 
@@ -834,6 +839,8 @@ namespace OpenZ
         void PoseRams()
         {
             const float sleeveLen = 0.021f, sleeveR = 0.0105f, rodR = 0.0058f;
+            bool nn = neck != null && neck.Pose();                                               // K255: the new neck from a low camera, the old rams from the RTS camera
+            if (nn != neckShown) { neckShown = nn; foreach (var q in rams) { if (q.sleeve) q.sleeve.gameObject.SetActive(!nn); if (q.rod) q.rod.gameObject.SetActive(!nn); } }
             foreach (var r in rams)
             {
                 if (!r.sleeve || !r.rod) continue;
@@ -1003,7 +1010,7 @@ namespace OpenZ
             if (rts && OpenZHeavyShells.Enabled && OnScreen(at)) { if (OzShakeGate.SettingOn) MortarShakes++; }
             else if (rts && rts.Shake(landShake, at, "fort_shell")) MortarShakes++;                 // heavy shells off: the old rule (OzShakeGate: on screen + cooldown)
             else if (rts && !OnScreen(at)) rts.Shake(landShake * 0.22f, at, "fort_shell_far", false);
-            var au = CombatAudio.I; if (!au) return;
+            var au = CombatAudio.I; if (OzAirShots.TakeQuietLanding() || !au) return;                // K337: a miss at the flying shuttle: its small air burst plays its own pop
             au.PlayPitched("heavy", at, LegacyMatch.GainHeavy, 0f, Emitter, 0.8f, LegacyMatch.BankHeavy);
             au.PlayPitched("tank_impact", at, LegacyMatch.GainTankImpact, 0f, Emitter, 0.75f, LegacyMatch.BankTankImpact);
         }
@@ -1125,13 +1132,13 @@ namespace OpenZ
             {
                 double cx = Fort.FortGunAimX - Fort.CenterX, cy = Fort.FortGunAimY - Fort.CenterY, cd = Math.Sqrt(cx * cx + cy * cy);
                 T = (float)(ZWorld.FortMortarDeviation ? ZObject.FortMortarFlight(cd) : cd / simShellSpeed) / Gs;
-                return PxGround(Fort.FortGunAimX, Fort.FortGunAimY);
+                return OzShuttleAim.AirAim(Fort.FortGunTarget, PxGround(Fort.FortGunAimX, Fort.FortGunAimY), T * Gs);   // DV118: the flying shuttle's height
             }
             double dx = t.CenterX - Fort.CenterX, dy = t.CenterY - Fort.CenterY;
             if (ZWorld.FortMortarDeviation)
             {   // combat_nb_v1 NB27: the sim lobs at where the target stands (no lead) on the lob's own flight time
                 T = (float)ZObject.FortMortarFlight(Math.Sqrt(dx * dx + dy * dy)) / Gs;
-                var q = AimPoint(t); q.y = game.GroundY(q.x, q.z);
+                var q = AimPoint(t); q.y = game.GroundY(q.x, q.z); q = OzShuttleAim.AirAim(t, q, T * Gs);   // DV118: the flying shuttle's height
                 return q;
             }
             T = (float)(Math.Sqrt(dx * dx + dy * dy) / simShellSpeed) / Gs;
@@ -1443,15 +1450,17 @@ namespace OpenZ
         /// <summary></summary>
         public static int Tosses, TossReshown; public static float LastTossAt = -1f; public static bool LastTossFortDestroyed;
         public Transform YawT => yaw;
+        public Quaternion TossEndRot => tossEndRot;                                                  // item 205: the landing rotation (OzFortGunBreakup takes the armour plates off the side that lands facing up)
         void StartToss()
         {
             if (tossed || !Bound) return;
             tossed = true; pending = false; target = null;
             StopLoop("fortgun_" + Fort.Id);
+            if (!Fort.Destroyed) FortGunMount.Build(Fort, transform);   // shot off while the fort stands: the modelled wreck takes the pedestal's place (FortGunMount.cs)
             // detach BEFORE CombatView (order 50) lets BuildingBreaker hide the fort's renderers and collapse it
             yaw.SetParent(FxRoot(), true);
             var tp = yaw.GetComponent<TeamPaint>(); if (!tp) tp = yaw.gameObject.AddComponent<TeamPaint>();
-            tp.Team = Fort.Owner; tp.Charred = 0.75f;
+            tp.Team = Fort.Owner; tp.Charred = 0.75f; OzFortGunWreckLook.Killed(yaw, tp);   // item 212: the killed cannon's wreck paint, its toned-down burn (OzFortGunWreckLook.cs)
             foreach (var r in yaw.GetComponentsInChildren<Renderer>()) r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
             // land beside the ruin: along the barrel heading +-70 deg, just outside the fort footprint
             var rnd = new System.Random(Fort.Id * 7919 + 17);
@@ -1459,12 +1468,14 @@ namespace OpenZ
             float hdg = heading + (float)(rnd.NextDouble() * 140.0 - 70.0);
             var c = game.CenterWorld(Fort, false);
             var land = c + Quaternion.Euler(0f, hdg, 0f) * Vector3.forward * (half + 3f + (float)rnd.NextDouble() * 3f);
+            OzTreeCrush.GunTossLanding(Fort, ref hdg, ref land, tossDuration);                     // item 360 (DV124): shot to pieces while its fort stands, it flies on the rules' toss (the trees they fell are under it)
             float gy = game.GroundY(land.x, land.z);
             tossEndRot = Quaternion.Euler((float)(rnd.NextDouble() * 50.0 - 25.0), (float)(rnd.NextDouble() * 360.0), (rnd.Next(2) == 0 ? -1f : 1f) * (80f + (float)(rnd.NextDouble() * 25.0)));
             tossStartRot = yaw.rotation; tossFrom = yaw.position;
             // resting height: put the lowest point of the rotated turret 0.2 m into the ground
             yaw.SetPositionAndRotation(new Vector3(land.x, gy, land.z), tossEndRot);
             var b = WorldBounds(yaw);
+            OzRockSolid.FreeLanding(Fort, c, half, hdg, tossFrom, tossApex, ref land, ref gy, ref b);   // item 331: on free ground (no rock, building or gun under it, the flight's end clear of rocks); the rocks there solid for its pieces
             tossTo = new Vector3(land.x, gy + (gy - b.min.y) - 0.2f, land.z);
             yaw.SetPositionAndRotation(tossFrom, tossStartRot);
             tossAxis = new Vector3((float)rnd.NextDouble() - 0.5f, 0.3f, (float)rnd.NextDouble() - 0.5f).normalized;
@@ -1490,7 +1501,7 @@ namespace OpenZ
                 tossT += dt; float k = Mathf.Clamp01(tossT / tossDuration);
                 var p = Vector3.Lerp(tossFrom, tossTo, k); p.y += 4f * tossApex * k * (1f - k);
                 var spin = Quaternion.AngleAxis(tossSpin * tossT, tossAxis) * tossStartRot;
-                yaw.SetPositionAndRotation(p, Quaternion.Slerp(spin, tossEndRot, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.7f, 1f, k))));
+                yaw.SetPositionAndRotation(p, Quaternion.Slerp(spin, tossEndRot, OzHeavyLanding.FallBlend(k)));
                 if (k >= 1f)
                 {
                     landed = true; landedAt = Time.time;
@@ -1498,6 +1509,8 @@ namespace OpenZ
                     if (fx) { fx.Explosion(p, 1.1f); fx.Dust(p, 2f); fx.Breakup(p + Vector3.up * 0.5f, "metal", 4f, 16, 1.4f); }
                     if (rts) rts.Shake(0.5f, p, "fortgun_toss");
                     if (!Sfx(sndCrash, p, 1f)) Legacy("fortgun_crash", p, 1f, "v3-tank-impact-a", "v3-collapse-medium-b");
+                    OzHeavyLanding.FortGun(yaw, p, tossFrom, tossTo, tossApex, tossDuration, Emitter);    // item 172: heavy: concrete thud, dust burst, bounce, skid, rock, lies on the ground
+                    OzFortGunBreakup.Break(this, yaw, p, tossFrom, tossTo, tossApex, tossDuration, Emitter);   // item 205: on this frame it falls apart into its parts (OzFortGunBreakup.cs); off / open water = it lies whole as above
                 }
                 return;
             }

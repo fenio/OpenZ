@@ -21,7 +21,7 @@ namespace OpenZ
     /// </list>
     /// </summary>
     [DefaultExecutionOrder(70)]
-    public class OpenZDamageStates : MonoBehaviour
+    public partial class OpenZDamageStates : MonoBehaviour                                                // K393: the shuttle's points and trail in OpenZDamageStates.Shuttle.cs
     {
         public static OpenZDamageStates I { get; private set; }
         public static bool Enabled = true;
@@ -151,14 +151,14 @@ namespace OpenZ
                 if (dead)
                 {
                     if (u.deadAt < 0f) { u.deadAt = now; if (u.loop) StopFire(kv.Key, u); if (u.stage >= 2) OpenZVoiceV3.SetBurning(o, false); u.stage = 0; u.sticky = false; }
-                    if (o.Kind != ZKind.Robot && now - u.deadAt < 12f && v.gameObject.activeInHierarchy) AddPlume(v.transform.position + Vector3.up * 0.9f, 2.2f, Mathf.Clamp01((12f - (now - u.deadAt)) / 4f));   // HX1: the fresh wreck fire
+                    if (o.Kind != ZKind.Robot && now - u.deadAt < 12f && v.gameObject.activeInHierarchy && !ZodBriefing.EndingHides(v)) AddPlume(v.transform.position + Vector3.up * 0.9f, 2.2f, Mathf.Clamp01((12f - (now - u.deadAt)) / 4f));   // HX1: the fresh wreck fire
                     continue;
                 }
                 // ZF1 hit flash: any health drop on a drawn unit
                 if (o.Health < u.lastHp && HitFlash && !OzMotion.Reduced && !CaptureNoFlash && now - u.lastFlash >= FlashGap && v.gameObject.activeInHierarchy) Flash(v, u, now);
                 u.lastHp = o.Health;
                 if (o.Kind == ZKind.Robot) { if (now >= u.nextUnchar) UncharLiving(v, u, now); continue; }   // a living robot's flame char fades like a living vehicle's: clean paint again once the fire on it has ended (robots have no battered stage: stage 0)
-                if (now >= u.nextGear) KeepGear(v, o, u, now);
+                if (now >= u.nextGear) KeepGear(v, o, u, now); if (o.IsShuttle && ShipDefer(kv.Key)) continue;   /* K413: a living shuttle's step after its drawn pose (OpenZDamageStates.ShipLate.cs) */
                 float k = o.Health / (float)o.MaxHealth;
                 var pos = v.transform.position;
                 float moved = (pos - u.lastPos).sqrMagnitude; u.lastPos = pos;
@@ -168,7 +168,8 @@ namespace OpenZ
                 if (u.stage == 2 && k <= OutAt) want = 2;                                                   // hysteresis: stays lit until repaired past 40 %
                 if (want != u.stage) SetUnitStage(kv.Key, v, o, u, want, pos);
                 if (now >= u.nextUnchar) UncharLiving(v, u, now);
-                if (u.stage == 0 || !v.gameObject.activeInHierarchy) continue;
+                if (u.stage == 0 || !v.gameObject.activeInHierarchy || ZodBriefing.EndingHides(v)) continue;   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs): no smoke, sparks or fire
+                if (o.IsShuttle) { ShipTick(kv.Key, v, o, u, now, fx, fxOn); continue; }                  // K393: the same smoke / fire at the shuttle's own points on its top side, trailing in flight (OpenZDamageStates.Shuttle.cs)
                 if (u.still == 0f && moved > 0.0004f && fxOn && now >= u.nextTrack && TrackedHull(o.Type) && WreckFx.OnScreen(pos, 0.1f))
                 {   // ZF7 track sparks: a battered / burning tank's worn tracks throw sparks while it drives, with a metal grind now and then
                     u.nextTrack = now + Random.Range(0.22f, 0.4f) / u.stage; TrackSparks++;
@@ -220,6 +221,7 @@ namespace OpenZ
         {
             if (u.deckDone) return u.deck;
             u.deckDone = true;
+            if (ShipFireLocal(v, u)) return u.deck;                                                    // K393: the shuttle's small fire on its pod's top (2.4 m was inside its hull)
             float h = TopOf(v, u) / 0.85f, half = 0.6f;
             bool any = false; var bb = new Bounds();
             foreach (var r in v.GetComponentsInChildren<Renderer>())
@@ -310,6 +312,7 @@ namespace OpenZ
         static float TopOf(UnitView v, U u)
         {
             if (u.h > 0f) return u.h;
+            if (ShipTop(v, u)) return u.h;                                                             // K393: the shuttle's real top (the 4 m cap was inside its 5.1 m hull)
             bool any = false; float top = 0f;
             foreach (var r in v.GetComponentsInChildren<Renderer>())
                 if (r is MeshRenderer || r is SkinnedMeshRenderer) { top = any ? Mathf.Max(top, r.bounds.max.y) : r.bounds.max.y; any = true; }

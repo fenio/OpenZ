@@ -34,6 +34,7 @@ Shader "OpenZ/AtmosphereFullscreen"
             float _FogBase;            // height (m) of the fog floor
             float _FogNoiseScale, _FogNoiseAmount;
             float4 _FogWind;           // xyz wind velocity (m/s)
+            float4 _OZFogShift;        // xyz metres: the path the wind has blown minus wind x time (0 unless a level turns its wind: level 16 in rain)
             float _FogMaxDistance;
             float _FogSunScatter, _FogG;
             float _MinTransmittance;
@@ -51,6 +52,11 @@ Shader "OpenZ/AtmosphereFullscreen"
             float _AtmoLampCullOff;
             float _ShimmerAmount;      // heat shimmer strength (0 off)
             float4 _AtmoHole;          // nuke_fx_v3: xyz centre, w radius of the nuke fireball (0 = none), set by NukeFx
+            float4 _AtmoColumn;        // endings round 4: xyz foot, w radius of the blast cloud's stem (0 = none), set while the level 16 ending scene draws
+            float4 _AtmoColumnCap;     // endings round 4: xyz centre, w radius of the blast cloud's cap (0 = none)
+            float _AtmoColumnTop;      // endings round 4: the stem's height over its foot (m)
+            float4 _AtmoFarRect;       // endings round 4: the map's ground (x0, z0, x1, z1), set while the level 16 ending scene draws
+            float4 _AtmoFarSky;        // endings round 4: x, y the far land's blend (m outside the map: from, to), w on (0 = the pass exactly as before)
 
             float Hash3(float3 p) { p = frac(p * 0.3183099 + 0.1); p *= 17.0; return frac(p.x * p.y * p.z * (p.x + p.y + p.z)); }
             float Noise3(float3 x)
@@ -102,7 +108,7 @@ Shader "OpenZ/AtmosphereFullscreen"
                 float lo_ = min(yA, yB), hi_ = max(yA, yB);
                 if (lo_ - _FogBase >= max(_LowFogHeight, _LowFogBanks.w) || hi_ < _FogBase - 0.35) return 0;   // segment outside the band: no fetch, no noise
                 float near = WaterNear(p).y;
-                float2 w = _FogWind.xz * (_Time.y * _LowFogBanks.x * _LowFogBanks2.x);
+                float2 w = _FogWind.xz * (_Time.y * _LowFogBanks.x * _LowFogBanks2.x) + _OZFogShift.xz * (_LowFogBanks.x * _LowFogBanks2.x);
                 float2 xz = p.xz * _LowFogBanks.x;
                 float n0 = Noise2(xz - w);
                 float n1 = Noise2(xz * _LowFogBanks2.w - w * 1.7 + float2(-w.y, w.x) * 0.6 + n0 * 1.4 + 5.2);   // wisps slide over the banks
@@ -130,7 +136,7 @@ Shader "OpenZ/AtmosphereFullscreen"
             // where it can matter: the low-fog FBM only inside its height band, the main FBM only where there is any density
             float Density(float3 p)
             {
-                float3 q = p * _FogNoiseScale + _FogWind.xyz * _Time.y * _FogNoiseScale;
+                float3 q = p * _FogNoiseScale + _FogWind.xyz * _Time.y * _FogNoiseScale + _OZFogShift.xyz * _FogNoiseScale;
                 float haze = _FogDensity * exp(-max(0, p.y - _FogBase) / max(0.1, _FogHeightFalloff));
                 float low = 0;
                 if (_LowFogMode > 0.5) low = 0;                                                  // l17_night_fog_read: the L17 banks are integrated per segment in Frag (LowBankStep), not x the haze FBM
@@ -148,6 +154,45 @@ Shader "OpenZ/AtmosphereFullscreen"
                 return d * lerp(1, Fbm(q) * 1.6, _FogNoiseAmount);
             }
 
+            // endings round 4: the ray against the blast cloud's stem (an upright column) and cap (a ball): w = how far inside it runs
+            // (1 on the axis, a soft edge from 55 % of the radius out), t = the distance to the shape's front
+            void AtmoColumnHit(float3 cam, float3 dir, out float w, out float t)
+            {
+                w = 0; t = 0;
+                if (_AtmoColumnCap.w > 0)
+                {
+                    float3 oc = cam - _AtmoColumnCap.xyz; float bq = dot(oc, dir); float r = _AtmoColumnCap.w;
+                    float c2 = max(0, dot(oc, oc) - bq * bq);
+                    if (c2 < r * r && -bq > 0)
+                    {
+                        float k = 1 - smoothstep(0.55 * r, r, sqrt(c2));
+                        float tc = -bq - sqrt(max(0, r * r - c2));
+                        if (k > w) { w = k; t = max(tc, 0.5); }
+                    }
+                }
+                float2 o = cam.xz - _AtmoColumn.xz; float2 d2 = dir.xz; float a = dot(d2, d2);
+                if (a > 1e-6)
+                {
+                    float tc = -dot(o, d2) / a; float2 q = o + d2 * tc; float c2 = dot(q, q); float r = _AtmoColumn.w;
+                    if (tc > 0 && c2 < r * r)
+                    {
+                        float y = cam.y + dir.y * tc;
+                        float hk = smoothstep(_AtmoColumn.y - 2, _AtmoColumn.y, y) * (1 - smoothstep(_AtmoColumn.y + _AtmoColumnTop, _AtmoColumn.y + _AtmoColumnTop + r, y));
+                        float k = (1 - smoothstep(0.55 * r, r, sqrt(c2))) * hk;
+                        float te = tc - sqrt(max(0, (r * r - c2) / a));
+                        if (k > w) { w = k; t = max(te, 0.5); }
+                    }
+                }
+            }
+
+            // endings round 4: how much a ground pixel is far land (0 on the map, 1 from _AtmoFarSky.y metres outside it; 0 when off)
+            float AtmoFarW(float3 p)
+            {
+                if (_AtmoFarSky.w <= 0) return 0;
+                float2 o = max(0, max(_AtmoFarRect.xy - p.xz, p.xz - _AtmoFarRect.zw));
+                return smoothstep(_AtmoFarSky.x, _AtmoFarSky.y, length(o)) * saturate(_AtmoFarSky.w);
+            }
+
             half4 Frag(Varyings input) : SV_Target
             {
                 float2 uv = input.texcoord;
@@ -162,6 +207,13 @@ Shader "OpenZ/AtmosphereFullscreen"
                 #endif
                 float farDist = sky ? 0 : dist;          // the sky gradient already ends in the horizon colour
                 if (sky) dist = _FogMaxDistance;
+                // endings round 4: see-through effects (the fire's glow and smoke, flames, the blast cloud) write no depth, so their pixels took
+                // the haze of what stood behind them: over the far hills the hills' haze, over the open sky just above them the sky's, and a
+                // line ran across the effect where the hills meet the sky. While the level 16 ending scene draws, the far land outside the map
+                // takes the sky's own treatment at its height (fog distance, readability rule, in-scatter, haze band, clearing, dawn grade):
+                // the same on both sides of the crest, so nothing in front of it shows the crest as a line. farW = 0: the pass as before.
+                float farW = sky ? 0 : AtmoFarW(posWS);
+                if (farW > 0) dist = lerp(dist, max(dist, _FogMaxDistance), farW);
                 // nuke_fx_v3: the transparent fireball writes no depth, so its pixels were fogged down to the ground behind it (a
                 // grey veil over the glow). Inside the fireball sphere the fog runs only to its front surface.
                 if (_AtmoHole.w > 0)
@@ -170,6 +222,11 @@ Shader "OpenZ/AtmosphereFullscreen"
                     float hq = bq * bq - (dot(oc, oc) - _AtmoHole.w * _AtmoHole.w);
                     if (hq > 0) { float tn = -bq - sqrt(hq); if (tn > 0 && tn < dist) dist = tn; }
                 }
+                // endings round 4: the level 16 ending's blast cloud writes no depth either: inside its stem and cap the fog and the far haze
+                // run only to the cloud's front, so the far hills behind it no longer haze it more than the open sky (no line at the horizon)
+                float colW = 0, colT = 0;
+                if (_AtmoColumn.w > 0) AtmoColumnHit(cam, dir, colW, colT);
+                if (colW > 0) dist = lerp(dist, min(dist, colT), colW);
 
                 // heat shimmer: screen refraction near the hot ground, masked by distance
                 // still: the pixel must lie within 0.3 m of the ground base and face up, and the displaced sample must too
@@ -227,6 +284,7 @@ Shader "OpenZ/AtmosphereFullscreen"
                 float jitter = Ign(uv * _ScreenParams.xy);
                 Light sun = GetMainLight();
                 float3 phaseDir = (sky && _FlybySkyW > 0) ? normalize(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW)) : sun.direction;   // sky only: the ground keeps its haze
+                if (farW > 0 && _FlybySkyW > 0) phaseDir = normalize(lerp(phaseDir, normalize(lerp(sun.direction, _FlybySunDir.xyz, _FlybySkyW)), farW));   // endings round 4: the far land's in-scatter as the sky's
                 float phase = HG(dot(dir, phaseDir), _FogG) * 12.566371;   // normalised so isotropic = 1
                 float trans = 1; float3 scat = 0;
                 int lampCount = (int)_FogLampCount;
@@ -281,7 +339,7 @@ Shader "OpenZ/AtmosphereFullscreen"
                 }
                 // readability cap: fog never hides more than (1 - _MinTransmittance) of the scene behind it
                 float capK = saturate((1 - _MinTransmittance) / max(1e-3, 1 - trans));
-                float k = sky ? lerp(1, capK, floorK) : capK;                                    // l17_night_fog_read: the skirt is capped like the ground
+                float k = sky ? lerp(1, capK, floorK) : lerp(capK, 1, farW);                     // l17_night_fog_read: the skirt is capped like the ground; endings round 4: the far land as the sky
                 trans = lerp(1, trans, k); scat *= k;
                 // horizon haze (critic #2: hard sea horizon under a flat grey sky in the L17 cliff notch): far geometry fades
                 // into the background colour; starts well beyond any play distance, so it is not readability-capped
@@ -300,9 +358,18 @@ Shader "OpenZ/AtmosphereFullscreen"
                 if (sky && _FlybySkyW > 0 && dir.y >= 0)
                 {
                     hz = (1 - smoothstep(0, bandH, dir.y)) * _FlybySkyW;
-                    clearK = _FlybySkyW * saturate(_FlybySkyClear) * smoothstep(0, bandH, dir.y);
+                    clearK = _FlybySkyW * saturate(_FlybySkyClear) * smoothstep(0, bandH, dir.y) * (1 - colW);   // endings round 4: inside the cloud the sky is fogged like the hills
                     outc = lerp(outc, col, clearK);
                 }
+                if (farW > 0)
+                {   // endings round 4: the far land hazed and cleared as the sky at its height (as the sky: no clearing inside the cloud)
+                    float sbF = smoothstep(0, bandH, dir.y);
+                    float hzF = (dir.y >= 0 ? 1 - sbF : smoothstep(_HorizonStart, _HorizonEnd, max(0, cam.y - _FlybySeaY) / max(1e-4, -dir.y))) * _FlybySkyW;
+                    clearK = (dir.y >= 0 ? _FlybySkyW * saturate(_FlybySkyClear) * sbF * (1 - colW) : 0) * farW;
+                    outc = lerp(outc, col, clearK);
+                    hz = lerp(hz, hzF, farW);
+                }
+                hz = lerp(hz, smoothstep(_HorizonStart, _HorizonEnd, colT), colW);                    // endings round 4: inside the cloud, the haze of its own distance
                 outc = lerp(outc, _HorizonColor.rgb + FlybyGlow(dir) * _FlybySkyW, hz);
                 // 233,186,138 where the plain haze read 230,206,185 / 235,215,199 / 233,210,190): the sky and the haze light (not the lit
                 // ground under it) are warmed to gold while the sunrise flyby sky is on; gameplay (W = 0) and noon / night (sun strength 0)
@@ -315,7 +382,7 @@ Shader "OpenZ/AtmosphereFullscreen"
                     else
                     {   // the haze light warmed; the lit ground itself a little deeper and warmer (the reference's backlit dawn mesas)
                         half3 base = col * (half)(trans * (1 - hz));
-                        outc = base * lerp((half3)1, half3(0.90, 0.76, 0.62), k) + (outc - base) * dawn;
+                        outc = lerp(base * lerp((half3)1, half3(0.90, 0.76, 0.62), k) + (outc - base) * dawn, outc * dawn, (half)farW);   // endings round 4: the far land graded as the sky
                     }
                 }
                 if (sky && _FlybySkyW > 0)

@@ -24,7 +24,7 @@ namespace OpenZ
     {
         public const string Pref = "oz_deformable_ground";
         public const string Label = "EXPERIMENTAL · DEFORMABLE GROUND";
-        public const string Tip = "DEFORMABLE GROUND · EXPERIMENTAL|Big explosions on open sand, dirt and paving can leave a shallow crater that units drive through. At most 12 at once; each fades after about 2 minutes when it is off screen. Visual only: the rules, paths and line of sight never change.|";
+        public const string Tip = "DEFORMABLE GROUND · EXPERIMENTAL|Big explosions on open ground or on a road can leave a shallow crater that units drive through. At most 12 at once; each fades after about 2 minutes when it is off screen. Visual only: the rules, paths and line of sight never change.|";
         public const int Cap = 12;
         public const float Life = 120f, EaseTime = 0.25f, ChunkSize = 24f, MinStrength = 1.15f;
         const string Res = "OpenZ/Craters/";
@@ -139,7 +139,7 @@ namespace OpenZ
         {
             n = 0; terrainCols.Clear(); craterCols.Clear(); quiet = false;
             Shader.SetGlobalFloat(CountId, 0f);
-            if (Enabled && (s.name.StartsWith("L02") || s.name.StartsWith("L17"))) Ensure();
+            if (Enabled && FindFirstObjectByType<ZGame>()) Ensure();                       // K264: every level (any scene with the game), no level names
         }
 
         public static CraterField Ensure()
@@ -200,6 +200,20 @@ namespace OpenZ
             }
             catch (System.Exception e) { failed = true; Debug.LogError("[OpenZ Craters] init failed, deformable ground off this match: " + e); return; }
             ready = true;
+            if (System.Array.Exists(FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None), r => System.Array.Exists(r.sharedMaterials, m => m && m.shader && m.shader.name == LayeredGround)))   // K264: by the ground's own shader, not the map kind
+            {   // the layered ground is laid on by world position on every terrain mesh (ground, stream beds, rock walls, apron):
+                // each of them is cut under a crater, so no neighbouring mesh shows through a bowl at a border
+                foreach (var r in FindObjectsByType<MeshRenderer>(FindObjectsSortMode.None))
+                {
+                    var mats = r.sharedMaterials;
+                    for (int i = 0; i < mats.Length; i++)
+                    {
+                        if (!mats[i] || !mats[i].shader || mats[i].shader.name != LayeredGround) continue;
+                        var mpb = new MaterialPropertyBlock(); r.GetPropertyBlock(mpb, i); mpb.SetFloat(RoleId, 1f); r.SetPropertyBlock(mpb, i);
+                    }
+                }
+                if (kitMat) kitMat.SetColor("_BaseColor", new Color(0.42f, 0.41f, 0.36f));          // thrown clods: dark earth, not sand
+            }
             foreach (var r in groundUv)
             {   // role 1 on the rendered ground only, on its Sand slot's own block (ShoreBeach keeps its paint override in the same
                 // per-slot block and reads it back before writing, so neither loses the other's values); the asset is never touched
@@ -274,6 +288,8 @@ namespace OpenZ
             }
         }
 
+        const string LayeredGround = "OpenZ/JungleGround";
+
         void LoadKit()
         {
             var atlas = Resources.Load<Texture2D>(Res + "CraterKit_Atlas");
@@ -317,7 +333,7 @@ namespace OpenZ
                 }
                 if (res > 2e-3f) { Debug.LogWarning($"[OpenZ Craters] {r.name}: UV0 is not planar (max residual {res:0.0000}); no craters on it"); continue; }
                 int slot = 0; var mats = r.sharedMaterials;
-                for (int i = 0; i < mats.Length; i++) if (mats[i] && mats[i].shader && mats[i].shader.name == "OpenZ/Sand") { slot = i; break; }
+                for (int i = 0; i < mats.Length; i++) if (mats[i] && mats[i].shader && (mats[i].shader.name == "OpenZ/Sand" || mats[i].shader.name == LayeredGround)) { slot = i; break; }
                 groundUv.Add((r, r.bounds, a, b, slot < mats.Length ? mats[slot] : r.sharedMaterial, slot));
             }
         }
@@ -608,13 +624,11 @@ namespace OpenZ
         string TrySpawn(Vector3 at, float s, string src, bool test)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            var g = ZGame.I; var map = g.World.Map; bool city = map.planet == "city";
+            var g = ZGame.I; var map = g.World.Map;                                          // K264: the same site rules on every map (OzCraterSite.cs)
             int alive = 0; foreach (var k in craters) if (!k.dead && !k.removing) alive++;
             if (alive >= Cap) { Reject("cap 12"); return "cap 12 reached"; }
             var surf = TrackMarks.I ? TrackMarks.I.Surface : null;
-            float roadC = 0f, waterC = 0f, rockC = 0f;
-            surf?.Classes(at.x, at.z, out roadC, out waterC, out rockC);
-            bool paved = city && roadC > 0.5f;
+            bool paved = OzCraterSite.Paved(OzCraterSite.RoadWeight(map, at.x, at.z));      // K264: a crater on a road is a paved one, on every map
             string id = PickVariant(s, paved);
             if (id == null) { Reject("no variant"); return "no variant imported"; }
             var v = variants[id]; float R = v.R, M = R + 1f;
@@ -631,14 +645,14 @@ namespace OpenZ
                     var cl = map.ClassAt(Mathf.FloorToInt(x * 8f) >> 4, Mathf.FloorToInt(-z * 8f) >> 4);
                     if (cl == ZClass.Water || cl == ZClass.DeepWater) { Reject("near water"); return "near water"; }
                     if (cl == ZClass.Impassable) { Reject("rock / impassable"); return "rock / impassable"; }
-                    if (!city && cl == ZClass.Road) { Reject("road (L02)"); return "road"; }
+                    if (rr <= R && OzCraterSite.Mixed(OzCraterSite.RoadWeight(map, x, z), paved)) { Reject("mixed ground"); return "mixed paving / dirt"; }   // K264: never across road and dirt
+                    if (OzWaterLevel.Has(g.level) && OzWaterLevel.At(g.level, x, z, float.MinValue) > RenderY(x, z) - 0.05f) { Reject("near water"); return "stream water over the ground"; }
                     if (surf != null)
                     {
                         surf.Classes(x, z, out float rw, out float ww, out float kw);
                         if (ww > 0.05f) { Reject("near water"); return "near water (paint)"; }
                         if (kw > 0.15f) { Reject("rock / impassable"); return "rock (paint)"; }
-                        if (!city && rw > 0.35f) { Reject("road (L02)"); return "road (paint)"; }
-                        if (city && (rw > 0.5f) != paved && rr <= R) { Reject("mixed ground"); return "mixed paving / dirt"; }
+                        // K264: road and paving / dirt border: tested above with the tile class (OzCraterSite.Mixed)
                     }
                     if (Physics.Raycast(new Ray(new Vector3(x, 200f, z), Vector3.down), out var hit, 400f, 1 << ZGame.WalkLayer, QueryTriggerInteraction.Ignore) && !IsGroundCollider(hit.collider))
                     { Reject("bridge / deck"); return "bridge / deck"; }
@@ -646,13 +660,8 @@ namespace OpenZ
                 }
             }
             if (hi - lo > 0.6f) { Reject("slope"); return "slope"; }
-            var px = ZGame.WorldToPx(at); float mpx = (R + 1.5f) * 8f;
-            foreach (var o in g.World.Objects)
-            {
-                bool solid = o.Kind == ZKind.Building || o.Kind == ZKind.MapItem || o.Kind == ZKind.Cannon || (o.Kind == ZKind.Vehicle && o.Destroyed);
-                if (!solid) continue;
-                if (px.x > o.LocX - mpx && px.x < o.LocX + o.WidthPix + mpx && px.y > o.LocY - mpx && px.y < o.LocY + o.HeightPix + mpx) { Reject("building / prop / wreck"); return "building / prop / wreck: " + o.Type; }
-            }
+            var blocker = OzCraterSite.Blocker(g.World, at.x, at.z, R);                     // K264: a one-tile item keeps only its own tile clear, a destroyed rock is gone
+            if (blocker != null) { Reject("building / prop / wreck"); return "building / prop / wreck: " + blocker.Type; }
             int propMask = LayerMask.GetMask("Buildings", "Props");
             foreach (var c in Physics.OverlapSphere(at + Vector3.up * 0.8f, R + 0.5f, propMask, QueryTriggerInteraction.Ignore))
                 if (c && !c.attachedRigidbody) { Reject("building / prop / wreck"); return "static prop: " + c.name; }
@@ -812,6 +821,17 @@ namespace OpenZ
 
         static float FinalY(float x, float z) => (ZGame.I ? ZGame.I.GroundY(x, z) : 0f) + FinalMissing(x, z);
 
+        /// <summary>b27, counted check only: one loose clod of the crater kit thrown from `from` so that it comes down at `to` after
+        /// `seconds` (no crater is made; it flies, lands and goes like a crater's own clods). False = no clod kit is loaded.</summary>
+        public static bool OzThrowClod(Vector3 from, Vector3 to, float seconds)
+        {
+            var f = I; if (!f || !f.ready || f.clodKit.Length == 0 || !f.kitMat) return false;
+            seconds = Mathf.Max(0.1f, seconds);
+            var v = (to - from) / seconds; v.y += 0.5f * 9.81f * seconds;
+            f.thrown.Add(new Thrown { m = f.clodKit[0], p = from, v = v, q = Random.rotation, spin = Random.insideUnitSphere * 540f, scale = 1f, owner = new Crater() });
+            return true;
+        }
+
         void UpdateThrown()
         {
             if (thrown.Count == 0) return;
@@ -823,6 +843,12 @@ namespace OpenZ
                 {
                     t.v.y -= 9.81f * dt; t.p += t.v * dt; t.q = Quaternion.Euler(t.spin * dt) * t.q;
                     float gy = FinalY(t.p.x, t.p.z) + 0.04f * t.scale;
+                    if (t.v.y < 0f && OzWaterLanding.OpenWaterAt(t.p, gy, out float clodWater) && t.p.y <= clodWater)
+                    {   // b27: a clod that comes down on open water (a crater beside a bank): a small splash and a plop at the surface through
+                        // the shared water landing rule, and the clod is gone (no patter of earth on water, nothing left lying on the bed)
+                        OzWaterLanding.Splash(new Vector3(t.p.x, clodWater, t.p.z), OzWaterSize.Small, "crater clod", -t.v.y);
+                        thrown.RemoveAt(i); continue;
+                    }
                     if (t.p.y <= gy && t.v.y < 0f)
                     {
                         t.p.y = gy; t.rest = 0f;

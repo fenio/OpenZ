@@ -551,6 +551,7 @@ namespace OpenZ
         void Apply(Rig r, float now, Vector3 camPos, int heat)
         {
             if (!r.View) return;
+            if (ZodBriefing.EndingHides(r.View)) { if (r.Spot && r.Spot.enabled) r.Spot.enabled = false; return; }   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs): glows, beams, pools, the real light
             // crane work beacon: a rotating reflector flashes when it points at the camera
             var chB = r.ChB;
             if (r.HasWork && chB.w > 0f && r.WorkNode)

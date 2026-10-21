@@ -41,8 +41,8 @@ namespace OpenZ
         public const string HeadStartPref = "oz_headstart";
         public static bool HeadStartToggle { get => PlayerPrefs.GetInt(HeadStartPref, 0) == 1; set { PlayerPrefs.SetInt(HeadStartPref, value ? 1 : 0); PlayerPrefs.Save(); } }
         public static bool HeadStart(GameDifficulty d, bool toggle) => toggle;
-        public static int HeadStartCount(string level) => level == "L02" ? ZGame.HeadStartTypes.Length : level == "L17" ? ZGame.EasyL17Types.Length : 0;
-        public static string HeadStartHint(string level) => level == "L02" ? "+2 LIGHT TANKS · 2 JEEPS · 1 MECH, CREWED, AT YOUR FORT" : level == "L17" ? (ZGame.ParkedStartOn("L17") ? "+1 MLRS · 1 HEAVY TANK PARKED EMPTY AT YOUR FORT" : "+1 MLRS · 1 HEAVY TANK, CREWED, AT YOUR FORT") : "";
+        public static int HeadStartCount(string level) => level == "L02" ? ZGame.HeadStartTypes.Length : level == "L17" ? ZGame.EasyL17Types.Length : level == "L16" ? ZGame.HeadStartL16Types.Length : 0;
+        public static string HeadStartHint(string level) => level == "L02" ? "+2 LIGHT TANKS · 2 JEEPS · 1 MECH, CREWED, AT YOUR FORT" : level == "L17" ? (ZGame.ParkedStartOn("L17") ? "+1 MLRS · 1 HEAVY TANK PARKED EMPTY AT YOUR FORT" : "+1 MLRS · 1 HEAVY TANK, CREWED, AT YOUR FORT") : level == "L16" ? "+2 JEEPS · 1 LIGHT TANK, CREWED, AT YOUR FORT" : "";
 
         public static string Label(GameDifficulty d) => d == GameDifficulty.Easy ? "EASY" : d == GameDifficulty.Medium ? "MEDIUM" : "HARD";
 

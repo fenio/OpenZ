@@ -108,6 +108,7 @@ namespace OpenZ.EditorTools
             "View/OzSettings.cs|Int|\"oz_team_blue\"|0",
             "View/OzSettings.cs|Int|AudioDirector.MusicPref|1",
             "View/OzSettings.cs|Int|FullscreenPref|1",
+            "View/OzSettings.cs|Int|HudScalePref|0",
             "View/OzSettings.cs|Int|OpenZDifficulty.HeadStartPref|0",
             "View/OzSettings.cs|Int|OzSettings.FullscreenPref|1",
             "View/OzSettings.cs|Int|OzSettings.WindowHPref|Mathf.RoundToInt(n.y * 0.75f)",

@@ -12,26 +12,28 @@ namespace OpenZ
     // ============================================================================================================================
     public partial class OpenZMainMenu
     {
-        static readonly (string group, string label, string site, string url)[] CommunityLinks =
+        // every address lives in the one links file (OzLinks): a row holds its key there, the site shown beside it is read from the address
+        static readonly (string group, string label, string key)[] CommunityLinks =
         {
-            ("FAN COMMUNITY", "ZZone · the Z fan site", "zzone.lewe.com", "https://zzone.lewe.com/"),
-            ("FAN COMMUNITY", "ZZone Discord", "discord.gg", "https://discord.gg/WjFqg35PsE"),
-            ("THE ORIGINAL Z", "Z on Steam", "store.steampowered.com", "https://store.steampowered.com/app/275530/Z/"),
-            ("THE ORIGINAL Z", "Z: The Game on GOG", "gog.com", "https://www.gog.com/en/game/z"),
-            ("OPEN-SOURCE REMAKES", "The Zod Engine", "zod.sourceforge.net", "https://zod.sourceforge.net/"),
-            ("OPEN-SOURCE REMAKES", "Zod Engine downloads + source", "sourceforge.net", "https://sourceforge.net/projects/zod/"),
-            ("OPEN-SOURCE REMAKES", "ZED Online", "sourceforge.net", "https://sourceforge.net/projects/zedonline/"),
-            ("OPEN-SOURCE REMAKES", "Zod Engine, modern SDL3 build", "github.com", "https://github.com/fenio/zod"),
-            ("WIKIPEDIA", "Z (video game)", "wikipedia.org", "https://en.wikipedia.org/wiki/Z_(video_game)"),
-            ("WIKIPEDIA", "The Bitmap Brothers", "wikipedia.org", "https://en.wikipedia.org/wiki/The_Bitmap_Brothers"),
-            ("WIKIPEDIA", "Rebellion", "wikipedia.org", "https://en.wikipedia.org/wiki/Rebellion_Developments"),
+            ("OPENZ", OzLinks.DiscordButton, OzLinks.Discord),
+            ("FAN COMMUNITY", "ZZone · the Z fan site", "zzone"),
+            ("FAN COMMUNITY", "ZZone Discord", "zzone_discord"),
+            ("THE ORIGINAL Z", "Z on Steam", "z_steam"),
+            ("THE ORIGINAL Z", "Z: The Game on GOG", "z_gog"),
+            ("OPEN-SOURCE REMAKES", "The Zod Engine", "zod_engine"),
+            ("OPEN-SOURCE REMAKES", "Zod Engine downloads + source", "zod_engine_files"),
+            ("OPEN-SOURCE REMAKES", "ZED Online", "zed_online"),
+            ("OPEN-SOURCE REMAKES", "Zod Engine, modern SDL3 build", "zod_engine_sdl3"),
+            ("WIKIPEDIA", "Z (video game)", "wiki_z"),
+            ("WIKIPEDIA", "The Bitmap Brothers", "wiki_bitmap_brothers"),
+            ("WIKIPEDIA", "Rebellion", "wiki_rebellion"),
         };
 
         const string CommunityIntro =
             "<align=center><size=13><cspace=0.24em><color=#F2B84B>Z COMMUNITY</color></cspace></size>\n<size=8>\n</size>" +
             "<size=16><color=#C8CABF>The fans, the original game and the other open-source remakes. Links open in your web browser.</color></size></align>";
 
-        sealed class CreditLink { public OzText text; public RectTransform hot; public float y, h; public string url, label, normal, over; }
+        sealed class CreditLink { public OzText text; public RectTransform hot; public float y, h; public string key, label, normal, over; public string url => OzLinks.Get(key); }
         readonly List<CreditLink> creditLinks = new List<CreditLink>();
         /// <summary>Proof switch (session only): log the click instead of opening the browser.</summary>
         public static bool ProofNoOpen;
@@ -48,13 +50,13 @@ namespace OpenZ
             y += CreditsBlock(CommunityIntro, y, 60f, cw - 120f, "CommIntro") + 18f;
             float colW = Mathf.Min(420f, (cw - 60f) * 0.5f), gap = 40f, x0 = (cw - (2f * colW + gap)) * 0.5f;
             float yl = LinkColumn(new[] { "FAN COMMUNITY", "THE ORIGINAL Z" }, x0, y, colW);
-            float yr = LinkColumn(new[] { "OPEN-SOURCE REMAKES" }, x0 + colW + gap, y, colW);
+            float yr = LinkColumn(new[] { "OPENZ", "OPEN-SOURCE REMAKES" }, x0 + colW + gap, y, colW);
             y = Mathf.Max(yl, yr) + 6f;
             // Wikipedia: one centred row of three short links
             Hud.Label(creditsContent, "CommWiki", "WIKIPEDIA", 10, OzUi.Muted, 0.24f, OzStyle.Plain).At(cw * 0.5f, y, OzH.C, false, 300);
             y += 22f;
-            var wiki = new List<(string label, string site, string url)>();
-            foreach (var l in CommunityLinks) if (l.group == "WIKIPEDIA") wiki.Add((l.label, l.site, l.url));
+            var wiki = new List<(string label, string key)>();
+            foreach (var l in CommunityLinks) if (l.group == "WIKIPEDIA") wiki.Add((l.label, l.key));
             float sep = 36f, total = -sep; var widths = new List<float>();
             foreach (var w in wiki)
             {
@@ -64,7 +66,7 @@ namespace OpenZ
             float x = (cw - total) * 0.5f;
             for (int i = 0; i < wiki.Count; i++)
             {
-                AddLink(wiki[i].label, null, wiki[i].url, x, y, widths[i] + 8f);
+                AddLink(wiki[i].label, null, wiki[i].key, x, y, widths[i] + 8f);
                 x += widths[i] + sep;
             }
             y += LinkRowH;
@@ -78,7 +80,11 @@ namespace OpenZ
                 if (g > 0) y += LinkGroupGap;
                 Hud.Label(creditsContent, "CommGroup" + groups[g], groups[g], 10, OzUi.Muted, 0.24f, OzStyle.Plain).At(x, y, OzH.L, false, w);
                 y += 22f;
-                foreach (var l in CommunityLinks) if (l.group == groups[g]) { AddLink(l.label, l.site, l.url, x, y, w); y += LinkRowH; }
+                foreach (var l in CommunityLinks) if (l.group == groups[g])
+                {
+                    AddLink(l.label, OzLinks.Site(l.key), l.key, x, y, w); y += LinkRowH;
+                    if (l.key == OzLinks.Discord) { Hud.Label(creditsContent, "LinkNote_" + l.key, OzLinks.DiscordLine, 13, OzUi.Muted, 0.01f, OzStyle.Plain).At(x, y - 5f, OzH.L, false, w); y += 18f; }
+                }
             }
             return y;
         }
@@ -87,9 +93,9 @@ namespace OpenZ
             (hover ? "<color=#F4F2EA><u>" : "<color=#F2B84B><u>") + label + "</u></color>" + (hover ? "<color=#F2B84B>  ↗</color>" : "<color=#F2B84B00>  ↗</color>")
             + (string.IsNullOrEmpty(site) ? "" : "<size=13><color=#8D9286>   " + site + "</color></size>");
 
-        void AddLink(string label, string site, string url, float x, float y, float w)
+        void AddLink(string label, string site, string key, float x, float y, float w)
         {
-            var link = new CreditLink { url = url, label = label, y = y - 6f, h = LinkSize + 12f, normal = LinkRich(label, site, false), over = LinkRich(label, site, true) };
+            var link = new CreditLink { key = key, label = label, y = y - 6f, h = LinkSize + 12f, normal = LinkRich(label, site, false), over = LinkRich(label, site, true) };
             link.text = Hud.Label(creditsContent, "Link_" + label, link.normal, LinkSize, OzUi.Ink, 0.01f, OzStyle.Plain).At(x, y, OzH.L, false, w);
             var probe = Hud.Label(creditsContent, "Probe", LinkRich(label, null, false), LinkSize, OzUi.Ink, 0.01f, OzStyle.Plain);
             float hw = Mathf.Min(w, probe.preferredWidth + 10f); Destroy(probe.gameObject);
@@ -101,10 +107,12 @@ namespace OpenZ
 
         void OpenLink(CreditLink l)
         {
-            LastLinkOpened = l.url;
-            if (ProofNoOpen) { Debug.Log($"[OpenZ Menu] credits link (proof, not opened): {l.label} -> {l.url}"); return; }
-            Debug.Log($"[OpenZ Menu] credits link: {l.label} -> {l.url} (system browser)");
-            Application.OpenURL(l.url);
+            string url = l.url;                                                                           // read from the links file at the click
+            LastLinkOpened = url;
+            if (string.IsNullOrEmpty(url)) return;
+            if (ProofNoOpen) { Debug.Log($"[OpenZ Menu] credits link (proof, not opened): {l.label} -> {url}"); return; }
+            Debug.Log($"[OpenZ Menu] credits link: {l.label} -> {url} (system browser)");
+            Application.OpenURL(url);
         }
 
         /// <summary>Called from TickCredits: a link takes the mouse only while its whole row is inside the scroll view.</summary>

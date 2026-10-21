@@ -22,5 +22,8 @@ namespace OpenZ.EditorTools
         [MenuItem("OpenZ/Weather/Stop Storm (3 s fade)")] static void Stop() { var w = W(); if (w) w.StopStorm(3f); }
         [MenuItem("OpenZ/Weather/Log Status")] static void Status() { var w = W(); if (w) Debug.Log(w.Status()); }
         [MenuItem("OpenZ/Weather/Toggle WEATHER Option")] static void Toggle() { OzWeather.Enabled = !OzWeather.Enabled; Debug.Log($"[OzWeather] option {(OzWeather.Enabled ? "ON" : "OFF")}"); }
+        [MenuItem("OpenZ/Weather/Level 16: Force Rain Spell 60 s (Play, L16)")] static void JungleSpell() { if (!OzJungleWeather.Force(60f)) Debug.LogWarning("[OzJungleWeather] Play level 16 first"); }
+        [MenuItem("OpenZ/Weather/Level 16: Stop Rain Spell (3 s fade)")] static void JungleStop() { if (OzJungleWeather.I) OzJungleWeather.I.StopSpell(3f); }
+        [MenuItem("OpenZ/Weather/Level 16: Log Status")] static void JungleStatus() { if (OzJungleWeather.I) Debug.Log(OzJungleWeather.I.Status() + "\n" + OzFloraWind.Status()); else Debug.LogWarning("[OzJungleWeather] Play level 16 first"); }
     }
 }

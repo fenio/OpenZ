@@ -30,7 +30,7 @@ namespace OpenZ
 
         sealed class Br { public string name; public Transform root; public Renderer plate; public Mesh deck, ground; public int layer; public bool tried; }
         readonly List<Br> bridges = new List<Br>();
-        Mesh doorMesh; Material mat; TrackSurface surf; ZWorld W; bool city, ready; float nextScan;
+        Mesh doorMesh; Material mat; TrackSurface surf; ZWorld W; bool city, jungle, ready; float nextScan;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Boot()
@@ -43,7 +43,7 @@ namespace OpenZ
         static void OnLoaded(Scene s, LoadSceneMode m)
         {
             if (!On || !Application.isPlaying || !s.IsValid()) return;
-            if (!(s.name.StartsWith("L02") || s.name.StartsWith("L17"))) return;
+            if (!(s.name.StartsWith("L02") || s.name.StartsWith("L16") || s.name.StartsWith("L17"))) return;
             if (I && I.gameObject.scene == s) return;
             var go = new GameObject("GroundGrime");
             SceneManager.MoveGameObjectToScene(go, s);
@@ -79,6 +79,12 @@ namespace OpenZ
             if (!mat) { var sh = Shader.Find("OpenZ/Grime"); if (sh) mat = new Material(sh); }
             if (!mat) { Debug.LogWarning("[OpenZ] ground grime: OpenZ/Grime shader missing"); return; }
             mat.name = "GroundGrime";
+            jungle = W.Map.planet == "jungle";
+            if (jungle)
+            {   // grass and mud, not sand: trodden ground goes darker and browner, the bridge planks carry dried mud
+                mat.SetColor("_LightTint", new Color(0.96f, 0.86f, 0.70f)); mat.SetColor("_DarkTint", new Color(0.72f, 0.66f, 0.58f));
+                mat.SetColor("_DeckSand", new Color(0.92f, 0.82f, 0.66f)); mat.SetColor("_RoadSand", new Color(0.90f, 0.80f, 0.64f));
+            }
             BuildDoors();
             var root = GameObject.Find("ZodObjects");
             if (root) foreach (Transform t in root.transform)
@@ -86,7 +92,7 @@ namespace OpenZ
                         bridges.Add(new Br { name = t.name, root = t });
             ready = true;
             Scan();
-            Debug.Log($"[OpenZ] ground grime ({(city ? "L17 dusty scuff" : "L02 trodden sand")}): {doorPatches} door patches ({doorMesh?.vertexCount ?? 0} v), {bridges.Count} bridges ({bridgesBuilt} built now, deck {deckTris} / approach {approachTris} tris)");
+            Debug.Log($"[OpenZ] ground grime ({(city ? "L17 dusty scuff" : jungle ? "L16 trodden earth" : "L02 trodden sand")}): {doorPatches} door patches ({doorMesh?.vertexCount ?? 0} v), {bridges.Count} bridges ({bridgesBuilt} built now, deck {deckTris} / approach {approachTris} tris)");
         }
 
         // ------------------------------------------------------------------------------------------ ground helpers

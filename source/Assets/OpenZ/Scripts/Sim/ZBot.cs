@@ -143,6 +143,8 @@ namespace OpenZ.Sim
         public void Tick()
         {
             if (ClientView) ObserveRelays();                  // the event handler runs every 10 ms loop (zbot.cpp:39-57)
+            StrikeGroupTick();                                // DV107 enemy strike groups: forming, march, release (ZBot.StrikeGroup.cs); with the switch off it returns at once
+            if (EasySlowTick()) return;                                                 // K434: the Easy computer's order rounds on a 1.3 x slower clock, production on today's (Sim/ZBot.EasySlow.cs); false = this tick below, untouched
             if (W.Time + TIME_EPS < nextAiTime) return;
             bool easy = Difficulty == ZBotDifficulty.Easy;
             nextAiTime = W.Time + (easy ? AI_INTERVAL * EASY_AI_INTERVAL_SCALE : AI_INTERVAL);
@@ -161,7 +163,7 @@ namespace OpenZ.Sim
             bool allOut = GoAllOut_3(out double percent, out double delay);
             LastAllOut = allOut; LastPercent = percent; LastDelay = delay;
             bool easy = Difficulty == ZBotDifficulty.Easy;
-            if (W.Time + TIME_EPS < lastOrderTime + (easy ? delay * EASY_ORDER_DELAY_SCALE : delay)) return;   // ordering too fast? (:140)
+            if (W.Time + TIME_EPS < lastOrderTime + (easy ? delay * EASY_ORDER_DELAY_SCALE * EasySlowScale : delay)) return;   // ordering too fast? (:140); K434: x 1.3 on Easy (Sim/ZBot.EasySlow.cs)
             Rounds++;
             if (easy) easyAttackers = CountHostileOrders();
             LastRoundOrders.Clear();
@@ -210,6 +212,8 @@ namespace OpenZ.Sim
             {
                 if (!o.IsMobile || o.Owner != Team || Gone(o) || o.IsFortDefender) continue;   // fort_defender_v1 DV41: the fort's, not the CPU's
                 if (o.Kind == ZKind.Robot && o.IsMinion) continue;
+                if (o.StrikeHeld) continue;                                                    // DV107: a member of a strike group that forms or marches is no idle unit of the planner (its order rounds, DV37, DV56, DV72)
+                if (o.IsShuttle) continue;                                                       // DV118: the CPU never uses the playable shuttle (Sim/ZWorld.Shuttle.cs)
                 var wps = KnownWaypoints(o);
                 if (wps.Count > 0)
                 {
@@ -423,6 +427,7 @@ namespace OpenZ.Sim
                 string pick = null;
                 foreach (var p in Preferred) if (ZBuildLists.InList(b.Type, b.BuildLevel, p)) { pick = p; break; }
                 pick = LaserPick(b, pick);                                                          // DV71: a Laser squad now and then
+                pick = RobotMixPick(b, HeavyPick(b, pick));                                         // DV115: heavy tanks / missile launchers from 8:00, the robot squads in turn (ZBot.HeavyMix.cs)
                 pick = ElectrobotPick(b, pick);                                                     // electrobot_v1 DV46: Zod's pick unless claimed
                 if (pick == null || b.CurUnit == pick) continue;
                 W.StopBuilding(Team, b);

@@ -80,6 +80,7 @@ namespace OpenZ
             public Vector3 v, w; public float age, life, rad, restY; public bool active, rest, popping, wet, landed; public int bounces;
             public float smoke, smokeT; public bool heavy, concrete;
             public int glow;                                                                            // 0 = no glow part on it; else the fade step it shows + 1 (OzGlowFade)
+            public int dead;                                                                            // item 228: -1 = no dead colour (a vehicle's part, a chip); else the dead step shown (OzDeadTint, from the age)
         }
         readonly List<Piece> pieces = new List<Piece>();
         readonly List<Renderer> parts = new List<Renderer>();
@@ -200,14 +201,15 @@ namespace OpenZ
                 p.mr.sharedMaterials = src.sharedMaterials;
                 copy ??= new MaterialPropertyBlock();
                 for (int m = 0; m < src.sharedMaterials.Length; m++) { src.GetPropertyBlock(copy, m); p.mr.SetPropertyBlock(copy, m); } p.glow = OzGlowFade.HasGlow(p.mr) ? OzGlowFade.Steps + 2 : 0;
+                OzDeadTint.PartBegin(p.mr);                                                                // item 228: a dead robot's part: its colour drains over OzDeadTint.Seconds (LateUpdate)
                 p.mr.shadowCastingMode = ShadowCastingMode.On;
                 p.t.SetPositionAndRotation(src.transform.position, src.transform.rotation); p.t.localScale = src.transform.lossyScale;
                 var ext = src.bounds.extents; p.rad = Mathf.Clamp(Mathf.Min(ext.x, Mathf.Min(ext.y, ext.z)) + 0.05f, 0.08f, 0.6f);
                 Launch(p, c, away, sq, 1f);
-                p.heavy = ext.magnitude > 0.35f; if (real > 0 && full) p.smoke = R(0.3f, 0.6f);          // PD1: the gun clangs down
+                p.heavy = ext.magnitude > 0.35f; if (real > 0 && full) p.smoke = R(0.3f, 0.6f); p.dead = 0;   // PD1: the gun clangs down; item 228: the dead colour fades in
             }
             if (!EnsureKit(view)) return true;
-            var teamC = Color.Lerp(TeamColors.Of(team), new Color(0.5f, 0.5f, 0.5f), 0.15f);
+            var teamC = OzDeadTint.PopPieceLive(Color.Lerp(TeamColors.Of(team), new Color(0.5f, 0.5f, 0.5f), 0.15f));   // item 228: the shoulder domes and team plates start live and drain to the dead colour with every other piece (OzDeadTint.cs)
             Color gun = new Color(0.42f, 0.44f, 0.47f), dark = new Color(0.2f, 0.21f, 0.23f), bone = new Color(0.86f, 0.82f, 0.7f), brass = new Color(0.8f, 0.62f, 0.3f), steel = new Color(0.66f, 0.68f, 0.7f);
             bool laser = view.Obj.Type == "laser";
             int n = real > 0 ? (full ? (variant == 2 ? (int)R(4f, 6.99f) : (int)R(2f, 4.99f)) : 0)          // PD1: the real parts fly, only a few loose plates / bolts
@@ -231,7 +233,7 @@ namespace OpenZ
                 p.mr.shadowCastingMode = s.magnitude * hs > 0.35f ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 p.t.SetPositionAndRotation(c + Random.insideUnitSphere * 0.45f * hs, Random.rotation); p.t.localScale = s * hs;
                 p.rad = Mathf.Clamp(Mathf.Min(s.x, Mathf.Min(s.y, s.z)) * 0.5f * hs + 0.03f, 0.04f, 0.4f);
-                Launch(p, c, away, sq, kind >= 5 ? 1.25f : 1f);
+                Launch(p, c, away, sq, kind >= 5 ? 1.25f : 1f); p.dead = 0;                             // item 228: every piece of a pop is a dead robot's
             }
             return true;
         }
@@ -246,7 +248,7 @@ namespace OpenZ
             p.v = dir * sp + Vector3.up * R(4f, 8.5f) * sq * k + away * R(0.8f, 2.4f) * sq;
             p.w = Random.onUnitSphere * R(300f, 900f);
             p.age = 0f; p.life = R(PieceLifeMin, PieceLifeMax); p.rest = p.popping = p.wet = p.landed = false; p.bounces = 0; p.active = true;
-            p.smoke = 0f; p.smokeT = 0f; p.heavy = p.concrete = false;
+            p.smoke = 0f; p.smokeT = 0f; p.heavy = p.concrete = false; p.dead = -1;
             p.go.SetActive(true);
         }
 
@@ -294,6 +296,7 @@ namespace OpenZ
                 var p = Take(); if (p == null) break;
                 p.mf.sharedMesh = ps.mesh[i]; p.mr.sharedMaterials = mats;
                 for (int m = 0; m < mats.Length; m++) { body.GetPropertyBlock(copy, m); p.mr.SetPropertyBlock(copy, m); }
+                OzDeadTint.PartBegin(p.mr);                                                                // item 228: a dead robot's chunk: its colour drains over OzDeadTint.Seconds (LateUpdate)
                 p.glow = OzGlowFade.HasGlow(p.mr) ? OzGlowFade.Steps + 2 : 0;
                 p.mr.shadowCastingMode = ShadowCastingMode.On;
                 var sc = b.lossyScale;
@@ -301,7 +304,7 @@ namespace OpenZ
                 var ext = Vector3.Scale(ps.mesh[i].bounds.extents, new Vector3(Mathf.Abs(sc.x), Mathf.Abs(sc.y), Mathf.Abs(sc.z)));
                 p.rad = Mathf.Clamp(Mathf.Min(ext.x, Mathf.Min(ext.y, ext.z)) + 0.04f, 0.08f, 0.6f);
                 Launch(p, c, away, sq, full ? 1f : 0.8f);
-                p.smoke = full ? R(0.5f, 0.9f) : 0f; p.heavy = ext.magnitude > 0.3f;
+                p.smoke = full ? R(0.5f, 0.9f) : 0f; p.heavy = ext.magnitude > 0.3f; p.dead = 0;
                 n++;
             }
             BodyPartsThrown += n;
@@ -434,6 +437,11 @@ namespace OpenZ
                     int gs = Mathf.CeilToInt((1f - Mathf.Clamp01(p.age / OzGlowFade.Seconds)) * OzGlowFade.Steps);
                     if (gs + 1 != p.glow) { p.glow = gs + 1; OzGlowFade.Dim(p.mr, gs / (float)OzGlowFade.Steps); if (gs == 0) p.glow = 0; }
                 }
+                if (p.dead >= 0 && OzDeadTint.On)
+                {   // item 228: a dead robot's thrown part / chunk / piece: its colour drains to the dead colour over OzDeadTint.Seconds, as the body's does
+                    int dn = Mathf.Min(OzDeadTint.Steps, Mathf.FloorToInt(Mathf.Clamp01(p.age / OzDeadTint.Seconds) * OzDeadTint.Steps));
+                    if (dn != p.dead) { p.dead = dn; OzDeadTint.Set(p.mr, dn / (float)OzDeadTint.Steps); if (dn >= OzDeadTint.Steps) { OzDeadTint.PartsFaded++; p.dead = -1; } }
+                }
                 if (p.age >= p.life)
                 {
                     p.popping = true; var pp = p;
@@ -451,14 +459,12 @@ namespace OpenZ
                 var pos = p.t.position + p.v * dt;
                 p.t.rotation = Quaternion.AngleAxis(p.w.magnitude * dt, p.w.sqrMagnitude > 1e-6f ? p.w.normalized : Vector3.up) * p.t.rotation;
                 float gy = game.GroundY(pos.x, pos.z);
-                if (!p.wet && fx && fxp.WetAt(pos, gy))
-                {
-                    float wy = fxp.SurfaceY(pos);
-                    if (pos.y - p.rad <= wy && p.v.y < 0f)
-                    {   // hits the water: a small splash, then sinks slowly and pops out on the bed
-                        p.wet = true; fxp.Droplets(new Vector3(pos.x, wy, pos.z), 0.25f, 3);
-                        p.v *= 0.15f; p.w *= 0.3f; p.life = Mathf.Min(p.life, p.age + 1.4f);
-                    }
+                if (!p.wet && fx && p.v.y < 0f && OzWaterLanding.OpenWaterAt(pos, gy, out float wy) && pos.y - p.rad <= wy)
+                {   // b27, the shared water landing rule: the splash, the rings and the sound of its size (its smoke trail goes out). A big part
+                    // then rests partly under the surface until its time is up; a small bit sinks slowly and pops out on the bed as before
+                    p.wet = true; bool smoking = p.smoke > 0f && p.age < p.smoke; p.smoke = 0f;
+                    if (OzWaterLanding.Enter(p.t, "robot part", p.v, smoking)) { p.v = Vector3.zero; p.w = Vector3.zero; p.rest = true; continue; }
+                    p.v *= 0.15f; p.w *= 0.3f; p.life = Mathf.Min(p.life, p.age + 1.4f);
                 }
                 if (p.wet) { p.v.y = Mathf.Max(p.v.y, -0.8f); p.v.x *= 0.9f; p.v.z *= 0.9f; }
                 if (pos.y - p.rad < gy)

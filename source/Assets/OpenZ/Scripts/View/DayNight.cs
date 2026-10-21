@@ -11,7 +11,7 @@ namespace OpenZ
     /// contrast, cool rim, moon shadows) after every Apply, and in level scenes NightLights owns the lamp lights (ExternalLamps).
     /// </summary>
     [ExecuteAlways]
-    public class DayNight : MonoBehaviour
+    public partial class DayNight : MonoBehaviour
     {
         [Tooltip("Directional light used as the sun")] public Light sun;
         [Tooltip("Full cycle length in seconds (12 minutes)")] public float cycleSeconds = 720f;
@@ -106,7 +106,9 @@ namespace OpenZ
         void Update()
         {
             bool briefing = HoldWhileBriefing && ZodFlyover.Live != null && ZodFlyover.Live.Active;
+            float before = timeOfDay;
             if (running && Application.isPlaying && !briefing) timeOfDay = Mathf.Repeat(timeOfDay + Time.deltaTime / cycleSeconds, 1f);
+            if (Application.isPlaying) timeOfDay = OzNightRain.Clock(this, before, timeOfDay, briefing);         // NIGHT & RAIN off: always day (OzNightRain.cs)
             Apply(timeOfDay);
         }
 

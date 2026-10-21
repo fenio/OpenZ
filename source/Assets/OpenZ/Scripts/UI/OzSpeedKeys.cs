@@ -57,7 +57,7 @@ namespace OpenZ
                 if (c == null || !c.wasPressedThisFrame || Bound(LabelKeys[i])) continue;
                 dir += OzKeyNames.SpeedDir(LabelKeys[i], c.displayName);
             }
-            if (dir == 0 || kb.ctrlKey.isPressed || kb.altKey.isPressed) return;
+            if (dir == 0 || kb.ctrlKey.isPressed || kb.altKey.isPressed || OzTrackpadScroll.CmdHeld(kb)) return;   // Ctrl / Cmd + + / - zoom instead (OzTrackpadScroll.cs)
             if (CanStep(out var game)) Step(game, dir > 0 ? 1 : -1);
         }
 

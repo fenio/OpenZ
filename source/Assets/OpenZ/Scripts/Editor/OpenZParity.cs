@@ -48,7 +48,22 @@ namespace OpenZ.EditorTools
             bool rpPad = ZWorld.RepairInPlaceDeviation; ZWorld.RepairInPlaceDeviation = false;
             bool runOver = ZWorld.RunOverDeviation; ZWorld.RunOverDeviation = false;
             bool unmannedStop = ZWorld.UnmannedStopDeviation; ZWorld.UnmannedStopDeviation = false;   // DV79: the Zod rows measure Zod's server-level stop alone (a Play session leaves the switch on)
+            bool driverFire = ZWorld.DriverFireDeviation; ZWorld.DriverFireDeviation = false;         // DV87: no hatch driver fires in the Zod rows (a Play session leaves the switch on); put back after the Deviations block
+            using var strikeGroupsHold = ZWorld.StrikeGroupsOff();                                    // DV107: no strike groups in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var toughSteadyHold = ZWorld.ToughSteadyOff();                                      // DV123: Toughs as Zod has them in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var noAutoFlagHold = ZWorld.NoAutoFlagOff();                                        // DV130: Zod's flag runs in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var heavyFallHold = ZWorld.HeavyFallOff();                                          // DV124: no tree felled by a big faller in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var grenadeBoostHold = ZWorld.GrenadeBoostOff();                                    // DV104: Zod's grenade in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
             bool riflePair = ZWorld.RiflePairDeviation; ZWorld.RiflePairDeviation = false;       // DV78: Zod's rifle damage in the Zod rows
+            bool overtake = ZWorld.OvertakeDeviation; ZWorld.OvertakeDeviation = false;         // DV105: the rows measure without faster units passing (a Play session may leave the switch on)
+            bool calmMove = ZWorld.CalmMoveDeviation; ZWorld.CalmMoveDeviation = false;         // b49: the rows measure without calm movement (a Play session leaves the switch on)
+            using var heroSquadHold = ZWorld.HeroSquadsOff();                                         // DV108: the maps as Zod has them, no extra hero squads (a Play session leaves the switch on); put back when this method ends
+            using var proneTargetHold = ZWorld.ProneTargetOff();                                      // DV122: no sniper cover in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var groundFireHold = ZWorld.GroundFireOff();                                        // DV117: no burning ground bites in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            using var jeepChargeHold = ZWorld.JeepChargeOff();                                        // DV121: no jeep charges in the Zod rows and in every other row's probe (a Play session leaves the switch on); put back when this method ends
+            bool kc1Fort = ZWorld.FortRunDeviation, kc1Rock = ZWorld.RockRoundDeviation, kc1Overlap = ZWorld.FriendsOverlap;   // KC1: nor with DV102, DV103 or the overlap option
+            ZWorld.FortRunDeviation = ZWorld.RockRoundDeviation = ZWorld.FriendsOverlap = false;
+            bool calmFollow = ZWorld.CalmFollowDeviation; ZWorld.CalmFollowDeviation = false;   // DV109: the rows measure without calm follow (a Play session leaves the switch on)
             // so Zod's end check (at most one team with units) ends them on the first tick and DV10 then halted every mover: the movement,
             // grenade and REAL-clock rows measured 0.000. DV10 is measured on its own in the Deviations block (DevEndFreeze).
             bool elbDev = ZWorld.ElectrobotDeviation, elbBot = ZWorld.ElectrobotBotDeviation; ZWorld.ElectrobotDeviation = ZWorld.ElectrobotBotDeviation = false;   // electrobot_v1 DV45 / DV46: Zod's six robots
@@ -88,6 +103,10 @@ namespace OpenZ.EditorTools
             ZWorld.RunOverDeviation = runOver;                                                          // DV65
             ZWorld.UnmannedStopDeviation = unmannedStop;                                                // DV79
             ZWorld.RiflePairDeviation = riflePair;                                                      // DV78
+            ZWorld.OvertakeDeviation = overtake;                                                        // DV105
+            ZWorld.CalmMoveDeviation = calmMove;                                                        // b49
+            ZWorld.FortRunDeviation = kc1Fort; ZWorld.RockRoundDeviation = kc1Rock; ZWorld.FriendsOverlap = kc1Overlap;   // KC1
+            ZWorld.CalmFollowDeviation = calmFollow;                                                    // DV109
             var sb = new StringBuilder();
             int pass = rows.Count(r => r.pass), fail = rows.Count - pass;
             sb.AppendLine("# OpenZ Z-parity report");
@@ -104,6 +123,7 @@ namespace OpenZ.EditorTools
             var devs = CollectDeviations(PlayerPrefs.GetInt);                        // deliberate OpenZ changes, read + measured live (OpenZParity.Deviations.cs)
             sb.AppendLine();
             AppendDeviations(sb, devs);
+            ZWorld.DriverFireDeviation = driverFire;                                                    // DV87
             File.WriteAllText(Report, sb.ToString());
             string summary = $"parity: {pass}/{rows.Count} PASS, {fail} FAIL; {DeviationSummary(devs)}";
             Debug.Log(summary + " -> " + Report);

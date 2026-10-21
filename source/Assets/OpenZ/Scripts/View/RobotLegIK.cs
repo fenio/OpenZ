@@ -17,7 +17,7 @@ namespace OpenZ
     /// </summary>
     [DisallowMultipleComponent]
     [DefaultExecutionOrder(70)]   // LateUpdate after UnitView (60): reads the root where it was drawn this frame
-    public class RobotLegIK : MonoBehaviour
+    public partial class RobotLegIK : MonoBehaviour                                               // KH: + View/RobotLegIK.Hero.cs (the heroes' legs)
     {
         public static bool On = true, KneeHints = true;
         /// <summary>Largest foot speed / turn rate relative to the body (x max(1, anim.speed)); a real stride never gets near it.</summary>
@@ -218,6 +218,7 @@ namespace OpenZ
         void OnAnimatorIK(int layer)
         {
             if (layer != 0 || !anim) return;
+            if (OzHeroLegs.Drives(view)) { Release(); return; }   // hero legs (item 209): Hips + legs written by OzHeroLegs after the Animator, no IK on them
             if (On && view && !view.Dying && anim.isHuman && view.AnticPosesLegs && !BS01Stance.LegsPosed(view) && AnticLegs) { PosedLegs(); return; }
             // boarding crews are clones without a UnitView (BoardingView.CloneView): they keep the plain clip pose, as before
             if (!On || !view || view.Dying || !anim.isHuman || BS01Stance.LegsPosed(view) || view.AnticPosesLegs) { Release(); return; }   // robot_models_v2 review: kneel / prone legs = the clip's own foot IK
@@ -283,6 +284,8 @@ namespace OpenZ
                     P[i].y += Mathf.Clamp(dy, -0.08f, 0.35f);                                                  // lower at most 8 cm: more over-extends the leg (knee flips)
                 }
             }
+            HeroStandHold(P, Q, dt, fresh);                                                               // KH2 (item 197): a hero's feet held through a standing antic (View/RobotLegIK.Hero2.cs)
+            HeroGoals(P, bodyP, fwd);                                                                     // KH (items 184, 185): a hero's feet spread to his own hips, each on its own side
             if (game && dt > 0f)
             {   // stride probe (read only)
                 var root = view.transform.position; var rv = (root - probeRoot) / dt; rv.y = 0f;
@@ -423,7 +426,7 @@ namespace OpenZ
             bool gaitNow = !anim.IsInTransition(0) && (cs.IsName("walking") || cs.IsName("run_forward") || cs.IsName("run_backward") || cs.IsName("strafe_left") || cs.IsName("strafe_right"));
             string gaitName = !gaitNow ? null : cs.IsName("walking") ? "walking" : cs.IsName("run_forward") ? "run_forward" : cs.IsName("run_backward") ? "run_backward" : null;
             float phase = Mathf.Repeat(cs.normalizedTime, 1f); dbgPhase = phase;
-            float sc = Mathf.Max(0.1f, view.transform.lossyScale.y);
+            float sc = Mathf.Max(0.1f, view.transform.lossyScale.y) * HeroSize();                   // KH: a hero's leg distances x his size (View/RobotLegIK.Hero.cs); 1 for every other robot
             // and stopped dead when it ended, jerk 9 cm): while a gait fades into idle and the robot stands, boots on the ground stay
             // planted; when the fade ends they let go and ease (smoothstep lock weight) into the idle pose
             bool stopping = StopHold && anim.IsInTransition(0) && anim.GetNextAnimatorStateInfo(0).IsName("idle") && rootVel.magnitude < 0.35f * sc;
@@ -441,12 +444,12 @@ namespace OpenZ
                 // release as soon as the clip boot starts its swing (moving over the ground), not only once it is 8 cm up and fast:
                 bool moving = clipLastOk && !fresh && cv.magnitude > ContactSpeed * 1.5f * sc;
                 bool contact = stopping ? (locked[i] || h < ankleRest[i] + StopLowBand * sc)
-                             : (PhaseContact && gaitName != null) ? (!skipType && PhaseStance(gaitName, i, phase))   // legs_gate_v2: no phase lock for a ProcSwingSkip type
+                             : (PhaseContact && gaitName != null) ? ((!skipType || FootLockV2) && LockPhase(gaitName, i, phase))   // legs_gate_v2: no phase lock for a ProcSwingSkip type; KL v2: every type, its own clip's window (View/RobotLegIK.FootLockV2.cs)
                              : locked[i] ? h < minH[i] + ContactExit && !moving : h < minH[i] + ContactBand && still;
                 dbgH[i] = h; dbgV[i] = cv.magnitude;
                 if (gaitNow) { bool low = h < minH[i] + ContactBand; CondN[i * 5]++; if (low) CondN[i * 5 + 1]++; if (still) CondN[i * 5 + 2]++; if (low && still) CondN[i * 5 + 3]++; if (locked[i]) CondN[i * 5 + 4]++; }
                 var flat = new Vector2(P[i].x - lockPos[i].x, P[i].z - lockPos[i].z);
-                if (locked[i] && ((!contact && Time.time - lockT[i] > MinLock) || (!stopping && flat.magnitude > ReleaseDist))) { if (contact) { ForcedReleases++; ForcedDist[i]++; } locked[i] = false; }
+                if (locked[i] && ((!contact && Time.time - lockT[i] > MinLock) || (!stopping && flat.magnitude > ReleaseDistFor(sc)))) { if (contact) { ForcedReleases++; ForcedDist[i]++; } locked[i] = false; }
                 else if (!locked[i] && contact && lockW[i] < 0.05f && (gaitNow || stopping)) { locked[i] = true; lockT[i] = Time.time; lockPos[i] = new Vector3(P[i].x, gy[i] + ankleRest[i], P[i].z); }
                 if (locked[i]) lockPos[i].y = game.GroundY(lockPos[i].x, lockPos[i].z) + ankleRest[i];   // a deck / slope under a planted boot
                 // away in the frame it was made (190-306 forced releases per robot, right stance toe +9..+12 cm). A pin is now kept when the
@@ -458,12 +461,13 @@ namespace OpenZ
                     var hipT = i == 0 ? hipL : hipR;
                     if (hipT)
                     {
-                        var hipU = hipT.position + Vector3.up * pelvisDrop;                                   // the hip without this robot's drop
+                        var hipU = FootLockV2 ? HipNow(i, hipT, bodyP) : hipT.position + Vector3.up * pelvisDrop;   // the hip without this robot's drop (KL v2: read once, View/RobotLegIK.FootLockV2.cs)
                         float rmax = MaxReach * legLen[i];
                         var dh = new Vector2(hipU.x - lockPos[i].x, hipU.z - lockPos[i].z).magnitude;
                         float rr = Vector3.Distance(hipU, lockPos[i]) / legLen[i];
                         ReachRatioSum[i] += rr; ReachRatioN[i]++; ReachRatioMax[i] = Mathf.Max(ReachRatioMax[i], rr);
-                        if (dh >= rmax * 0.98f) { locked[i] = false; ForcedReleases++; ForcedReach[i]++; }
+                        if (FootLockV2) reachNeed = V2Reach(i, hipU, rmax, sc);                                // KL v2: an out-of-reach pin moved toward the hip, not torn
+                        else if (dh >= rmax * 0.98f) { locked[i] = false; ForcedReleases++; ForcedReach[i]++; }
                         else
                         {
                             reachNeed = Mathf.Max(0f, (hipU.y - lockPos[i].y) - Mathf.Sqrt(rmax * rmax - dh * dh));
@@ -471,7 +475,7 @@ namespace OpenZ
                         }
                     }
                 }
-                lockW[i] = Mathf.MoveTowards(lockW[i], locked[i] ? 1f : 0f, dt / (locked[i] ? LockIn : LockOut));
+                lockW[i] = Mathf.MoveTowards(lockW[i], locked[i] ? 1f : 0f, dt / LockTime(locked[i], gaitName, cs));                 // KL: LockIn / LockOut (v2: at most a share of the gait's cycle)
                 if (locked[i]) { LockedFrames++; need = Mathf.Max(need, Mathf.Max(P[i].y - lockPos[i].y, reachNeed * Smooth(lockW[i]))); }
             }
             // for heel strike: knee +-3-5 cm either side of the hip-ankle line). Every leg, planted or not, keeps a bend: the pelvis drops
@@ -481,7 +485,7 @@ namespace OpenZ
                 {
                     if (locked[i] || legLen[i] <= 0f) continue;
                     var hipT = i == 0 ? hipL : hipR; if (!hipT) continue;
-                    var hipU = hipT.position + Vector3.up * pelvisDrop;
+                    var hipU = FootLockV2 && FootLockV2Upright ? HipNow(i, hipT, bodyP) : hipT.position + Vector3.up * pelvisDrop;   // KL: FootLockV2Upright
                     var goal = P[i]; goal.y = Mathf.Max(goal.y, gy[i] + ankleRest[i]);
                     float rk = KeepBend * legLen[i];
                     float dh = new Vector2(hipU.x - goal.x, hipU.z - goal.z).magnitude;
@@ -495,7 +499,7 @@ namespace OpenZ
             bool gaitFade = GaitFadeStep && inFade && IsGaitState(cs) && IsGaitState(nextS);                 // GaitFadeStep: LIK1 (fallback toggle)
             landW = fresh ? (gaitNow || gaitFade ? 0f : 1f) : Mathf.MoveTowards(landW, gaitNow || gaitFade ? 0f : 1f, dt / LandTime);
             swingGait = cs.IsName("walking") ? "walking" : cs.IsName("run_forward") ? "run_forward" : cs.IsName("run_backward") ? "run_backward" : null;
-            bool procOn = ProcSwing && swingGait != null && !skipType                                        // skipType: LIK6
+            bool procOn = ProcSwing && swingGait != null && !(skipType && KeepsClipHeight(swingGait))       // skipType: LIK6; KL v2: only while a v3 clip plays (View/RobotLegIK.FootLockV2.cs)
                           && (!inFade || (ForwardSwing(cs) && ForwardSwing(nextS)));
             procW = fresh ? (procOn ? 1f : 0f) : Mathf.MoveTowards(procW, procOn ? 1f : 0f, dt / LandTime);
             float scale = sc;
@@ -503,18 +507,20 @@ namespace OpenZ
             if (fresh) { pelvisDrop = Mathf.Clamp(need, 0f, MaxPelvisDrop * scale); pelvisVel = 0f; }
             else pelvisDrop = Mathf.SmoothDamp(pelvisDrop, Mathf.Clamp(need, 0f, MaxPelvisDrop * scale), ref pelvisVel, PelvisSmooth, PelvisSpeed * scale * 2f, dt);
             anim.bodyPosition = bodyP + Vector3.down * pelvisDrop;
+            V2Body(bodyP, pelvisDrop);                                                                    // KL: this frame's body for the hip measurement (read only)
             pelvisPrevFrame = pelvisDrop;
             for (int i = 0; i < 2; i++)
             {
-                var swing = P[i] + Vector3.down * pelvisDrop;                                                // the clip goal moves with the pelvis
+                var swing = P[i] + Vector3.down * (FootLockV2 ? SwingDrop(skipType, cs, dt, fresh) : pelvisDrop);   // the clip goal moves with the pelvis (KL v2: a v3 clip's free boot keeps its own height)
                 swing.y = Mathf.Max(swing.y, gy[i] + ankleRest[i]);                                          // never through the ground
                 // legs_gate_v2 ProcSwing: the free boot's height in a steady walk / run (the lift is held while procW fades out)
-                if (swingGait != null) liftNow[i] = SwingBump(swingGait, i, phase) * SwingLift * scale;
+                if (swingGait != null) liftNow[i] = LiftBump(swingGait, i, phase) * SwingLift * scale;    // KL: LiftBump (v2: the clip's own air time)
                 if (procW > 0f) swing.y = Mathf.Lerp(swing.y, gy[i] + ankleRest[i] + liftNow[i], Smooth(procW));
                 swing.y = Mathf.Lerp(swing.y, gy[i] + ankleRest[i], Smooth(landW));                          // stopping / starting: boots land
                 groundW[i] = 1f - Mathf.Clamp01((swing.y - gy[i] - ankleRest[i]) / Mathf.Max(1e-4f, FlatBand * scale));   // legs_gate_v2 GroundFlat
                 var pin = RootLead ? lockPos[i] - rootVel * dt : lockPos[i];
                 P[i] = Vector3.Lerp(swing, pin, Smooth(lockW[i]));
+                if (FootLockV2) V2Peel(i, ref P[i]);                                                       // KL v2: leaves / reaches its pin through the air
                 // -> +8 cm): a free boot's goal is kept within KeepBend of the leg's length from the hip, so the knee never straightens
                 if (ClampFreeReach && legLen != null && legLen[i] > 0f && lockW[i] < 0.5f)
                 {
@@ -575,6 +581,7 @@ namespace OpenZ
                 rootPrev = rp; rootPrevOk = true;
             }
             if (!Active || !game || !anim) return;
+            V2MeasureHips();                                                                              // KL: the hips' body-frame offsets on the drawn pose (read only)
             if (pFoot == null)
             {
                 pFoot = new[] { anim.GetBoneTransform(HumanBodyBones.LeftFoot), anim.GetBoneTransform(HumanBodyBones.RightFoot) };
@@ -694,6 +701,7 @@ namespace OpenZ
             {
                 var goal = Goals[i];
                 var p = anim.GetIKPosition(goal); var q = anim.GetIKRotation(goal);
+                bool heroLie = HeroLieGoal(i, ref p, ref q, bodyP, enter);                                  // KH2 (item 196): a lying hero's own legs (View/RobotLegIK.Hero2.cs)
                 var raw = rinv * (p - rt.position);
                 var outL = Vector3.Lerp(posedFrom[i], raw, w);
                 var P = rt.position + rq * outL;
@@ -711,6 +719,7 @@ namespace OpenZ
                     if (d.sqrMagnitude > 0.04f) dir = d.normalized;                                        // a boot pointing along the leg: keep the last plane
                     else dir = posedDir[i];
                 }
+                if (heroLie) { dir = HeroLieKnee(dir); if (enter) posedDir[i] = dir; }                    // KH2: a lying hero's knees bend straight up
                 posedDir[i] = Vector3.Slerp(posedDir[i], dir, enter ? 0f : follow);
                 if (posedDir[i].sqrMagnitude < 1e-6f) posedDir[i] = fwd;
                 var hint = Vector3.Lerp(hip, P, 0.5f) + posedDir[i].normalized * ahead;

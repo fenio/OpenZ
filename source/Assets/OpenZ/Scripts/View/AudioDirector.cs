@@ -758,7 +758,7 @@ namespace OpenZ
                     bool big = d.id.Contains("crash_large") || d.id.Contains("plunge") || d.id.Contains("bridge");
                     prof = big ? CombatAudio.Profile.Broad : CombatAudio.Profile.Field; range = big ? 150f : 110f; break;
                 case "SFX/Impacts": prof = CombatAudio.Profile.Field; range = 110f; break;
-                case "SFX/Vehicles": prof = CombatAudio.Profile.Field; range = 85f; break;
+                case "SFX/Vehicles": prof = CombatAudio.Profile.Field; range = 85f; K436FlipProfile(d, ref prof, ref range); break;   // K436: the flip's rows on the broad curve (AudioDirector.K436.cs)
                 case "SFX/Weapons": prof = CombatAudio.Profile.Local; range = 100f; break;
                 default: prof = PresenceOf(d); range = PresenceRange; break;
             }
@@ -921,7 +921,7 @@ namespace OpenZ
             if (v.combatMix && ca)
                 g = v.baseLin * v.level * v.offLin * v.fade * masterVolume * ca.volume * CombatAudio.BusGain(MapBus(d.bus)) * ca.ZoomGain * ca.DuckOf(MapBus(d.bus));   // audio_v2: per-bus duck
             else
-                g = v.baseLin * v.offLin * v.fade * masterVolume * Db(BusGainDb(d.bus));
+                g = v.baseLin * v.offLin * v.fade * masterVolume * Db(BusGainDb(d.bus)) * ShuttleLineUnduck(v);   // K256e: a shuttle line is never ducked
             if (v.loop && v.range > 0f && ca) v.src.maxDistance = Mathf.Max(8f, v.range * ca.RangeScale);   // audio_v2: loops follow the zoom
             v.src.volume = Mathf.Clamp01(g);
         }
@@ -934,6 +934,8 @@ namespace OpenZ
             if (!Loaded) return;
             float dt = Time.unscaledDeltaTime;
             TickPendingAlan();
+            ShuttleHeldTick();                                                                             // DV118: the robot lines held behind the shuttle landing line
+            ShuttleRound3Tick();                                                                           // K256e: the shuttle line held behind Rachel (View/AudioDirector.ShuttleRound3.cs)
             if (!game && ZGame.I) { game = ZGame.I; BuildAmbienceEmitters(); }
             if (!cam) cam = Camera.main;
             if (!rts) rts = FindFirstObjectByType<RtsCamera>();
@@ -1032,6 +1034,26 @@ namespace OpenZ
         }
         bool Wet(Vector3 p) { var c = ClassAt(p); return c == ZClass.Water || c == ZClass.DeepWater; }
         bool City => game && game.level == "L17";
+        bool Jungle => game && game.level == "L16";
+
+        /// <summary>Level 16, the ground under a point for steps and wheels: "road", "water", "mud" (a ground tile that touches a
+        /// water tile: the rim of a swamp pool) or "grass". Any other level: null.</summary>
+        public static string JungleGround(Vector3 p)
+        {
+            var g = ZGame.I; if (!g || g.level != "L16" || g.World == null || g.World.Map == null) return null;
+            var map = g.World.Map; int tx = (int)(p.x * 0.5f), ty = (int)(-p.z * 0.5f);
+            if (tx < 0 || ty < 0 || tx >= map.width || ty >= map.height) return "grass";
+            var c = map.ClassAt(tx, ty);
+            if (c == ZClass.Road) return "road";
+            if (c == ZClass.Water || c == ZClass.DeepWater) return "water";
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    int x = tx + dx, y = ty + dy; if ((dx == 0 && dy == 0) || x < 0 || y < 0 || x >= map.width || y >= map.height) continue;
+                    var n = map.ClassAt(x, y); if (n == ZClass.Water || n == ZClass.DeepWater) return "mud";
+                }
+            return "grass";
+        }
         static string TypeOf(ZObject a) => a == null ? "" : a.Kind == ZKind.Vehicle && a.Type == "apc" ? a.CrewWeaponType : a.Type;   // apc_v1 DV15
         bool OnScreen(Vector3 p, float margin = 0.1f)
         {
@@ -1084,6 +1106,7 @@ namespace OpenZ
             {
                 case ZEventType.Hitscan: OnHitscan(e, a, b); break;
                 case ZEventType.MissileFired: OnMissileFired(e, a, b); break;
+                case ZEventType.DriverShot: UnderAttack(a, b, e.flag); break;                             // DV87: shot at by a tank's hatch driver: the same alert rules as any shot (the shot's own sound: BoardingView.DriverFire.cs)
                 case ZEventType.MissileExploded: OnExploded(e, a, b); break;
                 case ZEventType.Death: OnDeath(e, a, b); break;
                 case ZEventType.Sniped: OnSniped(e, a, b); break;
@@ -1117,12 +1140,12 @@ namespace OpenZ
                         var p = game.CenterWorld(b);
                         Owned("bld_repair_in");                                                                   // RulesView: the wrench
                         for (float t = 1.6f; t < 5f; t += UnityEngine.Random.Range(1.6f, 2.4f)) Schedule(t, () => { if (b.RepairingUnit) Play("bld_repair_work", p, b.Id); });   // DV62: not after a call-off
-                        if (a != null && a.Owner == Player) Announce("ann_starting_repair");
+                        if (a != null && a.Owner == Player && !ShuttleRepairLine(a, "ann_starting_repair")) Announce("ann_starting_repair");   // K256e: never for the shuttle
                     }
                     break;
                 case ZEventType.RepairOut:
                     Owned("bld_repair_out");
-                    if (a != null && a.Owner == Player) Announce("ann_vehicle_repaired");
+                    if (a != null && a.Owner == Player && !ShuttleRepairLine(a, "ann_vehicle_repaired")) Announce("ann_vehicle_repaired");   // K256e: never for the shuttle
                     OpenZVoiceV3.RepairedUnit(a);                                                                 // voice_lines_v3: its fire is out
                     break;
                 case ZEventType.CraneAnim:
@@ -1185,6 +1208,7 @@ namespace OpenZ
                     if (Wet(miss)) Play("imp_bullet_water", miss, e.otherId);                              // PL7: bullets into the river
                 }
             }
+            ShuttleHullHit(type, t, e.flag);                                                                // K256e: laser / electro / flame hits on the shuttle's hull are heard
             if (e.flag && t != null && t.Kind == ZKind.Robot) HitGrunt(t);                                  // death_voices_v1: a grunt now and then
             if (t != null) UnderAttack(a, t, e.flag);
         }
@@ -1226,7 +1250,7 @@ namespace OpenZ
             if (e.flag2)
             {   // turret / map-object debris lands (CombatView "debris"); a turret into the river plunges
                 Owned("dst_turret_crash");
-                if (wet) Play("wtr_vehicle_plunge", at, -1, 0.7f);
+                if (wet && !(a != null && (a.Kind == ZKind.Vehicle || a.Kind == ZKind.Cannon))) Play("wtr_vehicle_plunge", at, -1, 0.7f);   // b27: a vehicle's or a gun's turret makes this sound itself through the shared water landing rule (OzWaterLanding)
                 return;
             }
             Owned(e.radius <= 40 ? "exp_small" : e.radius <= 80 ? "exp_medium" : "exp_large");
@@ -1271,12 +1295,14 @@ namespace OpenZ
                     }
                     break;
                 case ZKind.Vehicle:
+                    if (VehicleDeathLater(e, o, p)) break;                                              // version 1.1 item 202: with its held explosion (AudioDirector.Kc5b.cs)
                     Owned("exp_vehicle_death");
                     if (o.Type == "light" || o.Type == "medium" || o.Type == "heavy") Play("dst_turret_toss", p + Vector3.up * 2f, o.Id);
-                    if (Wet(p)) Play("wtr_vehicle_plunge", p, o.Id);                                        // on a collapsing bridge
+                    // b27: the plunge sound that stood here (at the death, on a water tile) is made by the wreck itself when it really falls into the water (OzWaterLanding, UnitView.BeginWreck)
                     wrecks[o.Id] = (p, Time.time);
                     break;
                 case ZKind.Cannon:
+                    if (VehicleDeathLater(e, o, p)) break;                                              // version 1.1 item 202: with its held explosion
                     Owned("exp_cannon_death"); wrecks[o.Id] = (p, Time.time); break;
                 case ZKind.Building: BuildingDeath(o, killer); break;
                 default:
@@ -1354,6 +1380,7 @@ namespace OpenZ
 
         void RobotDeathSound(ZEvent e, ZObject o, ZObject killer, Vector3 p)
         {
+            if (o.Eaten) return;                                                                        // level 16: the crocodile's snap, crunch and the cut-off cry are its own sounds (CrocodileView.cs)
             if (!DeathVoicesLive)
             {
                 Owned(e.flag ? "death_robot_melt" : "death_robot");
@@ -1440,9 +1467,8 @@ namespace OpenZ
             if (o.IsFort) { Nuke(c, o.Owner == Player); return; }
             if (o.IsBridge)
             {
-                Play("dst_bridge_collapse", c, o.Id);
-                Schedule(0.4f, () => Play("dst_debris_splash", c + UnityEngine.Random.insideUnitSphere * 4f, -1));
-                Schedule(0.9f, () => Play("dst_debris_splash", c + UnityEngine.Random.insideUnitSphere * 4f, -1));
+                Play(Jungle && HasClips("dst_bridge_collapse_wood") ? "dst_bridge_collapse_wood" : "dst_bridge_collapse", c, o.Id);
+                // b27: the two blind splash sounds that stood here are gone: every bridge chunk that falls into the water makes its own splash, rings and sound (OzWaterLanding)
                 for (int i = 0; i < 6; i++) Schedule(1.2f * i / 6f, () => Play("exp_building_booms", c + UnityEngine.Random.insideUnitSphere * 5f, -1));
                 Announce("ann_bridge_destroyed");
                 return;
@@ -1554,8 +1580,9 @@ namespace OpenZ
             if (v.Destroyed || v.Owner == Team.Neutral) return;                                             // NB17: lost again (sniped / destroyed) during the climb-in
             if (r != null && r.Owner == Player)
             {
-                if (before == Player) { if (v.Kind == ZKind.Vehicle) { Say("vo_vehicle_enter"); IconicBoarded(v, 0.25f); } }   // robot_iconic_lines_v1: + a passenger (squad of 2+, rare)
+                if (before == Player) { if (v.Kind == ZKind.Vehicle && !HvBoarded(v) && !v.IsShuttle) { Say("vo_vehicle_enter"); IconicBoarded(v, 0.25f); } }   // DV118: the shuttle says its own "All aboard!" (OzPlayableShuttle)   // KC4b: ALAN & BRAD say their own boarding lines   // robot_iconic_lines_v1: + a passenger (squad of 2+, rare)
                 else if (v.Kind == ZKind.Cannon) { Say("vo_gun_captured"); V3GunCaptured(); }             // sound_v3: + Rachel "Gun captured."
+                else if (v.Kind == ZKind.Vehicle && HvBoarded(v)) HvCaptured();                            // KC4b: ALAN & BRAD capture with their own lines, the announcer after them (AudioDirector.HeroVoices.cs)
                 else if (!AlanBusy && OpenZVoiceV3.CaptureQuip())
                 {
                     Schedule(OpenZVoiceV3.CaptureQuipDelay, () => Say("vo_vehicle_captured"));
@@ -1574,9 +1601,9 @@ namespace OpenZ
             if (v == null) return;
             var p = PosOf(v);
             if (v.Type == "apc") Play("veh_apc_ramp", p, v.Id);
-            Schedule(0.45f, () => Play("rob_land", p, v.Id));
+            if (!v.IsShuttle) Schedule(0.45f, () => Play("rob_land", p, v.Id));                          // the shuttle's crew walks down its ramp (the ramp foot's step clank): nobody jumps down
             bool sniped = snipedAt.TryGetValue(v.Id, out var st) && Time.time - st < 1.5f;
-            if (leader != null && leader.Owner == Player && !v.Destroyed && !sniped) Say("vo_vehicle_exit");
+            if (leader != null && leader.Owner == Player && !v.Destroyed && !sniped && !v.IsShuttle) Say("vo_vehicle_exit");   // DV118: the shuttle says its own "Everybody out!"
         }
 
         // ---- buildings changing hands (zone flips): the recolour cue + Rachel's building lines
@@ -1617,7 +1644,7 @@ namespace OpenZ
             var c = game.CenterWorld(a);
             if (a.IsBridge)
             {
-                Play("bld_bridge_rebuild", c, a.Id);
+                Play(Jungle && HasClips("bld_bridge_rebuild_wood") ? "bld_bridge_rebuild_wood" : "bld_bridge_rebuild", c, a.Id);
                 bool near = OnScreen(c, 0.3f) || W.Objects.Any(o => o.Owner == Player && o.IsMobile && !o.Destroyed && Near(o, a, 400));
                 if (near) Announce("ann_bridge_repaired");
             }
@@ -1727,6 +1754,8 @@ namespace OpenZ
             if (robotLine && !RobotChatter.Allows(id)) { RobotChatter.Skipped++; OzSoundLog.Add("dir", id, null, "robot chatter " + RobotChatter.Names[RobotChatter.Level] + ": skipped"); return; }
             float cooldown = robotLine ? RobotChatter.Cooldown(id, d.cooldown) : d.cooldown;
             if (cooldown > 0 && lastLine.TryGetValue(id, out var lt) && Time.unscaledTime - lt < cooldown) return;
+            if (ShuttleLineWaitsForRachel(id, filter)) return;                                              // K256e: a shuttle line never under Rachel: held, said after her (View/AudioDirector.ShuttleRound3.cs)
+            if (robotLine && ShuttleHoldsRobotLine(id, filter)) return;                                    // DV118: no robot line over the shuttle landing line: held, said after it (View/AudioDirector.ShuttleVoice.cs)
             if (d.channel == "alan_main")
             {
                 // Never cut a unit's line mid-word: the current line finishes and the next one is skipped or queued (only the latest
@@ -1734,7 +1763,7 @@ namespace OpenZ
                 // A line of the same event as the one speaking (box-select spam) is dropped; a different one (the order after a select) waits.
                 // Robot lines never stack: while one is speaking, and for AlanMainGap seconds after it ends, a new select / order / idle
                 // line is dropped (not queued), so repeated clicks do not make the robots talk nonstop. A line is still never cut mid-word.
-                if ((alanMain.busy && alanMain.src.isPlaying) || Time.unscaledTime < alanMainUntil + AlanMainGap)
+                if ((alanMain.busy && alanMain.src.isPlaying) || (!shuttleReleasing && Time.unscaledTime < alanMainUntil + AlanMainGap))
                 {
                     OzSoundLog.Add("dir", id, null, "dropped (robot line gap)");
                     return;
@@ -1879,7 +1908,8 @@ namespace OpenZ
                 if (next.d.rank < rachel.def.rank && now - rachel.start > 0.3f) rachel.src.Stop();   // a higher rank may cut after 0.3 s
                 else return;
             }
-            if (AlanBusy && now - next.t < 0.6f) return;                                         // Rachel waits at most 0.6 s for Alan
+            if (RachelWaitsForShuttleLine(now)) return;                                                     // K256e: every Rachel line waits while a shuttle line plays + 0.3 s (View/AudioDirector.ShuttleRound3.cs)
+            if (AlanBusy && (now - next.t < 0.6f || next.d.id == "ann_shuttle_landing") && !ShuttleLandingStepsAside(now, ref next)) return;   // DV118: the landing line waits for Alan; a line that may speak goes first                                         // Rachel waits at most 0.6 s for Alan
             if (ExternalVoiceBusy != null && ExternalVoiceBusy() && now - next.t < 12f) return;  // zod_cameo: Rachel waits for Commander Zod
             rachelQueue.RemoveAt(0);
             if (PlayVoice(next.d, rachel, next.f))
@@ -2401,11 +2431,19 @@ namespace OpenZ
             {
                 string ev = SurfaceEvent(v.Obj.Type);
                 if (ev == "veh_wheels_sand" && (City || ClassAt(v.transform.position) == ZClass.Road)) ev = "veh_wheels_asphalt";
+                else if (ev == "veh_wheels_sand" && Jungle)
+                {   // level 16: wheels on grass, in the mud beside a pool, in water they ford
+                    string jg = JungleGround(v.transform.position);
+                    string want = jg == "water" ? "veh_wheels_water" : jg == "mud" ? "veh_wheels_mud" : "veh_wheels_grass";
+                    if (HasClips(want)) ev = want;
+                }
                 string key = "surf:" + v.Obj.Id; keep.Add(key);
-                if (!LoopActive(key)) StartLoop(key, ev, v.transform.position, v.transform);
+                if (Jungle && LoopActive(key) && surfEv.TryGetValue(key, out var surfWas) && surfWas != ev) StopLoop(key, 0.25f);   // the ground changed under it: the next look starts the other loop
+                else if (!LoopActive(key)) { StartLoop(key, ev, v.transform.position, v.transform); surfEv[key] = ev; }
             }
             foreach (var k in loops.Keys.ToList()) if (k.StartsWith("surf:") && !keep.Contains(k)) StopLoop(k, 0.35f);
         }
+        readonly Dictionary<string, string> surfEv = new Dictionary<string, string>();
         static string SurfaceEvent(string type)
         {
             switch (type)
@@ -2639,7 +2677,7 @@ namespace OpenZ
                 if (s.dist < stride) continue;
                 s.dist = 0;
                 string ev = w.water ? "rob_step_water" : o.Type == "tough" ? "mech_tough_step" : o.IsFortDefender ? "rob_step_metal" : OnBridge(o) ? (City ? "rob_step_metal" : "rob_step_wood")
-                          : City || w.cls == ZClass.Road ? "rob_step_concrete" : "rob_step_sand";
+                          : City || w.cls == ZClass.Road ? "rob_step_concrete" : Jungle ? (JungleGround(w.pos) == "mud" && HasClips("rob_step_mud") ? "rob_step_mud" : HasClips("rob_step_grass") ? "rob_step_grass" : "rob_step_sand") : "rob_step_sand";
                 if (stepTokens < 1f || !OnScreen(w.pos, 0.02f)) continue;                                   // audio_v2: on screen, 12 steps / s at most
                 if (stepAllowed.Contains(o.Id))
                 {
@@ -2833,8 +2871,33 @@ namespace OpenZ
         readonly List<Vector3> waterEmitters = new List<Vector3>(), lampEmitters = new List<Vector3>(), huts = new List<Vector3>();
         float nextGust, nextCrow, nextOwl, nextCritter, nextGull, nextBat, nextFoghorn, nextHoist, nextAmbSort;
 
+        readonly List<Vector3> streamEmitters = new List<Vector3>(); bool streamBuilt;
+        /// <summary>Level 16: one place per 16 m cell of the map that holds stream water (drawn water over a land tile).</summary>
+        void BuildStreamEmitters()
+        {
+            streamBuilt = true; streamEmitters.Clear();
+            if (game == null || game.World == null || game.World.Map == null) return;
+            var map = game.World.Map; const int block = 8;
+            for (int by = 0; by < map.height; by += block)
+                for (int bx = 0; bx < map.width; bx += block)
+                {
+                    int n = 0; float sx = 0f, sy = 0f, sz = 0f;
+                    for (int y = by; y < Mathf.Min(by + block, map.height); y++)
+                        for (int x = bx; x < Mathf.Min(bx + block, map.width); x++)
+                        {
+                            var c = map.ClassAt(x, y); if (c == ZClass.Water || c == ZClass.DeepWater) continue;
+                            var p = new Vector3(x * 2f + 1f, 0f, -(y * 2f + 1f));
+                            if (!OzWaterLanding.OpenWaterAt(p, out float wy)) continue;
+                            n++; sx += p.x; sy += wy; sz += p.z;
+                        }
+                    if (n >= 3) streamEmitters.Add(new Vector3(sx / n, sy / n, sz / n));
+                }
+            Debug.Log($"[OpenZ Audio] level 16: {streamEmitters.Count} stream places for amb_l16_stream");
+        }
+
         void BuildAmbienceEmitters()
         {
+            streamBuilt = false;
             waterEmitters.Clear(); lampEmitters.Clear(); huts.Clear();
             if (game == null || game.World == null || game.World.Map == null) return;
             var map = game.World.Map; const int block = 12;                              // ~24 m cells along the river / canal
@@ -2867,7 +2930,9 @@ namespace OpenZ
             float wDay = 1f - Ramp(t, 0.26f, 0.32f) + Ramp(t, 0.86f, 0.94f);
             float wNight = Ramp(t, 0.42f, 0.50f) - Ramp(t, 0.86f, 0.94f);
             float wDusk = Mathf.Clamp01(1f - wDay - wNight);
+            bool jungleBeds = Jungle && HasClips("amb_l16_day") && HasClips("amb_l16_swamp") && HasClips("amb_l16_night");
             if (City) { Bed("amb_l17_day", wDay + wDusk); Bed("amb_l17_night_fog", wNight); }
+            else if (jungleBeds) { Bed("amb_l16_day", wDay * OzJungleLife.DayBedShare); Bed("amb_l16_swamp", wDusk); Bed("amb_l16_night", wNight); }   // level 16: the jungle by day, the swamp at dusk, the jungle night
             else { Bed("amb_l02_day", wDay); Bed("amb_l02_dusk", wDusk); Bed("amb_l02_night", wNight); }
             float now = Time.time; var lp = ListenerPos;
             if (now > nextAmbSort)
@@ -2876,6 +2941,12 @@ namespace OpenZ
                 string riverEv = City ? "amb_l17_harbour" : "amb_l02_river";
                 var near = waterEmitters.Select((p, i) => (p, i)).OrderBy(x => (x.p - lp).sqrMagnitude).Take(maxRiverEmitters).Select(x => x.i).ToHashSet();
                 for (int i = 0; i < waterEmitters.Count; i++) { string k = "water:" + i; if (near.Contains(i)) { if (!LoopActive(k)) StartLoop(k, riverEv, waterEmitters[i]); } else StopLoop(k, 2f); }
+                if (Jungle && HasClips("amb_l16_stream"))
+                {   // level 16: the ravine streams babble (drawn water over land tiles: no water tile, so no river place of their own)
+                    if (!streamBuilt && Time.timeSinceLevelLoad > 3f) BuildStreamEmitters();
+                    var nearS = streamEmitters.Select((p, i) => (p, i)).OrderBy(x => (x.p - lp).sqrMagnitude).Take(2).Select(x => x.i).ToHashSet();
+                    for (int i = 0; i < streamEmitters.Count; i++) { string k = "stream:" + i; if (nearS.Contains(i)) { if (!LoopActive(k)) StartLoop(k, "amb_l16_stream", streamEmitters[i]); } else StopLoop(k, 2f); }
+                }
                 bool closeZoom = !rts || rts.height < footstepMaxHeight;                                     // audio_v2: was 60 m / 35 m
                 var nf = closeZoom ? W.Flags.Where(f => (game.CenterWorld(f) - lp).sqrMagnitude < 45f * 45f).OrderBy(f => (game.CenterWorld(f) - lp).sqrMagnitude).Take(3).Select(f => f.Id).ToHashSet() : new HashSet<int>();
                 foreach (var f in W.Flags) { string k = "flag:" + f.Id; if (nf.Contains(f.Id)) { if (!LoopActive(k)) StartLoop(k, "bld_flag_flap", game.CenterWorld(f) + Vector3.up * 4f); } else StopLoop(k, 1f); }
@@ -2886,7 +2957,12 @@ namespace OpenZ
             Vector3 Around(float r0, float r1) { var a = UnityEngine.Random.insideUnitCircle.normalized * UnityEngine.Random.Range(r0, r1); var p = lp + new Vector3(a.x, 0, a.y); p.y = game.GroundY(p.x, p.z) + 2f; return p; }
             bool night = wNight > 0.5f, day = wDay > 0.5f;
             bool critters = AmbientLife.I;                                                             // the critters package calls its own eagles / gulls
-            if (!City)
+            if (Jungle && HasClips("amb_l16_bird_call"))
+            {   // level 16: bird calls from the trees by day, an insect swell now and then (no sand gust, no desert crow)
+                if (now > nextCrow) { nextCrow = now + UnityEngine.Random.Range(12f, 26f); if (!night && !OzJungleLife.BirdsAway) Play("amb_l16_bird_call", Around(15f, 45f) + Vector3.up * 6f, -1); }
+                if (now > nextGust) { nextGust = now + UnityEngine.Random.Range(30f, 60f); Play("amb_l16_insect_swell", lp, -1); }
+            }
+            else if (!City)
             {
                 if (now > nextGust) { nextGust = now + UnityEngine.Random.Range(12f, 30f); if (!night) Play("amb_l02_sand_gust", lp, -1, 1f, 1f); }
                 if (now > nextCrow) { nextCrow = now + UnityEngine.Random.Range(15f, 20f); if (!critters && day && UnityEngine.Random.value < 0.34f) Play("amb_l02_crow", Around(15f, 40f), -1); }
@@ -3264,9 +3340,9 @@ namespace OpenZ
             var p = c.GetContact(0).point; float v = c.relativeVelocity.magnitude;
             var g = ZGame.I;
             if (!splashed && splashId != null && g != null && g.World != null && g.World.Map != null)
-            {
-                var px = ZGame.WorldToPx(p); var cls = g.World.Map.ClassAt(px.x >> 4, px.y >> 4);
-                if (cls == ZClass.Water || cls == ZClass.DeepWater) { splashed = true; AudioDirector.Fire(splashId, p, GetInstanceID()); return; }
+            {   // b27: under a drawn water surface (not: on a water tile, which may be a bridge deck or a dry bank) the shared water landing rule
+                // answers: silent for a piece it holds (that piece splashed at the surface), a splash at the surface with this sound for any other body
+                if (OzWaterLanding.RelaySplash(transform, p, splashId)) { splashed = true; return; }
             }
             AudioDirector.Impact(eventId, p, v, GetInstanceID());
         }

@@ -31,7 +31,7 @@ namespace OpenZ
     /// LateUpdate after UnitView (order 60), so anchors follow the moving, tilting, recoiling vehicles.
     /// </summary>
     [DefaultExecutionOrder(70)]
-    public class BoardingView : MonoBehaviour
+    public partial class BoardingView : MonoBehaviour                                    // DV87: + BoardingView.DriverFire.cs (the driver's own shots)
     {
         public static BoardingView I { get; private set; }
 
@@ -269,9 +269,10 @@ namespace OpenZ
                     case ZEventType.Death:
                     {
                         var v = View(e.objId);
-                        if (v && v.Obj != null && (v.Obj.Kind == ZKind.Vehicle || v.Obj.Kind == ZKind.Cannon)) { var r = RigOf(v); if (r != null) CrewDies(r); }
+                        if (v && v.Obj != null && (v.Obj.Kind == ZKind.Vehicle || v.Obj.Kind == ZKind.Cannon)) { if (v.Obj.IsShuttle) ShuttleDoorwayTake(v.Obj.Id); var r = RigOf(v); if (r != null && !CrewDiesLater(e, v, r)) CrewDies(r); }   /* K418: the ramp's file first: saved figures walk on, lost ones are held (BoardingView.ShuttleDoorway.cs) */   /* version 1.1 item 202: with its held explosion (BoardingView.Kc5b.cs) */
                         break;
                     }
+                    case ZEventType.DriverShot: DriverShotSeen(e); break;                                       // DV87: the hatch driver of a tank fired his own weapon (BoardingView.DriverFire.cs)
                     case ZEventType.Hitscan: case ZEventType.MissileFired: Acted(e.objId, true); Acted(e.otherId, false); break;
                 }
             }
@@ -298,7 +299,7 @@ namespace OpenZ
             var robot = game.World.GetAny(robotId);
             StartEnter(r, robotId, robot, 0f);
             // Zod: an APC takes the whole squad wherever it stands (zserver.cpp:1399-1411); they are KillAt == 0 like the leader
-            if (r.obj.Type != "apc" || robot == null) return;
+            if ((r.obj.Type != "apc" && !r.obj.IsShuttle) || robot == null) return;   // DV118: the shuttle takes the whole squad up its ramp too
             int k = 1;
             foreach (var kv in game.Views)
             {
@@ -341,8 +342,9 @@ namespace OpenZ
                 case "heavy": r.mode = Mode.Roof; r.crewScale = 0.62f; r.lid = true; break;
                 case "missile_launcher": r.mode = Mode.Roof; r.crewScale = 0.62f; break;
                 case "jeep": r.mode = Mode.Seat; r.crewScale = 0.62f; r.visible = true; break;
-                case "apc": r.mode = Mode.Door; r.rearDoor = true; r.crewScale = 0.85f; break;
+                case "apc": r.mode = Mode.Door; r.rearDoor = true; r.crewScale = 0.85f; r.lid = true; break;                   // DV87: the roof hatch its lone driver comes up through (RoundHatch "apc")
                 case "crane": r.mode = Mode.Door; r.rearDoor = false; r.crewScale = 0.8f; r.lid = true; break;   // vehicles_nb_v1 NB24: the cab hatch driver (DV31)
+                case ZWorld.ShuttleType: r.mode = Mode.Door; r.rearDoor = true; r.crewScale = 1f; break;   // DV118: the shuttle's rear ramp (ShuttleRearDoor; the bay's own fit)
                 default:
                     if (o.Kind == ZKind.Cannon) { r.mode = Mode.Cannon; r.crewScale = 0.72f; r.visible = true; }
                     else { r.mode = r.hatchTop ? Mode.Roof : r.driverSeat ? Mode.Seat : Mode.Door; r.crewScale = 0.72f; r.visible = r.mode == Mode.Seat; }
@@ -511,6 +513,7 @@ namespace OpenZ
             Vector3 p;
             if (r.hatchTop) p = Lp(r, r.hatchTop);
             else if (r.gen != null && r.gen.hasHatch) p = r.root.InverseTransformPoint(MP(r, r.gen.hatch));
+            else if (r.round && r.round.Frame) p = r.root.InverseTransformPoint(r.round.Frame.position);         // DV87: the APC: the centre of its built roof hatch itself
             else p = new Vector3(C(r).x, r.box.min.y + 0.72f * r.box.size.y, C(r).z + 0.12f * r.box.size.z);   // turret roof, not the antenna tip
             if (r.hinge) p.y = Mathf.Max(p.y, Lp(r, r.hinge).y + 0.05f);                                    // heavy: HatchTop 1.85 sits under its turret hatch (2.31)
             return p;
@@ -909,6 +912,7 @@ namespace OpenZ
                 }
                 default:
                 {
+                    if (r.obj.IsShuttle && ShuttleRearDoor.Of(r.view)) { BuildShuttleEnter(g, S, ShuttleRearDoor.Of(r.view)); return; }   // DV118: to the back, up the ramp to a bench (BoardingView.Shuttle.cs)
                     var apcDoor = r.obj.Type == "apc" ? ApcRearDoor.Of(r.view) : null;
                     if (apcDoor) { BuildApcEnter(g, S, apcDoor); return; }
                     float side = DoorSide(r, start);
@@ -980,6 +984,7 @@ namespace OpenZ
                 }
                 default:
                 {
+                    if (!append && r.obj.IsShuttle && ShuttleRearDoor.Of(r.view)) { BuildShuttleExit(g, to, ShuttleRearDoor.Of(r.view), fitK0); return; }   // DV118: bench, aisle, down the ramp (BoardingView.Shuttle.cs)
                     var apcDoor = !append && r.obj.Type == "apc" ? ApcRearDoor.Of(r.view) : null;
                     if (apcDoor) { BuildApcExit(g, to, apcDoor, fitK0); return; }
                     Func<Vector3> door = () => DoorOut(r, side);
@@ -1092,7 +1097,8 @@ namespace OpenZ
             var g = NewGhost(go, r, true); g.robotId = robotId; g.delay = delay;
             if (Tower(r)) { var h = TowerHatch(r, true); go.transform.position = h; BuildTowerMan(g, h); }   // crews_v1: a tower gun is manned from inside the fort
             else BuildEnter(g, go.transform.position);
-            if (g.seatK >= 0)
+            if (g.seatK >= 0 && r.obj.IsShuttle) ShuttleFootDelay(g, r);                          // DV118: at the ramp foot at the rules' moment (BoardingView.Shuttle.cs)
+            else if (g.seatK >= 0)
             {
                 float arrive = Time.time + g.delay + g.footT, min = Mathf.Max(Time.time + ApcRearDoor.OpenTime + ApcRearDoor.Lead, r.apcLastFoot + ApcGap);
                 if (arrive < min) { g.delay += min - arrive; arrive = min; }
@@ -1115,7 +1121,8 @@ namespace OpenZ
             else go = CloneView(live);
             var g = NewGhost(go, r, false); g.live = live; g.robotId = robot.Id; g.delay = index * crewStagger;
             g.baseScale = live.transform.localScale.x;
-            if (r.obj.Type == "apc" && ApcRearDoor.Of(r.view))
+            if (r.obj.IsShuttle && ShuttleRearDoor.Of(r.view)) ShuttleExitDelay(g, r, robot, index);   // DV118: seated by the doorway, out at the rules' moment (BoardingView.Shuttle.cs)
+            else if (r.obj.Type == "apc" && ApcRearDoor.Of(r.view))
             {
                 if (index == 0) r.apcSeat = 0;
                 g.seatK = index % 6; g.delay = ApcRearDoor.OpenTime + 0.1f + index * ApcGap;
@@ -1139,9 +1146,10 @@ namespace OpenZ
             if (!abort && g.enter && !g.demo && r.boarding == 0 && r.view && (r.mode != Mode.Roof || !r.hinge))
             {
                 Sfx("crew_in", r.root.position, 0.3f, r.obj.Id, OzSoundV3.BankCrewIn);   // sound_v3
-                if (r.obj.Kind == ZKind.Vehicle && !(r.obj.Type == "apc" && ApcRearDoor.Of(r.view))) StartCoroutine(LatchLater(0.14f, r.root.position, r.obj.Id));
+                if (r.obj.Kind == ZKind.Vehicle && !r.obj.IsShuttle && !(r.obj.Type == "apc" && ApcRearDoor.Of(r.view))) StartCoroutine(LatchLater(0.14f, r.root.position, r.obj.Id));
             }
             ShowLive(g);
+            ExitWalkEnded(g, abort);                                                                     // K441: the hand-over measured, the shots held meanwhile drawn (View/BoardingView.ExitWalk.cs)
             if (!g.go) return;
             if (!abort && g.enter && !g.demo && r.visible && showSeatedCrew && !r.crew && Crewed(r))
             {
@@ -1150,6 +1158,8 @@ namespace OpenZ
                 if (r.crewWeapon) r.crewWeapon.gameObject.SetActive(false);
                 return;
             }
+            if (!abort && g.enter && !g.demo && g.seatK >= 0 && r.view && ShuttleRearDoor.Of(r.view))
+            { g.go.transform.SetParent(r.root, true); ShuttleRearDoor.Of(r.view).HoldFigure(g.go, g.robotId); return; }   // DV118: on its bench until the ramp shuts
             if (!abort && g.enter && !g.demo && g.seatK >= 0 && r.view && ApcRearDoor.Of(r.view))
             { g.go.transform.SetParent(r.root, true); ApcRearDoor.Of(r.view).HoldFigure(g.go); return; }
             Destroy(g.go);
@@ -1181,6 +1191,7 @@ namespace OpenZ
 
         void CrewDies(Rig r)
         {
+            if (ShuttleDoorwayCrewDies(r)) return;   // K418: a shuttle's figures are thrown by its break-up (BoardingView.ShuttleCrewLost), never twice
             if (r.crew && r.root) AudioDirector.CrewDeath(r.root.position, r.obj != null ? r.obj.Id : -1);   // sound_v3: the flung crew dies audibly
             // crews_v1: a tower gunner is thrown outward from the fort centre, over the wall (the fort has no colliders: straight
             // down, the ragdoll would drop through the roof into the fort); ground guns as before
@@ -1254,7 +1265,7 @@ namespace OpenZ
                 var v = kv.Value; if (!v || v.Obj == null) continue;
                 if (v.Obj.Kind != ZKind.Vehicle && v.Obj.Kind != ZKind.Cannon) continue;
                 if (!v.gameObject.activeInHierarchy) continue;
-                var r = RigOf(v); if (r != null) r.seenFrame = frame;
+                var r = RigOf(v); if (r != null) { r.seenFrame = frame; K386Grow(r); }   // K386: the crew's size follows the hull's exit grow (BoardingView.K386.cs)
             }
             float sdt = dt * SimRate;                                                                     // ghosts keep Zod's pace (4x bot match, pause)
             for (int i = 0; i < ghosts.Count; i++) StepGhost(ghosts[i], sdt);
@@ -1296,12 +1307,15 @@ namespace OpenZ
             }
             if (!g.go.activeSelf) { g.go.SetActive(true); g.clipNow = null; }
             // Zod never waits: once the sim makes things happen, finish now
-            bool act = g.enter ? (r.acted || r.obj.IsMoving || (r.obj.HasLid && r.obj.LidOpen)) : (g.hurry || (g.live && g.live.Obj != null && g.live.Obj.IsMoving));
+            ShuttleGhostStep(g, r);                                                                      // DV118: the shuttle's ramp-foot steps (BoardingView.Shuttle.cs)
+            bool act = g.enter ? (r.acted || r.obj.IsMoving || r.obj.ShuttleAirborne || (r.obj.HasLid && r.obj.LidOpen)) : ExitWalkActs(g, g.hurry || (g.live && g.live.Obj != null && g.live.Obj.IsMoving));   // K441 (item 443): an exit walk is never squeezed by its robot's fight (View/BoardingView.ExitWalk.cs)
             float remaining = g.total - g.time;
             if (act && remaining > catchUp) g.speedMul = Mathf.Max(g.speedMul, remaining / catchUp);
             g.time += dt * g.speedMul;
+            var k441From = g.go.transform.position;                                                     // K441: where the figure stood last frame
             Place(g, dt);
-            if (g.time >= g.total) EndGhost(g, false);
+            ExitWalkSmooth(g, k441From, dt);                                                             // K441: the walk on to the robot follows it and ends on it, turned to its facing
+            if (g.time >= g.total && ExitWalkReached(g)) EndGhost(g, false);
         }
 
         void Place(Ghost g, float dt)
@@ -1322,7 +1336,7 @@ namespace OpenZ
                 case Face.Move: dir = b - a; break;
                 case Face.Hull: dir = r.root.TransformPoint(C(r)) - p; break;
                 case Face.Seat: SeatPose(r, out _, out want, out _); break;
-                case Face.Aisle: { var ad = ApcRearDoor.Of(r.view); if (ad) dir = ad.AisleDir(g.seatK); break; }
+                case Face.Aisle: { var ad = ApcRearDoor.Of(r.view); if (ad) dir = ad.AisleDir(g.seatK); else { var sd = ShuttleRearDoor.Of(r.view); if (sd) dir = sd.AisleDir(g.seatK); } break; }
             }
             dir.y = 0; if (dir.sqrMagnitude > 1e-4f) want = Quaternion.LookRotation(-dir.normalized, Vector3.up);
             g.rot = dt <= 0f ? want : Quaternion.Slerp(g.rot, want, 1f - Mathf.Exp(-dt * 14f));
@@ -1458,7 +1472,7 @@ namespace OpenZ
 
         /// <summary>hatch_v1: the ONE decision point for the hatch driver popping out (view only: reads the sim lid state, never
         /// writes sim state; the deterministic sim is untouched). Extra view guards (e.g. veteran crews stay buttoned up) go here.</summary>
-        bool ShowHatchDriver(ZObject v) => v != null && (v.LidOpen || v.CraneGunUp || v.Resting) && !VeteranMarks.ButtonedUp(v);   // vehicles_nb_v1 NB24: + the crane's driver while he shoots back (DV31); veterancy_v1 DV12: veterans stay inside
+        bool ShowHatchDriver(ZObject v) => v != null && (v.LidOpen || v.CraneGunUp || v.Resting || v.ApcDriverUp) && !VeteranMarks.ButtonedUp(v);   // vehicles_nb_v1 NB24: + the crane's driver while he shoots back (DV31); veterancy_v1 DV12: veterans stay inside; DV87: + the APC's lone driver while it fights
 
         /// <summary>ui_combat_v1 hatch commander (Zod ZVehicle::RenderLid, zvehicle.cpp:268-330: the "tank_fire" robot sprite over
         /// and shoulders (commanderCut); he faces and aims at the vehicle's target while engaged (else along the barrel), kicks back
@@ -1468,7 +1482,7 @@ namespace OpenZ
             float s = r.crewBase * r.crewScale * CrewFit(r, r.crew); var up = r.root.up;                   // electrobot_v1: the type's crew fit
             var top = Wp(r, HatchTopL(r));
             if (r.round) top += up * Vector3.Dot(r.round.RimWorld - top, up);                              // hatch_v1: the collar top is the rim
-            var tgt = r.obj.AttackObject ?? r.obj.CraneGunTarget; bool engaged = tgt != null && !tgt.Destroyed;   // vehicles_nb_v1 NB24: the crane driver aims at his attacker
+            var tgt = r.obj.DriverFireTarget ?? r.obj.AttackObject ?? r.obj.CraneGunTarget; bool engaged = tgt != null && !tgt.Destroyed;   // vehicles_nb_v1 NB24: the crane driver aims at his attacker; DV87: a tank driver at his own target first
             var front = engaged ? AimPoint(tgt) - top : (r.turret ? -r.turret.forward : -r.root.forward);   // vehicles and robots face -z
             front = Vector3.ProjectOnPlane(front, up);
             if (!engaged && r.obj.Resting) front = Quaternion.AngleAxis(RestLookDeg * Mathf.Sin(Time.time * RestLookRate + r.obj.Id * 1.7f), up) * front;   // DV75 idle rest: he looks around slowly
@@ -1544,8 +1558,8 @@ namespace OpenZ
             {
                 r.lastFireSeen = fired;
                 var t = r.obj.AttackObject;
-                if (r.obj.Type == "crane") { if (r.crewPop > 0.5f) r.kick = 1f; }                            // vehicles_nb_v1 NB24: his own sim shot (DV31) left his muzzle: recoil only
-                else if (r.crewPop > 0.85f && t != null && !t.Destroyed) r.shotAt = Time.time + commanderShotDelay;
+                if (r.obj.Type == "crane" || r.obj.Type == "apc") { if (r.crewPop > 0.5f) r.kick = 1f; }     // vehicles_nb_v1 NB24: his own sim shot (DV31) left his muzzle: recoil only; DV87: the APC's lone driver too
+                else if (!ZWorld.DriverFireDeviation && r.crewPop > 0.85f && t != null && !t.Destroyed) r.shotAt = Time.time + commanderShotDelay;   // DV87: with the rule on a tank driver's shots are the sim's own (DriverShotSeen), no longer a picture with the tank's gun
             }
             if (r.shotAt > 0f && Time.time >= r.shotAt) { r.shotAt = -1f; CommanderShot(r); }
         }

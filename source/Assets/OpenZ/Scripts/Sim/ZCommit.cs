@@ -60,6 +60,7 @@ namespace OpenZ.Sim
         internal int wallBlocks; internal double followSince;   // follow steps blocked by a wall in a row (own path for 1, 2, 4.. s), follow start
         // ---- path request queue
         internal bool queued, serving; internal ZWaypoint queuedWp; internal double queuedAt;
+        internal bool orderWaits;                          // the first path request after a large group order with the live rules waits its turn in the queue too (ZPathV3.cs SpreadGroupV3)
         // ---- settle
         internal int pushPartner = -1, pushNext = -1;      // separation push in progress with this unit (hysteresis per pair)
         internal bool easing;                              // DV22 idle ease in progress (dead-band)
@@ -164,8 +165,8 @@ namespace OpenZ.Sim
                 if (c.serving) return false;                                              // served from the queue right now
                 if (FollowOn(o) && o.FollowsInsteadOfPath()) { FollowNoSearch++; return true; }   // (v3: not in a zone)
                 c.noPath = false;                                                         // it plans its own path from here on
-                if (!BudgetFor(o)) return false;                                          // (v3: a unit in a zone plans at once, like live)
-                if (pathQueue.Count == 0 && BudgetLeft) { startedThisTick++; return false; }
+                if (!BudgetFor(o) && !c.orderWaits) return false;                         // (v3: a unit in a zone plans at once, like live; but the first request of a large group order waits its turn)
+                if (pathQueue.Count == 0 && BudgetLeft) { startedThisTick++; c.orderWaits = false; return false; }
                 for (int i = pathQueue.Count - 1; i >= 0; i--) if (pathQueue[i] == o) pathQueue.RemoveAt(i);
                 pathQueue.Add(o);
                 c.queued = true; c.queuedWp = o.Waypoints.Count > 0 ? o.Waypoints[0] : ZWaypoint.Cleared; c.queuedAt = W.Time;
@@ -195,7 +196,7 @@ namespace OpenZ.Sim
                 c.queued = false;
                 if (!o.PathQueuedStill()) continue;                                        // a new order, dead, or the waypoint ended meanwhile
                 double waited = W.Time - c.queuedAt; if (waited > MaxQueueWait) MaxQueueWait = waited;
-                c.serving = true; startedThisTick++;
+                c.serving = true; startedThisTick++; c.orderWaits = false;
                 try { o.PathServeQueued(); } finally { c.serving = false; }
             }
         }

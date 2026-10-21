@@ -174,7 +174,7 @@ namespace OpenZ
             var tm = TrackMarks.I; if (tm && tm.Surface != null) tm.Surface.Sample(at.x, at.z, out float gy, out deck);
             var map = g && g.World != null ? g.World.Map : null;
             if (map != null) { var px = ZGame.WorldToPx(at); road = map.ClassAt(px.x >> 4, px.y >> 4) == ZClass.Road; }
-            return OzFoleyV1.BankMechPlant(OzFoleyV1.SurfaceFor(deck, city, road));
+            return OzFoleyV1.BankMechPlant(OzFoleyV1.SurfaceFor(deck, city, road, g && g.level == "L16"));
         }
 
         /// <summary>Mech (medium tank) footfalls: a step every half stride (phase = floor(travel x 3.2 / pi)).</summary>

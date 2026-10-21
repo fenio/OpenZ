@@ -15,6 +15,8 @@ namespace OpenZ
         static volatile int temp = -1;
         /// <summary></summary>
         public static int GpuTempC => temp;
+        /// <summary>The lower frame cap the guard holds right now (0 = none): the FRAME RATE LIMIT row does not lift it.</summary>
+        public static int HeldFps;
         static Thread worker;
         int level, lastLogged = -100;   // 0 normal, 1 warm, 2 hot
         float baseScale = 1f;
@@ -60,7 +62,7 @@ namespace OpenZ
                 if (t / 5 != lastLogged / 5) { lastLogged = t; Debug.Log($"[OpenZ] heat guard (take, log only): GPU {t} C"); }
                 int w2 = t >= 88 ? 1 : t < 84 ? 0 : level;
                 if (w2 == level) return;
-                level = w2; Application.targetFrameRate = level == 1 ? 45 : GameBoot.CapFps;
+                level = w2; HeldFps = level == 1 ? 45 : 0; Application.targetFrameRate = level == 1 ? Mathf.Min(45, GameBoot.CapFps) : GameBoot.CapFps;
                 Debug.Log($"[OpenZ] heat guard (take): GPU {t} C -> {(level == 1 ? "45 fps" : "60 fps")}");
                 return;
             }
@@ -68,8 +70,9 @@ namespace OpenZ
             int want = t >= 90 ? 2 : t < 85 ? 0 : level;
             if (want == level) return;
             level = want;
+            HeldFps = level == 2 ? 30 : 0;
             Application.targetFrameRate = level == 2 ? 30 : GameBoot.CapFps;
-            Debug.Log($"[OpenZ] heat guard: GPU {t} C -> {(level == 2 ? "EMERGENCY 30 fps" : "60 fps")} (render scale stays {baseScale})");
+            Debug.Log($"[OpenZ] heat guard: GPU {t} C -> {(level == 2 ? "EMERGENCY 30 fps" : GameBoot.CapFps + " fps")} (render scale stays {baseScale})");
         }
 
         void OnApplicationQuit()

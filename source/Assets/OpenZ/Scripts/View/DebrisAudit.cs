@@ -10,8 +10,9 @@ namespace OpenZ
     /// <para><b>Guard</b> (always on in game levels, cheap): every 0.5 s it looks at up to 24 physics debris bodies on the debris layer
     /// (building cells, big parts, bridge / rock chunks, wreck pieces; the list is refreshed every 2 s) that have been frozen
     /// (kinematic) or fell asleep: one that rests more than 0.35 m above the ground under it (frozen mid-air by a lifetime timer,
-    /// or left on a collider that went away) is woken so it falls and settles again. Parts over water are left alone (they sink to
-    /// the bed). Pieces that are popping out or fading (sinking on purpose) are skipped.</para>
+    /// or left on a collider that went away) is woken so it falls and settles again (handed to the water landing rule again, so it
+    /// splashes when that is into water). A piece that rule holds in the water is left alone. Pieces that are popping out or
+    /// fading (sinking on purpose) are skipped.</para>
     /// <para><b>Audit</b> (OpenZ/Deaths/Debris audit, Play): after a delay it measures every debris piece: floating (bottom &gt; 0.3 m
     /// above the ground and at rest), sunk (top below the ground) or mostly buried (&gt; 75 % below; the intended rubble pile sits
     /// ~30 % in), the builtin-cube count, distinct meshes and size spread, per source (BuildingBreaker cells / big parts, bridge
@@ -39,7 +40,9 @@ namespace OpenZ
             inst.auditAt = Time.time + delay; inst.auditLabel = label;
         }
 
-        static bool OverWater(Vector3 p) { try { return OpenZFxPlayer.IsWaterTile(p); } catch { return false; } }
+        /// <summary>b27: the shared water landing rule took this piece into the water (it rests there partly under the surface, or it
+        /// went under): it is where it belongs. Any other piece frozen in the air falls again, over water too.</summary>
+        static bool InWater(Rigidbody rb) { try { return OzWaterLanding.InWater(rb.transform); } catch { return false; } }
 
         static bool Bounds(Transform t, out Bounds b)
         {
@@ -79,14 +82,15 @@ namespace OpenZ
                 var rb = bodies[cursor];
                 if (!rb || !rb.gameObject.activeInHierarchy || Leaving(rb)) continue;
                 if (!rb.isKinematic && !rb.IsSleeping()) continue;
-                if (rb.GetComponentInParent<UnitView>()) continue;                                     // ragdolls / flipped wrecks: their own settle
+                if (rb.GetComponentInParent<UnitView>() || OzRockBody.RestsOnRock(rb)) continue;                                     // ragdolls / flipped wrecks: their own settle
                 if (!Bounds(rb.transform, out var b)) continue;
-                var c = b.center; if (OverWater(c)) continue;
+                var c = b.center; if (InWater(rb)) continue;                                             // b27: only what the water landing rule holds is left alone (a piece frozen on a deck that is gone must fall)
                 float gy = g.GroundY(c.x, c.z);
                 if (b.min.y - gy > 0.35f)
                 {   // frozen above the ground: let it fall again
                     rb.isKinematic = false; foreach (var col in rb.GetComponentsInChildren<Collider>()) col.enabled = true;
                     rb.WakeUp(); Woken++;
+                    OzWaterLanding.Watch(rb.transform, "debris", rb);                                   // b27: when it now falls into water it splashes and rests like any other piece
                 }
             }
         }
@@ -107,7 +111,7 @@ namespace OpenZ
                 var mf = rb.GetComponentInChildren<MeshFilter>(); string mesh = mf && mf.sharedMesh ? mf.sharedMesh.name : "-";
                 float gy = g.GroundY(b.center.x, b.center.z);
                 bool rest = rb.isKinematic || rb.IsSleeping() || rb.linearVelocity.sqrMagnitude < 0.04f;
-                float gap = rest && !OverWater(b.center) ? b.min.y - gy : 0f;
+                float gap = rest && !InWater(rb) && !OzRockBody.RestsOnRock(rb) ? b.min.y - gy : 0f;                                   // b27: a piece the water landing rule holds is not "floating"; one left in the air over water is
                 float below = b.size.y > 0.01f ? Mathf.Clamp01((gy - b.min.y) / b.size.y) : 0f;
                 rows.Add((src, rb.name, b.center, gap, below, b.size.y, mesh, b.size));
             }

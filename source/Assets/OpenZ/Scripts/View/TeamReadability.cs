@@ -204,7 +204,7 @@ namespace OpenZ
 
             foreach (var v in views)
             {
-                if (!v.isActiveAndEnabled || !v.gameObject.activeInHierarchy || v.Dying) continue;
+                if (!v.isActiveAndEnabled || !v.gameObject.activeInHierarchy || v.Dying || ZodBriefing.EndingHides(v)) continue;   // version 1.1: not in the level 16 ending's picture (ZodBriefing.EndingEnemies.cs)
                 var o = v.Obj;
                 if (o == null || o.Destroyed) continue;
                 bool robot = o.Kind == ZKind.Robot;

@@ -197,7 +197,7 @@ namespace OpenZ
         }
 
         /// <summary>Hardware cursor side (guide 9.10): 32 px below 1300 px screen height, 48 px up to 2000, else 64.</summary>
-        public static int HardwareCursorSize => Screen.height >= 2000 ? 64 : Screen.height >= 1300 ? 48 : 32;
+        public static int HardwareCursorSize { get { int h = Mathf.Max(Screen.height, OzSettings.DisplayHeight); return h >= 2000 ? 64 : h >= 1300 ? 48 : 32; } }   // a lower RESOLUTION step fills the display: the system draws the pointer in the display's pixels, so the display's height picks its size
 
         /// <summary>Hardware cursor from the kit (guide 9.10): 32 px below 1300 px screen height, 48 px up to 2000, else 64.</summary>
         public static void SetHardwareCursor(string name, int frame = 0)

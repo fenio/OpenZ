@@ -62,7 +62,7 @@ namespace OpenZ
             int k = shotIndex.TryGetValue(a.Id, out var n) ? n : 0; shotIndex[a.Id] = k + 1;
             float speed = Mathf.Max(0.25f, g.gameSpeed);
             var off = Random.insideUnitCircle * TwinSpread;
-            var p = to + new Vector3(off.x, 0f, off.y); p.y = g.GroundY(p.x, p.z) + 0.25f;
+            var p = to + new Vector3(off.x, 0f, off.y); p.y = OzShuttleAim.SalvoEndY(to, p, g.GroundY(p.x, p.z) + 0.25f);   // DV118: beside the flying shuttle
             For(g).launches.Add(new Pending { at = Time.time + Random.Range(GapMin, GapMax) / speed, flight = Mathf.Max(0.05f, delay), shooter = a.Id,
                                               tube = k % 2, to = p, id = (a.Id * 7919 + k * 131 + 17) & 0x3fffffff });
         }
@@ -96,6 +96,7 @@ namespace OpenZ
 
         void Land(Landing l)
         {
+            if (OzAirShots.SkipLanding(l.shooter, l.pos)) { TwinsLanded++; return; }                 // K337: it burst up there with its round already (View/OzAirShots.cs)
             var d = LegacyMatch.MechRocket;
             var at = l.pos + Vector3.up * 0.2f;
             var z = OpenZFxPlayer.I;

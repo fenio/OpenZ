@@ -66,7 +66,7 @@ namespace OpenZ
         double clearPx;                                                                            // robot_models_v2 review: v3 body building clearance (px)
         BS01Stance stance;                                                                        // robot_models_v2: sniper kneel / prone, tough prepare / aim / fire, psycho burst shake
         /// <summary>robot_models_v2: UnitAim holds a rocket while the Tough's tough_prepare still lowers the tube onto the target.</summary>
-        public bool StanceHoldsFire => stance && stance.HoldsFire;
+        public bool StanceHoldsFire => (stance && stance.HoldsFire) || ToughAimEase.HoldsFire(this);   // K324: also while a Tough's drawn tube still turns onto its aim (View/ToughAimEase.cs)
         // crews_v1: a cannon on one of Zod's 4 fort turret spots (bfort.cpp:534-548) is drawn exactly on its tower pad, on the ring
         // mount (TowerMounts), never on the terrain under its sim centre (that was 3.7 m off the pad and inside the fort)
         int towerState, towerPad = -1, towerTries; Transform towerFort; Vector3 towerAxis;
@@ -193,7 +193,7 @@ namespace OpenZ
         /// <summary>A shot left this unit (hitscan or missile): recoil, and the Tough's bazooka_fire.</summary>
         public void OnFire()
         {
-            if (Obj != null && Obj.Type == "crane" && Obj.Kind == ZKind.Vehicle) { LastFireAt = Time.time; return; }   // vehicles_nb_v1 NB24: the hatch driver's rifle (DV31): no hull jolt
+            if (Obj != null && Obj.Kind == ZKind.Vehicle && (Obj.Type == "crane" || Obj.ApcDriverUp)) { LastFireAt = Time.time; return; }   // vehicles_nb_v1 NB24: the hatch driver's rifle (DV31): no hull jolt; DV87: the APC's lone driver in the roof hatch too
             shotAge = 0f; LastFireAt = Time.time;
             if (gunAim) { gunAim.OnFire(); HeavyBarrelKick(); }                                        // combatview: barrel recoil, spin-up, next barrel; vehicles_nb_v1 NB6: hull rocks to the barrel's side
             if (stance && stance.OnFire()) return;                                                     // robot_models_v2: the stance plays the kneel / prone / tough fire clip
@@ -218,7 +218,7 @@ namespace OpenZ
             if (Obj.Kind == ZKind.Robot)
             {
                 if (weapon) weapon.position -= (Quaternion.Euler(0, AimYaw(), 0) * Vector3.forward) * r * (IsTough ? 0.12f : 0.07f) * RecoilFeel.Weapon(Obj.Type);
-                transform.position -= front * r * (IsTough ? 0.06f : Obj.Type == "pyro" ? 0.01f : 0.03f) * RecoilFeel.Body(Obj.Type);   // shoulder jolt (pyro_fire_v2: a flamer barely kicks; ~4.6 drawn shots/s made it shake)
+                transform.position -= front * r * (IsTough ? ToughKick.BodyJolt(this, 0.06f) : Obj.Type == "pyro" ? 0.01f : 0.03f) * RecoilFeel.Body(Obj.Type);   // K307: a Tough's boots stay planted, his kick is drawn by View/ToughKick.cs   // shoulder jolt (pyro_fire_v2: a flamer barely kicks; ~4.6 drawn shots/s made it shake)
                 RecoilRock(r);
                 return;
             }
@@ -260,6 +260,7 @@ namespace OpenZ
                 var killer = killerId >= 0 ? game.World.GetAny(killerId) : null;
                 var kind = RobotDeathRule.Pick(Obj.Id, killerId, killer != null ? killer.Type : null, fire, missile, out int variant);
                 if (fdMan && kind == RobotDeathKind.Pop) kind = RobotDeathKind.Ragdoll;                     // fort_defender_v1 DV41: thrown off the roof deck (its pop bits would fall through it)
+                if (HeadshotDeath(blast, killerId)) { Live.Remove(this); return; }                         // DV116: a sniper's headshot: the head falls off, the body collapses (UnitView.Headshot.cs)
                 uint fh = RobotDeathRule.Hash(Obj.Id, killerId, 4u);
                 if (kind == RobotDeathKind.Pop && RobotPopDeath.Play(this, variant, blast, RobotDeathRule.Hash(Obj.Id, killerId, 3u)))
                 {
@@ -280,9 +281,11 @@ namespace OpenZ
                     else { airT = 1.0f + 0.04f * (fh % 10u); airH = 1.6f + 0.1f * ((fh >> 4) % 10u); }
                     var away = transform.position - blast; away.y = 0; if (away.sqrMagnitude < 0.01f) away = Random.insideUnitSphere; away.y = 0;
                     deathTo = transform.position + away.normalized * RagdollFlight.MaxLandM * (0.35f + 0.65f * ((fh >> 16) & 1023u) / 1023f);
+                    deathTo = OzRockSolid.BodyLanding(transform.position, deathTo, airH, RobotHeight(), ref away);   // items 331 + 332: it lies on free ground (no rock)
                     deathTo.y = FortDefenderView.SurfaceY(new Vector3(deathTo.x, transform.position.y, deathTo.z), game.GroundY(deathTo.x, deathTo.z)) - 0.05f;   // fort_defender_v1: a roof under it
                     spinAxis = Vector3.Cross(Vector3.up, away.normalized);
                     if (anim) { anim.speed = 1; anim.CrossFadeInFixedTime("blast_airborne", 0.05f); }
+                    OzBodySounds.FlightThrown(transform.position, deathTo, airT, airH, GetInstanceID());          // J15: the soft whoosh of the thrown body
                 }
                 else if (fire) { death = Death.Melt; if (anim) { anim.speed = 0.7f; anim.CrossFadeInFixedTime("death_side", 0.1f); } }
                 else { death = Death.Anim; if (anim) { anim.speed = 1; anim.CrossFadeInFixedTime(Random.value < 0.5f ? "death_back" : "death_side", 0.1f); } }
@@ -306,7 +309,9 @@ namespace OpenZ
             if (m != null) { tossTo = ZGame.PxToWorld(m.x, m.y); tossDur = Mathf.Max(0.6f, OpenZFxPlayer.RealFlight((float)(m.explodeTime - game.World.Time), game.gameSpeed)); }   // deaths_mech_v1: sim s -> real s (lands on the sim's blast at any game speed)
             else { tossTo = transform.position + new Vector3(Random.Range(-4f, 4f), 0, Random.Range(-4f, 4f)); tossDur = 3.5f; }
             tossTo.y = game.GroundY(tossTo.x, tossTo.z) + 0.35f;
+            if (OzWaterLanding.OpenWaterAt(tossTo, out float tossWater)) tossTo.y = tossWater + 0.1f;   // b27: over open water it comes down on the surface (the water landing rule takes it from there)
             tossApex = Mathf.Min(7f, 9.81f * tossDur * tossDur / 8f);                                // a real 3.5 s arc peaks at 15 m, out of the RTS view
+            OzRockSolid.TurretLanding(Obj.Id, turret, tossFrom, ref tossTo, ref tossApex);                      // items 331 + 332: it lands on free ground (no rock), its arc clear of rocks
             tossed = turret; turret = null; tossed.SetParent(null, true);
             foreach (var r in tossed.GetComponentsInChildren<Renderer>()) r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
             tossAxis = Random.onUnitSphere; tossSpin = Random.Range(300f, 620f); tossT = 0; tossLanded = false;
@@ -325,8 +330,11 @@ namespace OpenZ
             if (k >= 1)
             {
                 tossLanded = true;
-                tossed.rotation = Quaternion.Euler(Random.Range(-35f, 35f), Random.Range(0f, 360f), Random.Range(100f, 160f));   // lands on its side
-                TossLanded(p);                                                                          // deaths_mech_v1: clang + dust + kick, only on screen
+                var tossRest = Quaternion.Euler(Random.Range(-35f, 35f), Random.Range(0f, 360f), Random.Range(100f, 160f));   // lands on its side
+                tossRest = OzTreeCrush.TurretRest(tossed, p, tossRest, Obj);                                // item 360: it lies on the trees it fells, never through a standing one (OzTreeCrush.cs)
+                tossed.rotation = OzHeavyLanding.TurretRest(tossed, p, tossRest, new Vector3((tossTo.x - tossFrom.x) / Mathf.Max(0.1f, tossDur), (tossTo.y - tossFrom.y - 4f * tossApex) / Mathf.Max(0.1f, tossDur), (tossTo.z - tossFrom.z) / Mathf.Max(0.1f, tossDur)));   // item 172: no snap: it tips onto its side, bounces a little, lies on the ground
+                if (!OzWaterLanding.Enter(tossed, "turret", new Vector3((tossTo.x - tossFrom.x) / Mathf.Max(0.1f, tossDur), -4f * tossApex / Mathf.Max(0.1f, tossDur), (tossTo.z - tossFrom.z) / Mathf.Max(0.1f, tossDur)), false, false))   // b27: into water = the shared rule (splash, rings, one sound, it rests partly under the surface)
+                    TossLanded(p);                                                                      // deaths_mech_v1: clang + dust + kick, only on screen
             }
         }
 
@@ -343,6 +351,7 @@ namespace OpenZ
                     float T = airT; float k = Mathf.Clamp01(deathT / T);                            // deaths_mech_v1: Zod's 3.5-4.4 s (was 1.3 s)
                     var p = Vector3.Lerp(deathFrom, deathTo, k); p.y += Mathf.Sin(k * Mathf.PI) * airH;
                     transform.position = p;
+                    if (k >= 1f && deathT - dt < T) OzBodySounds.FlightLanded(p, deathFrom, deathTo, T, airH, GetInstanceID());   // J15: the metal body thud on its landing frame
                     if (k < 1) transform.rotation = Quaternion.AngleAxis(Mathf.SmoothStep(0, 1, k) * 100f, spinAxis) * Quaternion.Euler(0, yaw + modelYaw, 0);   // falls back, no spin
                     else if (deathT < T + 0.05f && anim) anim.CrossFadeInFixedTime("death_back", 0.05f);
                     if (deathT > T + 4.5f) PopAway();
@@ -374,7 +383,7 @@ namespace OpenZ
             Vector3? ground = null;
             if (Obj.Kind == ZKind.Robot)
                 foreach (var t in GetComponentsInChildren<Transform>())
-                    if (t.name == "mixamorigHips") { var h = t.position; ground = new Vector3(h.x, FortDefenderView.SurfaceY(h, game.GroundY(h.x, h.z)), h.z); break; }   // fort_defender_v1: on a fort roof
+                    if (t.name == "mixamorigHips") { var h = t.position; ground = new Vector3(h.x, FortDefenderView.SurfaceY(h, OzRockBody.CorpseFloor(gameObject, h, game.GroundY(h.x, h.z))), h.z); break; }   // fort_defender_v1: on a fort roof
             if (Obj.Kind != ZKind.Robot && FxManager.I) FxManager.I.Dust(transform.position + Vector3.up * 0.5f, 0.8f);
             if (tossed) PopOut.Begin(tossed, PopOut.Style.Debris, null, false, false);
             PopOut.Begin(transform, Obj.Kind == ZKind.Robot ? PopOut.Style.Corpse : PopOut.Style.Debris, Hide, false, true, ground);
@@ -405,7 +414,7 @@ namespace OpenZ
             if (death != Death.None) { UpdateDeath(Time.deltaTime); return; }
             if (OpenZEnding.Holds(Obj.Id)) return;                                  // endings_v1: dead in the sim, dies in the nuke's wave (OpenZEnding moves it)
             if (deathHoldUntil > Time.time) return;                                 // combat_nb_v1 NB3: dead in the sim, thrown when the blast front reaches it (BlastWave)
-            if (game.World.Get(Obj.Id) != Obj) { Hide(); return; }                 // entered a vehicle, removed
+            if (game.World.Get(Obj.Id) != Obj) { if (OzShuttleBreakup.KeepsDrawn(this)) return; Hide(); return; }   // entered a vehicle, removed (K256h: a shot-down shuttle stays drawn until its break-up takes it)
             if (((Time.frameCount + Obj.Id) & 31) == 0) UnitLookMotionGate.KeepUnitCrisp(gameObject);     // parts added after the bind (hatch, lid, kit) stay out of the motion blur too; about twice a second per unit, spread over the frames
             if (syncedFrame != Time.frameCount) Sync(Time.deltaTime);
             if (exitGrowing) ExitGrowStep(Time.deltaTime);
@@ -437,7 +446,7 @@ namespace OpenZ
             sepOffset += Vector3.ClampMagnitude(sepCorr * Mathf.Min(1f, 12f * dt), 2f * dt);          // relax the overlap, at most 2 m/s (parity P4: no fast view-only slides)
             // drift back when free (take2 legs): a robot only while it walks (a standing robot never skates); a vehicle only while
             // clear of every unit (spacing + 0.12 m), so a parked tank neither shoves standing robots nor stays ~2 m off its sim spot
-            if (sepCorr.sqrMagnitude < 1e-6f && (Obj.Kind == ZKind.Robot ? Obj.IsMoving || walkShown : !sepTouch))
+            if (sepCorr.sqrMagnitude < 1e-6f && (Obj.Kind == ZKind.Robot ? Obj.IsMoving || walkShown || SettleNow() : !sepTouch))   // K420: a saved robot steps back onto its rules place (View/UnitView.Settle.cs)
                 // members apart while stacked) pulled the drawn V together for ~4 s once the sim had spread it (sniper pair 0.9 m drawn vs 2.7 m sim)
                 sepOffset = Vector3.MoveTowards(sepOffset, Vector3.zero, (Obj.Kind == ZKind.Robot ? 0.8f : 0.2f) * dt);
             if (sepOffset.magnitude > maxSep) sepOffset = sepOffset.normalized * maxSep;
@@ -522,7 +531,7 @@ namespace OpenZ
                 if (hullSteer != null && hullSteer.Reversing) speedMs = -speedMs;                         // motion_v1: backing up: wheels / tracks roll back
                 var feel = motion ? motion.Step(speedMs, yawRate, dt) : Quaternion.identity;
                 if (motion) p.y += motion.Bounce * speed01;
-                if (moving && FxManager.I && !DustTrails.Active && (dustT -= dt) <= 0)   // tracks package: DustTrails owns surface-aware dust
+                if (moving && FxManager.I && !DustTrails.Active && !Obj.IsShuttle && (dustT -= dt) <= 0)   // tracks package: DustTrails owns surface-aware dust
                 {
                     dustT = Obj.Type == "jeep" ? 0.12f : 0.3f;
                     FxManager.I.Dust(p - moveDir * 1.8f + Vector3.up * 0.2f, Obj.Type == "jeep" ? 0.35f : 0.28f);
@@ -661,7 +670,7 @@ namespace OpenZ
                     float r = a.radius + b.radius;
                     var d = pa - (b.basePos + b.sepOffset); d.y = 0;
                     float sq = d.sqrMagnitude, rt = r + 0.12f; if (sq >= rt * rt) continue;
-                    if (SimLetsThrough(a.Obj, b.Obj)) continue;                                            // run-over pairs and dead robots: no view push either
+                    if (SimLetsThrough(a.Obj, b.Obj) || AirPair(a.Obj, b.Obj)) continue;                   // run-over pairs and dead robots: no view push either; K256j (S6): nor a shuttle up in the air (UnitView.AirPair.cs)
                     a.sepTouch = b.sepTouch = true;                                                        // take2 legs verify: close enough that drifting back would push
                     if (sq >= r * r) continue;
                     float wa = PairWeight(a, b), wb = PairWeight(b, a); if (wa + wb <= 0f) continue;   // vehicles_nb_v1 NB21/22: robots never shove a standing vehicle

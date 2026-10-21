@@ -182,6 +182,32 @@ namespace OpenZ
         public static float ColumnHeightMin = 4f, ColumnHeightMax = 6.5f, HazeStrength = 0.013f;
         Mesh colMesh, hazeQuad, bedMesh; Material colMat, hazeMat, bedMat; MaterialPropertyBlock colBlock, hazeBlock;
         public static float BedRadius { get; private set; }
+        /// <summary>The ruin centre this blaze burns at.</summary>
+        public Vector3 Centre => centre;
+        float columnScale = 1f;
+        /// <summary>The core columns k times as high and as wide as they were built (a far shot of the burning fort). False = the
+        /// columns are not built yet.</summary>
+        public bool ScaleColumns(float k)
+        {
+            if (!colMesh || k <= 0f) return false;
+            if (Mathf.Abs(k - columnScale) < 0.001f) return true;
+            var d0 = new System.Collections.Generic.List<Vector4>(); var d1 = new System.Collections.Generic.List<Vector4>();
+            colMesh.GetUVs(0, d0); colMesh.GetUVs(1, d1);
+            float f = k / columnScale; int n = ColumnCount;
+            for (int i = 0; i < n && i * 4 + 3 < d0.Count && i * 4 + 3 < d1.Count; i++)
+            {
+                if (!(i < n * 0.6f)) continue;                                                              // the core columns; the licks stay
+                for (int c = 0; c < 4; c++)
+                {
+                    var a = d0[i * 4 + c]; a.w *= f; d0[i * 4 + c] = a;
+                    var b = d1[i * 4 + c]; b.x *= f; d1[i * 4 + c] = b;
+                }
+            }
+            colMesh.SetUVs(0, d0); colMesh.SetUVs(1, d1);
+            var bd = colMesh.bounds; bd.Encapsulate(centre + Vector3.up * (ColumnHeightMax * k + 3f)); colMesh.bounds = bd;
+            columnScale = k;
+            return true;
+        }
         public int ColumnCount { get; private set; }
         public static int ColumnsDrawn { get; private set; }
 

@@ -15,6 +15,9 @@ EditorBuildSettings:
     path: Assets/OpenZ/Scenes/L02_Desert.unity
     guid: b9a5bc322277035499acd0cfebdcf2c3
   - enabled: 1
+    path: Assets/OpenZ/Scenes/L16_Jungle.unity
+    guid: fae7b179a4fd9c3449631870c35ef356
+  - enabled: 1
     path: Assets/OpenZ/Scenes/L17_CarPark.unity
     guid: ffba38b6cda45a14d8bfa0ae2118e79e
   m_configObjects:

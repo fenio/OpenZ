@@ -52,6 +52,7 @@ namespace OpenZ
             {
                 var p = props[i];
                 if (!p.go) { props.RemoveAt(i); continue; }
+                if (at.y > p.b.max.y + 3f) continue;                                                       // K337: a blast high over it (up at the flying shuttle) does not reach it (the sandbags' rule)
                 var c = p.b.ClosestPoint(at); c.y = at.y;
                 if ((c - at).sqrMagnitude > reach * reach) continue;
                 props.RemoveAt(i);

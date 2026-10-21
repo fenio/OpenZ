@@ -129,6 +129,8 @@ namespace OpenZ
             if (rbOf.TryGetValue("Spine1", out var chest)) chest.AddForce(push * 55f * strength, ForceMode.Impulse);   // the chest takes the hit first
             if (rbOf.TryGetValue("Hips", out var hips)) hips.angularVelocity = Vector3.Cross(Vector3.up, push) * Random.Range(2f, 4.5f) * Mathf.Min(strength, 2f);
             active.Add(rd);
+            OzRockBody.Ragdoll(robot, rd);                                                              // items 331 + 332: the body meets the rocks (when one is near)
+            OzBodySounds.Launched(rd, v);                                                               // J15: a soft whoosh when thrown hard, a metal thud when it lands
             return rd;
         }
 

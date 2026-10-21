@@ -216,7 +216,7 @@ namespace OpenZ
                 yield return new WaitForSecondsRealtime(1.0f);
                 int fr = Time.frameCount - f0;
                 Log($"click: opened '{OpenZMainMenu.LastLinkOpened}', {fr} frames in the next {Time.unscaledTime - t2:0.0} s, sounds {Sounds(t2)}");
-                Check("link click: Steam app 275530 (Application.OpenURL path), ui_click, the menu keeps running", OpenZMainMenu.LastLinkOpened == "https://store.steampowered.com/app/275530/Z/" && Heard(t2, "click") && fr > 10);
+                Check("link click: Steam app 275530 (Application.OpenURL path), ui_click, the menu keeps running", OpenZMainMenu.LastLinkOpened == OzLinks.Get("z_steam") && Heard(t2, "click") && fr > 10);
                 OpenZMainMenu.ProofNoOpen = false;
                 // a link scrolled out of view takes no click
                 menu.ProofScrollCredits(0f); yield return new WaitForSecondsRealtime(1.2f);

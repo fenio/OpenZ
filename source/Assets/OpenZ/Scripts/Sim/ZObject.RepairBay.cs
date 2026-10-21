@@ -26,12 +26,14 @@ namespace OpenZ.Sim
         public static int PadArrivals, PadTicks, PadHealed, PadReleased, PadReturns, PadCalledOff;
 
         /// <summary>DV62: this vehicle stands on the pad of station `stationId` being repaired.</summary>
-        public bool OnRepairPad(int stationId) => Waypoints.Count > 0 && Waypoints[0].mode == WpMode.UnitRepair && Waypoints[0].refId == stationId && cur.stage == Stage.Repairing;
+        public bool OnRepairPad(int stationId) => (Waypoints.Count > 0 && Waypoints[0].mode == WpMode.UnitRepair && Waypoints[0].refId == stationId && cur.stage == Stage.Repairing)
+                                                  || (IsShuttle && ShuttleOnRepairPad && ShuttleRepairTarget == stationId);   // item 271 (Sim/ZWorld.ShuttleRepair.cs)
         /// <summary>DV62: this vehicle is driving off the pad of station `stationId` (healed or called off).</summary>
         public bool LeavingRepairPad(int stationId) => Waypoints.Count > 0 && Waypoints[0].mode == WpMode.UnitRepair && Waypoints[0].refId == stationId && cur.stage == Stage.RepairLeave;
         /// <summary>DV62: this vehicle holds the bay of station `stationId`: driving in, on the pad, driving off, or backing out.</summary>
         public bool InRepairBay(int stationId) => Waypoints.Count > 0 && Waypoints[0].mode == WpMode.UnitRepair && Waypoints[0].refId == stationId
-            && (cur.stage == Stage.EnterBuilding || cur.stage == Stage.Repairing || cur.stage == Stage.RepairLeave || cur.stage == Stage.ExitBuilding);
+            && (cur.stage == Stage.EnterBuilding || cur.stage == Stage.Repairing || cur.stage == Stage.RepairLeave || cur.stage == Stage.ExitBuilding)
+            || (IsShuttle && ShuttleOnRepairPad && ShuttleRepairTarget == stationId);                     // item 271
         /// <summary>DV62: on any repair pad (view: no idle sway, no re-order by R).</summary>
         public bool OnAnyRepairPad => Waypoints.Count > 0 && Waypoints[0].mode == WpMode.UnitRepair && (cur.stage == Stage.Repairing || cur.stage == Stage.RepairLeave);
         /// <summary>DV62: the bay holds another vehicle (on the pad or still driving off it).</summary>
@@ -137,7 +139,7 @@ namespace OpenZ.Sim
                 bool alive = u != null && !u.Destroyed && u.KillAt < 0;
                 if (alive && repairDoorstepUntil < 0) repairDoorstepUntil = time + 3.0;
                 bool doorstep = alive && time < repairDoorstepUntil && GetRepairEntrance(out int ex, out int ey) && Within(u.CenterX, u.CenterY, ex, ey, 36);
-                if (!doorstep) { RepairOccupantId = -1; repairDoorstepUntil = -1; }
+                if (!doorstep && time >= ShuttleWreckUntil) { RepairOccupantId = -1; repairDoorstepUntil = -1; }   // K256e: a shot down shuttle's wreck on the deck holds the bay for ZWorld.ShuttleDeckWreckSec
                 return;
             }
             if (!RepairingUnit || time + 1e-9 < repairNextTick) return;

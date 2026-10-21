@@ -89,7 +89,7 @@ namespace OpenZ
 
         public static BlastSpec ForMissile(ZObject attacker, bool grenade, bool debris, int radiusPx)
         {
-            if (grenade) return Grenade;
+            if (grenade) return OzGrenadeBlast.For(radiusPx);                                               // KC2: a thrown grenade is drawn by its real radius (OzGrenadeBlast.cs); the Grenade row stays the size of a burst crate's grenades
             if (debris && attacker != null && attacker.Type == "grenades") return Grenade;
             if (debris && attacker != null && (attacker.Kind == ZKind.Vehicle || attacker.Kind == ZKind.Cannon)) return TurretLand;
             if (debris)
@@ -157,16 +157,17 @@ namespace OpenZ
         /// <summary></summary>
         public static void MissileBlast(ZEvent e, ZObject attacker, ZObject target, Vector3 at, FxManager fx, CombatAudio au)
         {
-            var d = ForMissile(attacker, e.flag, e.flag2, e.radius);
+            var d = e.driver ? Bazooka : ForMissile(attacker, e.flag, e.flag2, e.radius);         // DV87: a Tough hatch driver's rocket bursts as a bazooka rocket, not as the tank's shell
+            if (OzAirShots.AirBlast(e, attacker, target, at, d)) return;                               // K337: a miss at the flying shuttle: its small air burst up there, nothing on the ground
             int bid = e.objId * 7919 + e.x * 31 + e.y;
-            if (d.label == TurretLand.label) { TurretLanding(at, d, bid, fx, au); return; }
+            if (d.label == TurretLand.label) { TurretLanding(OzRockSolid.TurretBlastAt(e.objId, at), d, bid, fx, au); return; }   // items 331 + 332: on the moved turret
             var xk = Exp2ForMissile(e, attacker, target, d, at, bid, out float xU);
-            if (xk != Exp2Kind.None && Live(out var xz)) { FxManager.RaiseExploded(at, d.s / OpenZFxCatalog.LegacyToM12); xz.Exp2(at + Vector3.up * 0.2f, xU, xk, bid, d.s, d.kind, false, xk == Exp2Kind.Medium); }
+            if (xk != Exp2Kind.None && !OzShuttleAim.AirBurst(target) && Live(out var xz)) { FxManager.RaiseExploded(at, d.s / OpenZFxCatalog.LegacyToM12); xz.Exp2(at + Vector3.up * 0.2f, xU, xk, bid, d.s, d.kind, false, xk == Exp2Kind.Medium); }   // K256e: at the flying shuttle the gated blast below (no exp2 ground light or rings)
             else DoBlast(at + Vector3.up * 0.2f, d, bid, fx);
             if (d.label == MlrsRocket.label && Random.value < OpenZFxCatalog.ShakeMlrsChance) OpenZFxShake.I?.Kick(at, OpenZFxCatalog.ShakeMlrsPx, "mlrs");   // an MLRS salvo landing in view kicks the camera now and then
             Sound(d, at, au, OzSoundV3.BlastEmitter(e));                                            // sound_v3: every blast its own slot (volleys lost 2nd+ blasts)
             OzSoundV3.OnMissileBlast(e, target, at);                                                // sound_v3: masonry on buildings
-            if (!e.flag && !e.flag2 && TypeOf(attacker) == "howitzer") OpenZHeavyShells.Impact(at, attacker != null && attacker.IsFort);   // nuke_fx_v3: crater, debris, shake by distance
+            if (!e.flag && !e.flag2 && TypeOf(attacker) == "howitzer" && !OzShuttleAim.AirBurst(target)) OpenZHeavyShells.Impact(at, attacker != null && attacker.IsFort);   // nuke_fx_v3: crater, debris, shake by distance
             if (au && !e.flag && !e.flag2 && target != null && (target.Kind == ZKind.Vehicle || target.Kind == ZKind.Cannon) &&
                 (d.kind == FxBlastKind.Rocket) && Mathf.Abs(target.CenterX - e.x) <= e.radius && Mathf.Abs(target.CenterY - e.y) <= e.radius)
                 au.PlayPitched("rocket_armor", at, GainRocketArmor, 0.15f, target.Id, 1f, BankRocketArmor);
@@ -174,10 +175,9 @@ namespace OpenZ
 
         static void TurretLanding(Vector3 at, BlastSpec d, int bid, FxManager fx, CombatAudio au)
         {
-            if (OpenZFxPlayer.IsWaterTile(at))
-            {   // into the river / canal: a splash, no fireball, no scorch
-                if (Live(out var w)) { w.Splash(at, 1.3f); w.Droplets(at + Vector3.up * 0.2f, 1.1f, 14); w.Ripple(at, 0.9f); }
-                if (au) au.PlayPitched("turret_splash", at, 0.75f, 0.05f, -1, 1f, "sd_debris_splash_a", "sd_debris_splash_b");
+            if (OzWaterLanding.OpenWaterAt(at, out _))
+            {   // b27: into the river / the canal / a pool: no fireball, no scorch. The splash, the rings and the sound are made once, by the
+                // turret itself as it comes down (UnitView.UpdateToss -> OzWaterLanding); open water = the drawn water, not the map's water tiles
                 TurretLandSplashes++; return;
             }
             if (Live(out var z)) { FxManager.RaiseExploded(at, d.s / OpenZFxCatalog.LegacyToM12); z.Exp2(at + Vector3.up * 0.2f, 3f, Exp2Kind.Small, bid, d.s, d.kind, false, false); z.Dust(at, 0.9f); }
@@ -216,7 +216,7 @@ namespace OpenZ
         {
             U = 0f;
             if (e.flag || e.flag2 || attacker == null) return Exp2Kind.None;
-            string t = TypeOf(attacker);
+            string t = e.driver ? "tough" : TypeOf(attacker);                                      // DV87: a hatch driver's rocket
             if (t == "missile_launcher" || t == "tough")
             {
                 U = t == "tough" ? 1.6f : 1.9f;
@@ -295,7 +295,7 @@ namespace OpenZ
             if (!au) return;
             switch (w)
             {
-                case FxWeapon.Bolt: au.PlayPitched("bolt", from, GainBolt, type == "grunt" ? 0.2f : 0.3f, e.objId, 1f, BankBolt); break;   // v3_bolt, rate +-3.5 %
+                case FxWeapon.Bolt: if (!OzHeroSquadView.PlayShot(e.objId, from, au)) au.PlayPitched("bolt", from, GainBolt, type == "grunt" ? 0.2f : 0.3f, e.objId, 1f, BankBolt); break;   // v3_bolt, rate +-3.5 %; DV108: a hero's own three sounds
                 case FxWeapon.Sniper: au.PlayPitched("sniper", from, GainSniper, 0f, e.objId, 0f, BankSniper); break;                    // authored rate (:1487)
                 case FxWeapon.MachineGun: au.PlayPitched("burst", from, GainDefault, 0.32f, e.objId, 1f, BankRifleBurst); break;
                 default: au.PlayPitched("rifle", from, GainDefault, 0.2f, e.objId, 1f, BankRifleSingle); break;

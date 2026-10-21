@@ -112,6 +112,7 @@ namespace OpenZ.Sim
                 foreach (var o in Objects)
                 {
                     if (o.Owner == Team.Neutral || f.Owner == o.Owner) continue;
+                    if (o.IsShuttle) continue;                                                                 // DV118: the shuttle never takes a flag (Sim/ZWorld.Shuttle.cs)
                     if (!(o.Kind == ZKind.Vehicle || o.Kind == ZKind.Robot) || o.IsFortDefender) continue;   // fort_defender_v1 DV41
                     if (!f.IntersectsObject(o)) continue;
                     AwardZone(f, o.Owner, o);
@@ -186,8 +187,10 @@ namespace OpenZ.Sim
             if (b.GetCreationMovePoint(out int ex, out int ey))
                 AddExitWaypoints(b, u, cx, cy, ex, ey);                                   // Zod: FORCE_MOVE to the exit; DV66: a taken exit -> the nearest free exit cell (ZWorld.ExitLanes.cs)
             u.CloneMinionWayPoints();
+            StrikeNoteBuilt(b, u);                                                       // DV107: the building's owner, when a computer plays it, hears of its new unit (ZBot.StrikeGroup.cs)
             Emit(ZEventType.Created, u, b); foreach (var m in u.Minions) Emit(ZEventType.Created, m, b);
             if (type != ZElectro.Type) b.BuiltCount++;                                   // DV71: the CPU's Laser mix counts a producer's built units (ZBot.LaserPick); the Electrobot is outside that rhythm
+            BotMixNoteBuilt(b, type);                                                    // DV115: the CPU's mix counts a producer's vehicles from 8:00 and its robot squads (ZBot.HeavyMix.cs)
             Emit(ZEventType.UnitBuilt, u, b, 0, 0, (float)(Time - b.BInit));              // value = elapsed build time
             return u;
         }
@@ -200,6 +203,7 @@ namespace OpenZ.Sim
             if (st.RepairDrivers.Count > 0) { u.DriverType = st.RepairDriverType; u.Drivers.Clear(); u.Drivers.AddRange(st.RepairDrivers); u.ResetDamageInfo(); }
             if (st.RepairDrivers.Count > 0) u.SetCrew(st.RepairCrew);                                    // veterancy_v1 DV12
             st.RestoreRepairPassengers(u);                                                               // apc_v1 DV15
+            st.HeroSeatsRestore(u);                                                                      // DV108: who of a hero squad sits where (Sim/ZHeroSquad.cs)
             u.SetCords(x - (u.WidthPix >> 1), y - (u.HeightPix >> 1));
             st.GetRepairEntrance(out int ex, out int ey);
             u.Waypoints.Add(new ZWaypoint { mode = WpMode.ForceMove, refId = -1, x = ex, y = ey });

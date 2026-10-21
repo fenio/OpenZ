@@ -10,7 +10,7 @@ namespace OpenZ
     // =====================================================================================================================
 
     /// <summary>OpenZ/FxAdditive `_Shape` values (see OpenZFxAdditive.shader).</summary>
-    public enum FxShape { Glow = 0, Streak = 1, Puff = 2, Fireball = 3, Band = 4, BandUV = 5, Gauss = 6, Scorch = 7, FlameMesh = 8, Tracer = 9 }
+    public enum FxShape { Glow = 0, Streak = 1, Puff = 2, Fireball = 3, Band = 4, BandUV = 5, Gauss = 6, Scorch = 7, FlameMesh = 8, Tracer = 9, Swell = 10, Foam = 11 }
 
     /// <summary>Size over normalised lifetime t (multiplies the emitted size).</summary>
     public enum FxSizeCurve
@@ -287,6 +287,18 @@ namespace OpenZ
             new FxChannelDef { name = "m12_ripple", shape = FxShape.BandUV, capacity = 256, queue = 3004, opaqueness = 1f, tint = White,
                 intensity = 1f, lit = 1f, emission = Hex("#7bc1d0"), emissionGain = 0.6f, bandInner = 0.88f, bandSides = 32f, flat = true,
                 sizeCurve = FxSizeCurve.RingGrow, alphaCurve = FxAlphaCurve.PopFade },                     // FX_ShockRing on the water, 1.35 s
+            new FxChannelDef { name = "m12_ripple_calm", shape = FxShape.BandUV, capacity = 128, queue = 3004, opaqueness = 1f, tint = White,
+                intensity = 1f, lit = 1f, emission = Hex("#7bc1d0"), emissionGain = 0.6f, bandInner = 0.88f, bandSides = 32f, flat = true,
+                sizeCurve = FxSizeCurve.RingGrow, alphaCurve = FxAlphaCurve.PopFade },                     // the same ring for quiet signs on the water: its glow follows the night (OpenZFxPlayer.RippleCalm)
+            // the soft water look (level 16, OpenZFxPlayer.SoftWater): broad swells that spread and fade, round drops, a foam patch; all lit by the hour, no glow of their own
+            new FxChannelDef { name = "l16_swell", shape = FxShape.Swell, capacity = 224, queue = 3004, opaqueness = 1f, tint = White,
+                intensity = 1.3f, lit = 1f, coreMix = 0.6f, bandInner = 0.09f, bandSides = 2.6f, flat = true,
+                sizeCurve = FxSizeCurve.RingGrow, alphaCurve = FxAlphaCurve.PopFade },
+            new FxChannelDef { name = "l16_foam", shape = FxShape.Foam, capacity = 96, queue = 3005, opaqueness = 1f, tint = White,
+                intensity = 1f, lit = 1f, flat = true, sizeCurve = FxSizeCurve.Lerp, sizeEnd = 2.3f, alphaCurve = FxAlphaCurve.PopFade },
+            new FxChannelDef { name = "l16_drop", shape = FxShape.Streak, capacity = 360, queue = 3006, opaqueness = 1f, tint = White,
+                intensity = 1f, lit = 1f, squareness = 0f, stretch = true, lengthScale = 2.4f, gravity = 9.81f, minWidth = 0.04f,
+                sizeCurve = FxSizeCurve.Constant, alphaCurve = FxAlphaCurve.PopFade },
             new FxChannelDef { name = "m12_pop", shape = FxShape.Streak, capacity = 160, queue = 3044, opaqueness = 0f, tint = White,
                 intensity = 5f, coreColor = Hex("#abd9ff"), coreMix = 0.5f, squareness = 0.75f, stretch = true, lengthScale = 0.80f / 0.07f,
                 minWidth = 0.05f, sizeCurve = FxSizeCurve.Constant, alphaCurve = FxAlphaCurve.PopFade },   // #83c4ff x5
@@ -725,8 +737,8 @@ namespace OpenZ
         public const float RippleLife = 1.35f, RippleScale = 0.75f, RippleLift = 0.09f;
         /// <summary>
         /// </summary>
-        public static Color RippleColorFor(string level) => level == "L02" ? Hex("#a9b6c6") : level == "L17" ? Hex("#9c9c80") : Hex("#82b6b9");
-        public static Color RippleEmissionFor(string level) => level == "L02" ? Hex("#8fa3b8") : level == "L17" ? Hex("#86866a") : Hex("#7bc1d0");
+        public static Color RippleColorFor(string level) => level == "L02" ? Hex("#a9b6c6") : level == "L17" ? Hex("#9c9c80") : level == "L16" ? Hex("#a59c7a") : Hex("#82b6b9");
+        public static Color RippleEmissionFor(string level) => level == "L02" ? Hex("#8fa3b8") : level == "L17" ? Hex("#86866a") : level == "L16" ? Hex("#5c573f") : Hex("#7bc1d0");
         public const float BlastWaterSplash = 1f;                                                          // blast centred on water: splash s
         /// <summary></summary>
         public const float WadeSinkFraction = 0.45f, WadeBlendTime = 0.3f, WadeMinDepth = 0.05f, WadeRampDepth = 0.35f;

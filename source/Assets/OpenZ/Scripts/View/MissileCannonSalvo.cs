@@ -65,12 +65,12 @@ namespace OpenZ
             // the twin lands beside the sim's impact, across the line of fire (side by side)
             var fwd = to - from; fwd.y = 0f; fwd = fwd.sqrMagnitude > 1e-3f ? fwd.normalized : Vector3.forward;
             var side = Vector3.Cross(Vector3.up, fwd);
-            var p2 = to + side * TwinSpread + fwd * Random.Range(-0.3f, 0.3f); p2.y = g.GroundY(p2.x, p2.z) + 0.25f;
+            var p2 = to + side * TwinSpread + fwd * Random.Range(-0.3f, 0.3f); p2.y = OzShuttleAim.SalvoEndY(to, p2, g.GroundY(p2.x, p2.z) + 0.25f);
             int id = (a.Id * 7919 + k * 131 + 23) & 0x3fffffff;
             if (av && !av.Dying) s.launches.Add(new Pending { at = Time.time + TwinGap / speed, flight = flight, shooter = a.Id, row = k % 2, to = p2, id = id });
             else s.landings.Add(new Landing { at = Time.time + OpenZFxPlayer.RealFlight(flight, g.gameSpeed) + TwinGap / speed, pos = p2, shooter = a.Id, id = id, scale = 1f });
             // the third, smaller burst between the two impacts, a beat after both
-            var p3 = to + side * (TwinSpread * 0.5f) + fwd * Random.Range(0.4f, 0.9f); p3.y = g.GroundY(p3.x, p3.z) + 0.25f;
+            var p3 = to + side * (TwinSpread * 0.5f) + fwd * Random.Range(0.4f, 0.9f); p3.y = OzShuttleAim.SalvoEndY(to, p3, g.GroundY(p3.x, p3.z) + 0.25f);
             s.landings.Add(new Landing { at = Time.time + OpenZFxPlayer.RealFlight(flight, g.gameSpeed) + Random.Range(0.14f, 0.22f) / speed, pos = p3, shooter = a.Id, id = id ^ 0x5bd1, scale = 0.8f });
         }
 
@@ -112,6 +112,7 @@ namespace OpenZ
 
         void Land(Landing l)
         {
+            if (OzAirShots.SkipLanding(l.shooter, l.pos)) { Blasts++; return; }                      // K337: it burst up there with its round already (View/OzAirShots.cs)
             var d = LegacyMatch.MissileCannonSmall;
             var at = l.pos + Vector3.up * 0.2f;
             var z = OpenZFxPlayer.I;

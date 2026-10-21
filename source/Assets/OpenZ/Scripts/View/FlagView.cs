@@ -25,7 +25,7 @@ namespace OpenZ
     /// View side only: polls the sim every frame (no events consumed, nothing written). No per-frame allocations.
     /// </summary>
     [DefaultExecutionOrder(120)]   // after ZGame (-50, sim tick), ZoneMarkers (0) and CombatView (50): same-frame reaction
-    public class FlagView : MonoBehaviour
+    public partial class FlagView : MonoBehaviour
     {
         int fortSeen;
         // ================================================================== public hooks
@@ -636,7 +636,7 @@ namespace OpenZ
                 pending.RemoveAt(i--);
                 if (p.kind == KindBuilding)
                 {
-                    Fxm()?.AddLight(p.pos + Vector3.up * 3.5f, LightColor(p.team), 9f, 13f, 0.9f, 0.1f, true);
+                    BuildingCaptureFlash(p.pos + Vector3.up * 3.5f, p.team);                                // the same light, shared with the shuttle's capture (FlagView.CaptureFlash.cs)
                     RaiseSound(SndBuilding, p.pos, false, 0.7f, p.team, p.old, p.objId, null);
                 }
                 else Voice(p.id, p.team, p.old, p.objId, now);

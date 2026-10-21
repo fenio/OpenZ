@@ -201,6 +201,7 @@ namespace OpenZ
             // the landing: a dull burlap thud on the contact frame (AudioImpactRelay: volume from the impact speed, per-body and
             // per-event budgets), a plop when it lands in water
             AudioDirector.AttachImpacts(go, ThudId, AudioDirector.Has("wtr_debris_plop") ? "wtr_debris_plop" : "dst_debris_splash");
+            OzWaterLanding.Watch(t, "sandbag", rb);                                             // b27: the shared water landing rule (the relay above stays silent for a bag the rule holds)
             chunks.Add(new Chunk { t = t, rb = rb, born = Time.time, die = Time.time + Random.Range(chunkLife.x, chunkLife.y) });
         }
 
@@ -220,7 +221,7 @@ namespace OpenZ
             if (!c.t) return false;
             var p = c.t.position;
             bool ground = false;
-            int mask = ~(1 << BuildingBreaker.DebrisLayer);
+            int mask = ~(1 << BuildingBreaker.DebrisLayer) & ~OzRockSolid.Mask;
             if (Physics.Raycast(p + Vector3.up * 0.5f, Vector3.down, out var h, 1.6f, mask, QueryTriggerInteraction.Ignore))
                 for (var q = h.collider.transform; q; q = q.parent) { if (q.name == "COL_Terrain" || q.name == "Environment") { ground = true; break; } if (q.name == "ZodObjects") break; }
             bool walk = true;

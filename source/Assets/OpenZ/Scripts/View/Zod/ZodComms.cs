@@ -37,7 +37,14 @@ namespace OpenZ
         };
         /// <summary>In game (idle barb): compact, left side between the stored-cannon plates (bottom 164 u, 205 u at UI scale 125 %)
         /// and the factory list (top 698 u, 602 u at 125 %). The windows keep the reference layout whatever the HUD scale.</summary>
-        public static ZodLayout InGame() => new ZodLayout
+        public static ZodLayout InGame()
+        {   // ARRANGE INTERFACE: the player may have put the transmission window elsewhere (OzHudLayout, group Comms); never moved = the standard place
+            var l = InGameDefault(); var at = OzHudLayout.CommsPlace(l.x, l.y, l.W * l.scale, l.H * l.scale);
+            l.x = at.x; l.y = at.y;
+            return l;
+        }
+        /// <summary>The in-game window at its standard place (ARRANGE INTERFACE reads the place and the size from here).</summary>
+        public static ZodLayout InGameDefault() => new ZodLayout
         {
             anchor = OzAnchor.TL, x = 16f, y = 212f, scale = 1f, wellW = 280f, wellH = 210f, sub = ZodSubMode.Below,
             sorting = 102, slide = -1, eyebrow = "COMMS · HQ", channel = "CH 01"
@@ -50,8 +57,8 @@ namespace OpenZ
             float free = (cw - OzLayout.EndChartW) * 0.5f - 36f;                                           // gutter left of the stat row / chart
             if (free < l.W && free >= l.W * 0.7f) l.scale = free / l.W;
             else if (free < l.W * 0.7f)
-            {   // 4:3 and narrower: under the chart (bottom y 786) and left of the buttons (x from CW / 2 - 330)
-                float roomW = cw * 0.5f - 330f - 40f, roomH = OzLayout.RefH - 20f - (OzLayout.EndChartY + OzLayout.EndChartH + 14f);
+            {   // 4:3 and narrower: under the score strip (bottom y 864; the chart above it ends at 786) and left of the buttons (x from CW / 2 - 330): room 182 u, scale 0.52
+                float roomW = cw * 0.5f - 330f - 40f, roomH = OzLayout.RefH - 20f - (OzLayout.EndScoreY + OzLayout.EndScoreH + 14f);
                 l.scale = Mathf.Clamp(Mathf.Min(roomW / l.W, roomH / l.H), 0.5f, 1f);
             }
             l.x = 20f; l.y = OzLayout.RefH - 20f - l.H * l.scale;
@@ -98,14 +105,26 @@ namespace OpenZ
         RectTransform lbTop, lbBottom, lbProgress; CanvasGroup lbCg; OzText lbLeft, lbLeft2, lbCue, lbSpeaker; RectTransform lbSkip;
         // briefing's joke every plate this mission reads GENERAL ZOD and every speaker label GEN ZOD (reset on each level load)
         public static bool General;
-        public static string SpeakerName => General ? "GEN ZOD" : "CMDR ZOD";
+        /// <summary>level 16: who holds the transmission instead of the commander (null = he does). Set before the window opens.</summary>
+        public static string Host;
+        public static string SpeakerName => !string.IsNullOrEmpty(Host) ? Host : General ? "GEN ZOD" : "CMDR ZOD";
         OzText nameLabel; Vector2 namePos;
         public RectTransform Window => win;
         public OzText NameLabel => nameLabel;
         /// <summary>Caps centre-left of the "COMMANDER ZOD" plate, in the window's top-left units.</summary>
         public Vector2 NamePos => namePos;
-        public void ApplyRank() { subSpeaker?.Set(SpeakerName); lbSpeaker?.Set(SpeakerName); }
+        public void ApplyRank() { subSpeaker?.Set(SpeakerName); lbSpeaker?.Set(SpeakerName); if (unitLabel != null && unitLabel.graphic) unitLabel.graphic.enabled = string.IsNullOrEmpty(Host); }
+        OzText unitLabel;                                                                                // the plate's right half (the commander's unit): not shown while somebody else holds the window
         bool lbOn; float lbAt = -100f, progress;
+        /// <summary>level 16 endings: the bars draw the subtitle themselves, whatever layout the last transmission window had (after an
+        /// in-game transmission that layout has its own subtitle place and the bars' text was never drawn). Set it after
+        /// Letterbox(true, ...); it falls back to false by itself when the bars have slid out after Letterbox(false).</summary>
+        public bool LetterboxCue;
+        /// <summary>level 16 endings: who speaks, on the bars' speaker label (null or empty = the commander's rank name again).</summary>
+        public void LetterboxSpeaker(string name) { lbSpeaker?.Set(string.IsNullOrEmpty(name) ? SpeakerName : name); }
+        /// <summary>Play checks: the text and the speaker label of the lower bar as they stand now.</summary>
+        public string LetterboxCueText => lbCue != null ? lbCue.text : "";
+        public string LetterboxSpeakerText => lbSpeaker != null ? lbSpeaker.text : "";
 
         public ZodComms(Transform owner)
         {
@@ -171,7 +190,7 @@ namespace OpenZ
         void Rebuild()
         {
             if (win) Object.Destroy(win.gameObject);
-            vu.Clear(); nameLabel = null;
+            vu.Clear(); nameLabel = null; unitLabel = null;
             float W = lay.W, H = lay.H;
             win = Hud.Node("ZodWindow", canvasRt).Place(new OzRect(lay.anchor, lay.x, lay.y, W, H));
             win.localScale = Vector3.one * lay.scale;
@@ -224,9 +243,10 @@ namespace OpenZ
             float y = wy + lay.wellH + ZodLayout.Gap;
             if (lay.footer)
             {
-                nameLabel = Hud.Label(win, "Name", General ? "GENERAL ZOD" : "COMMANDER ZOD", 13, OzUi.Ink, 0.1f).At(ZodLayout.Pad + 2, y + 11, OzH.L, true, 220);
+                nameLabel = Hud.Label(win, "Name", !string.IsNullOrEmpty(Host) ? Host : General ? "GENERAL ZOD" : "COMMANDER ZOD", 13, OzUi.Ink, 0.1f).At(ZodLayout.Pad + 2, y + 11, OzH.L, true, 220);
                 namePos = new Vector2(ZodLayout.Pad + 2, y + 11);
-                Hud.Label(win, "Unit", "HIGH COMMAND · " + TeamColors.Name(Team.Red) + " FORCE", 8, OzUi.Muted, 0.24f, OzStyle.Plain).At(W - ZodLayout.Pad - 2, y + 11, OzH.R, true, 200);
+                unitLabel = Hud.Label(win, "Unit", "HIGH COMMAND · " + TeamColors.Name(Team.Red) + " FORCE", 8, OzUi.Muted, 0.24f, OzStyle.Plain).At(W - ZodLayout.Pad - 2, y + 11, OzH.R, true, 200);
+                if (unitLabel != null && unitLabel.graphic) unitLabel.graphic.enabled = string.IsNullOrEmpty(Host);   // the plate of the two robots reads their names only
                 y += ZodLayout.FooterH + ZodLayout.Gap;
             }
             subSpeaker = subBody = null;
@@ -525,8 +545,16 @@ namespace OpenZ
             lbTop.anchoredPosition = new Vector2(0, LbTopH * (1f - v));
             lbBottom.anchoredPosition = new Vector2(0, -LbBottomH * (1f - v));
             lbProgress.sizeDelta = new Vector2(CanvasWidth * progress, 2f);
+            {   // level 16 endings (the bars' own switch is on): an EMPTY top bar: no briefing title, no skip hint, no progress line
+                bool labels = !LetterboxCue;
+                if (lbLeft != null) lbLeft.SetActive(labels); if (lbLeft2 != null) lbLeft2.SetActive(labels);
+                var sepT = lbTop.Find("Sep"); if (sepT && sepT.gameObject.activeSelf != labels) sepT.gameObject.SetActive(labels);
+                if (lbSkip && lbSkip.gameObject.activeSelf != labels) lbSkip.gameObject.SetActive(labels);
+                if (lbProgress && lbProgress.gameObject.activeSelf != labels) lbProgress.gameObject.SetActive(labels);
+            }
             lbTop.gameObject.SetActive(lbOn || k < 1f); lbBottom.gameObject.SetActive(lbOn || k < 1f);
-            if (lay.sub == ZodSubMode.None) TickCue(now, lbCue, lbSpeaker, true);
+            if (lay.sub == ZodSubMode.None || LetterboxCue) TickCue(now, lbCue, lbSpeaker, true);   // level 16 endings: the bars' own switch
+            if (LetterboxCue && !lbOn && k >= 1f) LetterboxCue = false;                               // the bars have slid out: the old rule again
         }
     }
 }

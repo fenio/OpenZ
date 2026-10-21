@@ -21,6 +21,7 @@ namespace OpenZ.Sim
         public void OnOrder(ZObject o)
         {
             GroupOrderReset(o);                                                            // DV44: a new order: the old group's rules no longer apply (ZCommit.Settle.cs)
+            PassReset(o);                                                                  // DV105: nor the last order's passing state (ZOvertake.cs)
             if (!Enabled || o.Waypoints.Count != 1 || !o.CanMove) return;
             var wp = o.Waypoints[0];
             if (wp.mode != WpMode.Move || !o.CanMove) return;
@@ -48,7 +49,7 @@ namespace OpenZ.Sim
                     if (Separable(oj) && oj.Waypoints.Count == 1 && oj.Waypoints[0].mode == WpMode.Move && oj.Waypoints[0].x == px && oj.Waypoints[0].y == py)
                         group.Add(oj);
                 }
-                if (group.Count >= 2) SpreadGroup(group, px, py);
+                if (group.Count >= 2) { SpreadGroup(group, px, py); ContactOrder(group, px, py); }   // DV105: a group order with an enemy near the clicked point: today's rules for all of it (ZOvertake.cs)
             }
             pendingOrders.Clear();
         }
@@ -65,24 +66,37 @@ namespace OpenZ.Sim
             });
             var taken = new List<(int x, int y, int r)>();
             var cands = new Dictionary<(bool robot, bool nr, int comp), List<(int x, int y, long d)>>();
+            var inWay = new Dictionary<(bool robot, bool nr, int comp), int[]>();              // (per spot: the taken spot last found in its way, tried first; -1 none yet)
             foreach (var u in group)
             {
                 bool robot = u.IsRobot, nr = NoRocks(u);
                 int comp = Reach.UnitComp(u, nr);
                 if (comp < 0) continue;
-                if (!cands.TryGetValue((robot, nr, comp), out var list)) cands[(robot, nr, comp)] = list = Candidates(px, py, robot, nr, comp);
+                if (!cands.TryGetValue((robot, nr, comp), out var list))
+                {
+                    cands[(robot, nr, comp)] = list = Candidates(px, py, robot, nr, comp);
+                    var wl = new int[list.Count]; for (int k = 0; k < wl.Length; k++) wl[k] = -1;
+                    inWay[(robot, nr, comp)] = wl;
+                }
+                var way = inWay[(robot, nr, comp)];
                 int r = SlotRadius(u);
                 long ringLimit = -1; int best = -1; long bestD = long.MaxValue;
                 for (int k = 0; k < list.Count; k++)
                 {
                     var (cx, cy, d) = list[k];
                     if (ringLimit >= 0 && d > ringLimit) break;
-                    bool free = true;
-                    foreach (var t in taken)
-                        if ((long)(t.x - cx) * (t.x - cx) + (long)(t.y - cy) * (t.y - cy) < (long)(t.r + r) * (t.r + r)) { free = false; break; }
+                    long du = (long)(u.CenterX - cx) * (u.CenterX - cx) + (long)(u.CenterY - cy) * (u.CenterY - cy);
+                    if (ringLimit >= 0 && du >= bestD) continue;                              // (the ring is set and this spot is no nearer the unit than the best free one: taken or free, it changes nothing)
+                    bool free = true; int wi = way[k];
+                    if (wi >= 0 && (long)(taken[wi].x - cx) * (taken[wi].x - cx) + (long)(taken[wi].y - cy) * (taken[wi].y - cy) < (long)(taken[wi].r + r) * (taken[wi].r + r)) free = false;   // (the one found in its way before still is)
+                    else
+                        for (int j = 0; j < taken.Count; j++)
+                        {
+                            var t = taken[j];
+                            if ((long)(t.x - cx) * (t.x - cx) + (long)(t.y - cy) * (t.y - cy) < (long)(t.r + r) * (t.r + r)) { free = false; way[k] = j; break; }
+                        }
                     if (!free) continue;
                     if (ringLimit < 0) { double rd = Math.Sqrt(d) + 40; ringLimit = (long)(rd * rd); }   // innermost free ring + 2.5 tiles
-                    long du = (long)(u.CenterX - cx) * (u.CenterX - cx) + (long)(u.CenterY - cy) * (u.CenterY - cy);
                     if (du < bestD) { bestD = du; best = k; }
                 }
                 if (best < 0) continue;

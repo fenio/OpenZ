@@ -66,13 +66,13 @@ namespace OpenZ.Sim
             {
                 var r = yieldAhead[i];
                 if (r == a || r.Kind != ZKind.Robot || r.Owner != a.Owner || !Separable(r) || Static(r) || !r.CanMove) continue;
-                if (r.PathInBuildingStage || r.FortRushOn || r.PathMode == WpMode.ForceMove || r.PathMode == WpMode.Dodge || r.PathMode == WpMode.Enter) continue;
+                if (r.PathInBuildingStage || r.FortRushOn || r.FortRunOn || r.PathMode == WpMode.ForceMove || r.PathMode == WpMode.Dodge || r.PathMode == WpMode.Enter) continue;
                 double rx = CX(r) - cx, ry = CY(r) - cy, along = rx * hx + ry * hy, off = Math.Abs(rx * hy - ry * hx);
                 if (along <= 0 || along > len || off >= GateSpacing(a, r) + 2) continue;      // not in the strip ahead
                 if (Walking(r) && r.Dx * hx + r.Dy * hy >= speed) continue;                   // walks ahead at least as fast: never caught up
                 if (InNarrowArea(r)) continue;
                 if (r.Waypoints.Count > 0 && r.Waypoints[0].refId == RefStepAside) { r.PS.vehicleYieldUntil = W.Time + YieldSeconds; continue; }   // stepping aside anyway: it runs
-                if (W.Time < r.PS.nextShove) continue;                                         // asked a moment ago
+                if (W.Time < r.PS.nextShove || CalmYieldRest(a, r)) continue;                  // asked a moment ago; b49: a robot on an order rests between two step-asides (ZCalm.cs)
                 int before = r.PS.Shoves;
                 if (r.Waypoints.Count == 0) TryShove(a, r, hx, hy); else MakeWay(a, r, hx, hy);
                 if (r.PS.Shoves == before) continue;                                           // no free spot: the vehicle drives through (PassesOwn)

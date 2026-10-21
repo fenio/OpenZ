@@ -15,9 +15,9 @@ namespace OpenZ
     /// (300 px/s = 37.5 m/s x game speed, eflame.cpp:10), spread to a 1.77 m end radius, grow 3.45x and burn from yellow to
     /// red (OpenZPyroFlamePool + OpenZ/PyroFlame, HDR additive: blooms day and night). The stream ends on the target like Zod's
     /// EFlame (the sim hits the target only), with a short splash past it.</item>
-    /// <item><b>Sticky fire</b>: the stream's arrival sets its target burning (5 s; a 12.5 s structure time is
-    /// kept for completeness, but in Zod and in the OpenZ sim a Pyro never flames a building or map item: they are explosive-only
-    /// targets, rpyro.cpp:149 / ZObject.CanAttackObject, so in play robots, vehicles and cannons burn):
+    /// <item>
+    /// used when a Pyro flames a building or a bridge: in Zod never (explosive-only targets, rpyro.cpp:149 / ZObject.CanAttackObject),
+    /// in OpenZ on the player's Ctrl order (DV113, Sim/ZObject.PyroForceBurn.cs); map items never; else robots, vehicles and cannons burn):
     /// every .08 s soft blurred licks spawn on the target's surface facing the camera and ride its bones / hull
     /// (OpenZPyroBurnSurface); a flickering light 8 x (.8 + .2 sin 9t); the paint chars +.055 per hit up to .48 (TeamPaint.Charred,
     /// only units / buildings that have a TeamPaint). Visual only: Zod's pyro deals no burn damage (rpyro.cpp, zobject.cpp).</item>
@@ -159,6 +159,18 @@ namespace OpenZ
             }
             if (!I || !I.ready || !I.isActiveAndEnabled) return false;
             I.Cue(e, a, t, av, from, to);
+            return true;
+        }
+
+        /// <summary>DV87 (BoardingView.DriverFire.cs): one flame shot of a Pyro who drives a tank, fired from its open hatch (the sim's
+        /// DriverShot, Sim/ZObject.DriverFire.cs). The same jet as on foot with its sticky fire, burning ground, lights and sounds,
+        /// keyed by the vehicle: it starts at the hatch figure's muzzle (BoardingView.DriverMuzzleNow, read every frame after
+        /// WeaponHold) and ends when he drops back in. False = not handled (disabled / assets missing): the caller draws the
+        /// simple flame.</summary>
+        public static bool HatchShot(ZEvent e, ZObject vehicle, ZObject t, Vector3 from, Vector3 to)
+        {
+            if (!Shot(e, vehicle, t, null, from, to)) return false;
+            if (I.jets.TryGetValue(vehicle.Id, out var j)) j.hatch = true;
             return true;
         }
 
@@ -308,6 +320,7 @@ namespace OpenZ
         sealed class Jet
         {
             public int id; public UnitView shooter; public ZObject target; public int targetId;
+            public bool hatch;                                                             // DV87: the jet of a Pyro who drives a tank, from its open hatch (HatchShot): no shooter view, it starts at BoardingView.DriverMuzzleNow
             public Transform follow; public Vector3 toLocal, toWorld; public bool hit;
             public float lastCue, endAt, acc, lastGround, phase;
             public bool loopOn, audible, fallbackAudio; public string loopKey;
@@ -347,6 +360,7 @@ namespace OpenZ
                 var tp = tv ? tv.transform.position : game ? game.CenterWorld(t) : to; tp.y = 0f; var f0 = from; f0.y = 0f;
                 float tgt = Vector3.Distance(f0, tp), along = Mathf.Clamp(h.magnitude + 0.8f, Mathf.Max(0.5f, tgt - 1.5f), Mathf.Min(Range, tgt + 0.8f));
                 var g = from + hn * along; g.y = G(g.x, g.z) + 0.15f;
+                if (OzShuttleAim.Air(t)) g = OzShuttleAim.FlameMiss(from, t, Range);               // DV118: a miss at the flying shuttle goes up past its side
                 j.toWorld = g;
             }
             if (fresh) { j.acc = 0f; j.at = from; j.aimSet = false; StartJetSound(j, from); }
@@ -368,9 +382,10 @@ namespace OpenZ
             foreach (var id in jetKeys)
             {
                 var j = jets[id];
-                bool shooterOk = j.shooter && j.shooter.isActiveAndEnabled && !j.shooter.Dying;
+                Vector3 hatchMuzzle = default;                                                 // DV87: a hatch driver's jet lives while his figure is up and starts at its muzzle
+                bool shooterOk = j.hatch ? BoardingView.DriverMuzzleNow(j.id, out hatchMuzzle) : j.shooter && j.shooter.isActiveAndEnabled && !j.shooter.Dying;
                 if (now >= j.endAt || !shooterOk) { EndJet(j); jets.Remove(id); continue; }
-                j.at = j.shooter.MuzzlePos();                                                  // after WeaponHold (order 80)
+                j.at = j.hatch ? hatchMuzzle : j.shooter.MuzzlePos();                          // after WeaponHold (order 80)
                 if (j.follow) j.toWorld = JetEnd(j);
                 // kept relative to the target's root, so it never lags a moving target; a new target (or a root that vanished) keeps
                 // the end where it was and sweeps from there, like a hose.
@@ -453,7 +468,7 @@ namespace OpenZ
             var t = p.target;
             if (!p.hit || t == null)
             {   // a miss lands on the ground
-                if (groundFire) IgniteGround(new Vector3(p.point.x, G(p.point.x, p.point.z), p.point.z), 1.3f + Rand() * 0.3f, now);
+                if (groundFire && !OzShuttleAim.Air(t)) IgniteGround(new Vector3(p.point.x, G(p.point.x, p.point.z), p.point.z), 1.3f + Rand() * 0.3f, now);
                 return;
             }
             UnitView tv = null; GameObject go = null;
@@ -461,7 +476,7 @@ namespace OpenZ
             else if (game.StaticViews.TryGetValue(t.Id, out var sgo) && sgo) go = sgo;
             bool structure = t.Kind == ZKind.Building || t.Kind == ZKind.MapItem || (tv == null && go != null);
             if (go && go.activeInHierarchy && stickyFire) IgniteThing(t, tv, go, structure, p.point, now);
-            if (!groundFire || j == null) return;
+            if (!groundFire || j == null || OzShuttleAim.Air(t)) return;                               // DV118: nothing spills to the ground under the flying shuttle (the rules light none, ZWorld.GroundFire.cs)
             // the stream spills onto the ground around what it hits (feet of a robot, the base of a vehicle / building)
             float gap = t.Kind == ZKind.Robot ? 0.9f : structure ? 1.6f : 1.4f;
             if (now - j.lastGround < gap) return;
@@ -908,7 +923,7 @@ namespace OpenZ
                 if (j.loopOn && !ad.LoopActive(j.loopKey)) j.loopOn = false;
                 if (!j.loopOn)
                 {
-                    int ok = ad.StartLoop(j.loopKey, "wpn_pyro_flame_loop", j.at, j.shooter ? j.shooter.transform : null, loopVol * norm, 1f);
+                    int ok = ad.StartLoop(j.loopKey, "wpn_pyro_flame_loop", j.at, j.shooter ? j.shooter.transform : j.hatch && ZGame.I && ZGame.I.Views.TryGetValue(j.id, out var hatchView) && hatchView ? hatchView.transform : null, loopVol * norm, 1f);   // DV87: a hatch driver's flame loop rides his tank
                     if (ok > 0) { j.loopOn = true; LoopsStarted++; OzSoundLog.Add("PY", "wpn_pyro_flame_loop", "flame_loop", "PLAY loop " + j.loopKey, loopVol * norm, j.at); }
                     else { j.fallbackAudio = true; OzSoundLog.Add("PY", "wpn_pyro_flame_loop", null, "DROP loop (no clips: AudioDirector patch missing?) -> CombatAudio one-shots", 0f, j.at); }
                 }

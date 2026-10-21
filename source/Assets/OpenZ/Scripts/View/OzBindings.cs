@@ -12,9 +12,9 @@ namespace OpenZ
     public enum OzAction
     {
         NextRobot, NextVehicle, NextGun, AllRobots, AllVehicles, AllCannons, AllUnits, NearestOnly,
-        ScrollUp, ScrollDown, ScrollLeft, ScrollRight, FactoryList, PlaceCannon, ExitCrew, LastMessage, HideHud,
+        ScrollUp, ScrollDown, ScrollLeft, ScrollRight, FactoryList, PlaceCannon, ExitCrew, LastMessage, HideHud, MinimalUi,
         RepairVehicles,
-        Patrol, StopUnits, HoldPosition, HelpOverlay,
+        Patrol, StopUnits, HoldPosition, HelpOverlay, ArrangeHud,
     }
 
     /// <summary>
@@ -56,11 +56,13 @@ namespace OpenZ
             D(OzAction.ExitCrew, "Exit crew (gun / APC)", UiSection, Key.E),
             D(OzAction.LastMessage, "Go to the last 5 messages", UiSection, Key.Space),
             D(OzAction.HideHud, "Hide the HUD", UiSection, Key.F10),
+            D(OzAction.MinimalUi, "Minimal UI (hide / show the panels)", UiSection, Key.U),   // the OPTIONS switch MINIMAL UI from the keyboard (OpenZHud.MinimalKey.cs); U is on no other action, fixed key or debug key
             D(OzAction.RepairVehicles, "Send damaged vehicles to repair and back", OrderSection, Key.R),   // shares R with NEXT ROBOT: repair wins while a damaged vehicle is selected
             D(OzAction.Patrol, "Patrol (then right-click the far end)", OrderSection, Key.Q),
             D(OzAction.StopUnits, "Stop", OrderSection, Key.X),
             D(OzAction.HoldPosition, "Hold position (fire, never chase)", OrderSection, Key.H),
             D(OzAction.HelpOverlay, "Controls help (this list)", UiSection, Key.F1),
+            D(OzAction.ArrangeHud, "Arrange the interface (drag the panels)", UiSection, Key.F2),   // OpenZHud.Arrange.cs
         };
 
         static Def D(OzAction a, string label, string section, Key k, bool ctrl = false, bool hold = false)

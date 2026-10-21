@@ -75,6 +75,7 @@ namespace OpenZ.Sim
         /// (InitPathfinding), as the harbour wrecks do.</summary>
         void DetailPropImpassables(ZObject o, bool set)
         {
+            if (treeTileIds.Contains(o.Id)) { TreeTileImpassables(o, set); return; }                 // DV88: a tree tile opens as a rock's tile does (ZWorld.TreeTiles.cs); every other prop as before
             var b = o.BlockTiles; if (b == null) return;
             for (int i = 0; i + 1 < b.Length; i += 2)
             {

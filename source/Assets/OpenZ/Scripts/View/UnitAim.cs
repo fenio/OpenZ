@@ -29,7 +29,7 @@ namespace OpenZ
     /// Runs in LateUpdate after UnitView (60) placed the unit and after the Animator wrote the pose.
     /// </summary>
     [DefaultExecutionOrder(62)]
-    public class UnitAim : MonoBehaviour
+    public partial class UnitAim : MonoBehaviour                                                    // KH2: + View/UnitAim.Hero.cs (the heroes' torso and face)
     {
         /// <summary></summary>
         public static int MlrsAxisFixed;
@@ -186,6 +186,7 @@ namespace OpenZ
                     default: if (WeaponsV2.Bs01TorsoAim && !weapon && t.name.StartsWith("BS01_Weapon_")) weapon = t; break;
                 }
             }
+            HeroSpine(ref s0, ref s1, ref s2);                                                        // KH2 (item 198): a hero's spine from his humanoid rig (View/UnitAim.Hero.cs)
             if (s0 && s1 && s2)
             {   // the torso aim is a rotation ON TOP of the animated clip pose (chestDelta), measured against the body front, so it
                 // never depends on how the prefab happened to be posed when it was saved (Z_robot's stored Hips are pitched ~44 deg)
@@ -415,7 +416,7 @@ namespace OpenZ
             bool missile = e.type == ZEventType.MissileFired, grenade = missile && e.flag;
             if (!robot && !HasRig && !(obj.Kind == ZKind.Cannon && Time.frameCount - bodyFrame <= 2)) return false;   // APC / crane: nothing to turn
             if (grenade && !robot) return false;
-            var p = missile ? GroundAt(e.x, e.y) + Vector3.up * 0.25f : t != null ? AimPointOf(t) : holdPoint;
+            var p = missile ? OzShuttleAim.AirAim(t, GroundAt(e.x, e.y) + Vector3.up * 0.25f, e.value) : t != null ? AimPointOf(t) : holdPoint;   // DV118: up to the flying shuttle
             bool ballistic = missile && !grenade;
             float T = missile ? Mathf.Max(0.05f, e.value) : 0f, g = ballistic ? ProjectileGravity(wtype, IsRocket(wtype)) : 0f;
             float flightReal = T / Speed;
@@ -541,7 +542,7 @@ namespace OpenZ
 
         Vector3 AimPointOf(ZObject t)
         {
-            if (game.Views.TryGetValue(t.Id, out var v) && v && v.isActiveAndEnabled) return v.AimPos();
+            if (game.Views.TryGetValue(t.Id, out var v) && v && v.isActiveAndEnabled) return OzShuttleAim.HitAim(t, v.AimPos());   // DV118: the flying ship's hull, not under its belly
             return game.CenterWorld(t) + Vector3.up * (t.Kind == ZKind.Building ? 1.5f : 1.0f);
         }
 
@@ -565,7 +566,7 @@ namespace OpenZ
             bool missile = obj.DamageIsMissile && !HasGrenades(obj);
             if (missile)
             {
-                p = GroundAt(t.CenterX, t.CenterY) + Vector3.up * 0.25f;
+                p = OzShuttleAim.AirAim(t, GroundAt(t.CenterX, t.CenterY) + Vector3.up * 0.25f, 0f);   // DV118: up to the flying shuttle
                 if (obj.MissileSpeed > 0)
                 {
                     float dx = t.CenterX - obj.CenterX, dy = t.CenterY - obj.CenterY;
@@ -695,8 +696,16 @@ namespace OpenZ
                     {
                         // around): solving for the NEXT muzzle made a multi-barrel turret jump by the pods' side offset on every shot. The
                         // yaw now points the muzzles' mean at the target (pitch still per barrel); a single barrel is unchanged.
-                        float acc = 0f;
-                        foreach (var mm in muzzles) acc += SignedOnPlane(MuzzleDir(mm), Desired(mm.t.position, P, ballistic, T, g), yawAxis);
+                        // K433 (item 432): with the target behind, the barrels' errors fell on both sides of +-180 and their mean was about 0:
+                        // the turret stayed turned away and fired from its back. Each error is now taken on the first barrel's side (View/UnitAim.BehindFix.cs).
+                        float acc = 0f, first = 0f;
+                        for (int k = 0; k < muzzles.Count; k++)
+                        {
+                            var mm = muzzles[k];
+                            float a = SignedOnPlane(MuzzleDir(mm), Desired(mm.t.position, P, ballistic, T, g), yawAxis);
+                            if (k == 0) first = a; else a = SameSide(a, first);
+                            acc += a;
+                        }
                         gy += acc / muzzles.Count;
                     }
                     else gy += SignedOnPlane(MuzzleDir(m), Desired(m.t.position, P, ballistic, T, g), yawAxis);
@@ -827,6 +836,7 @@ namespace OpenZ
             hasAimDir = has;
             if (has) aimDir = Desired(rMuzzle.position, P, ballistic, T, g);
             AimError = has ? Vector3.Angle(PointerDir(), Desired(PointerPos(), P, ballistic, T, g)) : 180f;
+            HeroHead(has, P, dt);                                                                     // KH2 (item 198): a hero's face turns to the target
         }
 
         /// <summary>aimInfantry torso solve (3 iterations, the spine posed while solving): gy / gp in = start, out = the solution for P.</summary>

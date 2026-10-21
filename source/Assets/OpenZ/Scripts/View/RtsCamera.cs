@@ -8,12 +8,12 @@ namespace OpenZ
     /// Pitch 55, FOV 32, north stays up, focus clamped to the map rectangle. Pan speed scales with the zoom height.
     /// </summary>
     [ExecuteAlways]
-    public class RtsCamera : MonoBehaviour
+    public partial class RtsCamera : MonoBehaviour
     {
         public Vector2 mapSizeMeters = new Vector2(144, 180);
         public float panSpeed = 25f, edgePx = 6f, pitch = 55f;
-        [Tooltip("Close tactical view height (m)")] public float minHeight = 22f;
-        [Tooltip("Full overview height (m)")] public float maxHeight = 230f;
+        [Tooltip("Close tactical view height (m)")] public float minHeight = ZoomClosest;   // 25 (was 22): set again at the start of Play, the level scenes hold the old number (RtsCamera.ZoomLimits.cs)
+        [Tooltip("Full overview height (m)")] public float maxHeight = ZoomWidest;   // 200 (was 230): set again at the start of Play (RtsCamera.ZoomLimits.cs)
         [Tooltip("Current / starting height (m)")] public float height = 70f;
         [Tooltip("Height change per wheel notch (fraction)")] public float wheelStep = 0.15f;
         [Tooltip("Zoom easing time (s)")] public float zoomSmooth = 0.18f;
@@ -45,6 +45,42 @@ namespace OpenZ
         [System.NonSerialized] public float yaw;
         [System.NonSerialized] public bool yawHeld, unclamped;
         float yawVel;
+        // Free look, testing mode only (the P overlay is shown): holding the middle mouse button turns the view round the point it
+        // looks at instead of scrolling: mouse X = heading, mouse Y = tilt. The distance to that point stays what the zoom gives, so
+        // the wheel, the keys and the screen edge (they follow the heading), fly-tos, the minimap and every click work as before.
+        // Released = the view stays. Testing mode off, or the ending takes the camera = back to the fixed view in FreeBackSeconds.
+        // Never used = freeTilt 0 and yaw 0: the fixed view, placed by the same lines as before.
+        /// <summary>Free look: degrees turned per pixel of mouse travel (0.15: 1200 px = half a turn); the lowest and the steepest tilt
+        /// (deg below the horizon). The lowest stays well over half the field of view (16): the top screen row always meets the ground
+        /// inside the far plane (not under 22 whatever is set here) and the sky is never in view. The steepest stays short of
+        /// straight down (89 at most).</summary>
+        public static float FreeLookSpeed = 0.15f, FreeTiltMin = 25f, FreeTiltMax = 89f;
+        /// <summary>Free look: seconds back to the fixed view; the lowest camera height (m) inside the map (over every building); the
+        /// distance from the map border (m) inside which that height rises to the fixed view's closest height (the scenery outside the
+        /// map has no colliders, and that height clears it in the fixed view); metres kept over the terrain under the camera.</summary>
+        public const float FreeBackSeconds = 0.6f, FreeFloor = 14f, FreeEdgeBlend = 10f, FreeClear = 3f;
+        float freeTilt, freeBack = -1f, freeYaw0, freeTilt0; bool freeHold;
+        /// <summary>The free look holds the view (turned or tilted), or the view is on its way back to the fixed one.</summary>
+        public bool FreeLook => freeHold || freeBack >= 0f;
+        /// <summary>The tilt asked for now (deg below the horizon): pitch outside the free look.</summary>
+        public float Tilt => pitch + freeTilt;
+        bool Testing => (OzCheatSpawner.Visible || OzFreeCam.On) && !InputLocked;                    // the testing overlay (P) or the FREE CAMERA option (OzFreeCam.cs)
+        /// <summary>Free look: turn (x) and tilt (y) by a mouse travel in pixels: right = turn right, up = look up. Refused (false) unless
+        /// the testing overlay is shown; refused too while the ending or a script holds the view.</summary>
+        public bool FreeTurn(Vector2 px)
+        {
+            if (!Application.isPlaying || !Testing || yawHeld) return false;
+            freeHold = true; freeBack = -1f;
+            yaw = Mathf.DeltaAngle(0f, yaw + px.x * FreeLookSpeed);
+            freeTilt = Mathf.Clamp(pitch + freeTilt - px.y * FreeLookSpeed, Mathf.Max(22f, FreeTiltMin), Mathf.Min(89f, FreeTiltMax)) - pitch;
+            return true;
+        }
+        /// <summary>Free look off at once, no easing (another camera takes over, or a check wants the fixed view).</summary>
+        public void FreeLookOff()
+        {
+            if (FreeLook && !yawHeld) { yaw = 0f; yawVel = 0f; }
+            freeHold = false; freeBack = -1f; freeTilt = 0f;
+        }
         bool flying; Vector3 flyTarget;
         float shake;
         /// <summary>The shake's offset inside the camera position of the last Place() (zero while it does not shake). The motion blur
@@ -108,6 +144,7 @@ namespace OpenZ
                 if ((kb != null && kb.anyKey.isPressed) || (mouse != null && Mathf.Abs(mouse.scroll.ReadValue().y) > 0.01f)) LockedInputs++;
                 kb = null; mouse = null; flying = false;
             }
+            if (freeHold && !Testing) { freeHold = false; freeBack = 0f; freeYaw0 = yaw; freeTilt0 = freeTilt; }   // free look: the testing mode ended (or the ending took the camera): the timed way back to the fixed view starts
             bool panKey = kb != null && (kb.leftArrowKey.isPressed || kb.rightArrowKey.isPressed || kb.upArrowKey.isPressed || kb.downArrowKey.isPressed
                 || (!(kb.ctrlKey.isPressed || kb.altKey.isPressed) && (OzBindings.Held(OzAction.ScrollLeft) || OzBindings.Held(OzAction.ScrollRight) || OzBindings.Held(OzAction.ScrollUp) || OzBindings.Held(OzAction.ScrollDown))));   // menu_exe_v1: bound keys (W A S D)
             if (panKey) { flying = false; if (follow && Application.isPlaying) follow = null; }
@@ -130,19 +167,20 @@ namespace OpenZ
             if (mouse != null && Application.isFocused)
             {
                 Vector2 p = mouse.position.ReadValue();
-                if (mouse.middleButton.isPressed)
+                if (mouse.middleButton.isPressed && FreeTurn(mouse.delta.ReadValue())) { }                    // free look (testing mode): the middle button turns and tilts the view instead of scrolling
+                else if (mouse.middleButton.isPressed)
                 {   // Zod middle-button "fly": the view follows the mouse delta (zplayer_events.cpp:88-109)
                     Vector2 md = mouse.delta.ReadValue();
                     float mPerPx = 2f * height * Mathf.Tan(16f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height) / Mathf.Sin(pitch * Mathf.Deg2Rad);
                     focus += new Vector3(md.x, 0, md.y) * (mPerPx * Mathf.Max(0.1f, middleDragFactor)); flying = false;
                 }
                 if (startMouse.x < 0) startMouse = p; else if (!mouseMoved && (p - startMouse).sqrMagnitude > 16f) mouseMoved = true;
-                if (mouseMoved && !flying && !mouse.middleButton.isPressed && p.x >= 0 && p.y >= 0 && p.x <= Screen.width && p.y <= Screen.height)
+                if (mouseMoved && !flying && !OpenZHud.ArrangingNow && !mouse.middleButton.isPressed && p.x >= 0 && p.y >= 0 && p.x <= Screen.width && p.y <= Screen.height)
                 {
                     if (p.x < edgePx) dir.x -= 1; else if (p.x > Screen.width - edgePx) dir.x += 1;
                     if (p.y < edgePx) dir.y -= 1; else if (p.y > Screen.height - edgePx) dir.y += 1;
                 }
-                float wheel = mouse.scroll.ReadValue().y;
+                float wheel = OzTrackpadScroll.Wheel(this, mouse, kb, flying);                         // TRACKPAD SCROLL (OzTrackpadScroll.cs): ZOOM (default) = this wheel as before; MOVE MAP = the scroll pans, Ctrl / Cmd + scroll zooms; Ctrl / Cmd + + / - zoom
                 if (Mathf.Abs(wheel) > 0.01f)
                 {
                     float notches = Mathf.Clamp(wheel / 120f, -3f, 3f);          // Windows reports 120 per notch
@@ -152,12 +190,20 @@ namespace OpenZ
             }
             UpdateConfine(kb);
             height = Mathf.SmoothDamp(height, targetHeight, ref zoomVel, zoomSmooth, Mathf.Infinity, Time.unscaledDeltaTime);
-            float speed = panSpeed * Mathf.Lerp(0.6f, 2.6f, Mathf.InverseLerp(minHeight, maxHeight, height));
+            float speed = PanSpeedAt(height);                                                          // the old zoom span 22..230 m: the same speed at every height as before the new zoom limits (RtsCamera.ZoomLimits.cs)
             Vector2 move = dir.normalized * speed * ScrollBoost(dir, kb) + autoDrift;
             var mv = new Vector3(move.x, 0, move.y);
             if (Mathf.Abs(yaw) > 0.01f) mv = Quaternion.Euler(0f, yaw, 0f) * mv;
             focus += mv * Time.unscaledDeltaTime;
-            if (!yawHeld && Mathf.Abs(yaw) > 0.001f)
+            if (freeBack >= 0f)
+            {   // free look, testing mode off: back to the fixed view in FreeBackSeconds (smoothstep, unscaled time); a script that holds the yaw keeps it
+                freeBack = Mathf.Min(1f, freeBack + Time.unscaledDeltaTime / FreeBackSeconds);
+                float left = 1f - freeBack * freeBack * (3f - 2f * freeBack);
+                if (!yawHeld) { yaw = freeYaw0 * left; yawVel = 0f; }
+                freeTilt = freeTilt0 * left;
+                if (freeBack >= 1f) freeBack = -1f;
+            }
+            else if (!yawHeld && !freeHold && Mathf.Abs(yaw) > 0.001f)
             {   // released by its script: back to north-up, eased (the end screen covers it)
                 yaw = Mathf.SmoothDampAngle(yaw, 0f, ref yawVel, 0.9f, Mathf.Infinity, Time.unscaledDeltaTime);
                 if (Mathf.Abs(yaw) < 0.02f) { yaw = 0f; yawVel = 0f; unclamped = false; }
@@ -223,9 +269,32 @@ namespace OpenZ
             }
         }
 
-        void OnDisable() { if (Application.isPlaying && confineSet) { Cursor.lockState = CursorLockMode.None; confineSet = false; } }
+        void OnDisable() { FreeLookOff(); if (Application.isPlaying && confineSet) { Cursor.lockState = CursorLockMode.None; confineSet = false; } }   // another camera takes over (briefing flight, cinematic modes): the free look ends with it
 
         public void SetHeightImmediate(float h) { height = targetHeight = Mathf.Clamp(h, minHeight, maxHeight); zoomVel = 0; Place(); }
+
+        /// <summary>Touch and gamepad (OzTouch.cs): move the view as if the ground were dragged by px screen pixels (two fingers: their
+        /// travel; a stick: against its push). Metres per pixel as the middle-button drag measures them at the screen centre, the
+        /// up / down travel divided by the sine of the pitch (the ground is seen at a slant), so the point under the fingers stays
+        /// under them. A fly-to or a follow ends, as for a pan key; the map limits apply as always (Place). Ignored while the
+        /// ending holds the view.</summary>
+        public void DragPixels(Vector2 px)
+        {
+            if (!Application.isPlaying || InputLocked) return;
+            float sin = Mathf.Max(0.3f, Mathf.Sin(pitch * Mathf.Deg2Rad));
+            float mPerPx = 2f * height * Mathf.Tan(16f * Mathf.Deg2Rad) / Mathf.Max(1, Screen.height) / sin;
+            var mv = new Vector3(-px.x, 0f, -px.y / sin) * mPerPx;
+            if (Mathf.Abs(yaw) > 0.01f) mv = Quaternion.Euler(0f, yaw, 0f) * mv;
+            focus += mv; flying = false; if (follow) follow = null;
+        }
+
+        /// <summary>Touch and gamepad: zoom by a factor of the height (under 1 = closer), eased and limited like the wheel.</summary>
+        public void ZoomBy(float factor)
+        {
+            if (!Application.isPlaying || InputLocked || factor <= 0f) return;
+            if (targetHeight < 0) targetHeight = height;
+            targetHeight = Mathf.Clamp(targetHeight * factor, minHeight, maxHeight);
+        }
 
         public void Place()
         {
@@ -250,8 +319,31 @@ namespace OpenZ
             }
             ShakeOffset = jitter;
             float yw = Application.isPlaying ? yaw : 0f;
+            if (Application.isPlaying && freeTilt != 0f) { PlaceFree(h, yw, jitter); return; }               // free look (testing mode): another tilt at the same distance; never taken outside it
             transform.position = focus + Quaternion.Euler(0f, yw, 0f) * new Vector3(0, h, -back) + jitter;
             transform.rotation = Quaternion.Euler(pitch, yw, 0);
+        }
+
+        /// <summary>Free look: the camera stands as far from the focus as the fixed view does at this zoom, at the free tilt, and looks at
+        /// the focus. Tilted low it keeps a floor under it and still looks at the focus: FreeFloor m inside the map (over every
+        /// building), rising within FreeEdgeBlend m of the map border to the fixed view's closest height (the outer scenery), and
+        /// FreeClear m over the terrain; never higher than the fixed view's own camera.</summary>
+        void PlaceFree(float h, float yw, Vector3 jitter)
+        {
+            float d = h / Mathf.Sin(pitch * Mathf.Deg2Rad), t = pitch + freeTilt, r = t * Mathf.Deg2Rad;
+            var turn = Quaternion.Euler(0f, yw, 0f);
+            var arm = new Vector3(0f, d * Mathf.Sin(r), -d * Mathf.Cos(r));
+            if (freeTilt < 0f)
+            {
+                var at = focus + turn * arm; var g = ZGame.I;
+                float inside = Mathf.Min(Mathf.Min(at.x, mapSizeMeters.x - at.x), Mathf.Min(-at.z, mapSizeMeters.y + at.z));   // m inside the map rectangle (under 0 = outside)
+                float floor = Mathf.Lerp(Mathf.Max(FreeEdgeHeight, FreeFloor), FreeFloor, Mathf.Clamp01(inside / FreeEdgeBlend));   // at the border the old closest height (22 m), as before the new zoom limits (RtsCamera.ZoomLimits.cs)
+                if (g != null) floor = Mathf.Max(floor, g.TerrainY(at.x, at.z) + FreeClear);
+                floor = Mathf.Min(floor, h) - focus.y;
+                if (arm.y < floor) { arm.y = floor; t = Mathf.Atan2(arm.y, -arm.z) * Mathf.Rad2Deg; }
+            }
+            transform.position = focus + turn * arm + jitter;
+            transform.rotation = Quaternion.Euler(t, yw, 0f);
         }
     }
 }

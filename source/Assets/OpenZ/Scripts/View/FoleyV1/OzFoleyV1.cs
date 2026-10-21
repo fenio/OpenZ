@@ -22,18 +22,21 @@ namespace OpenZ
             ("sd_mech_plant_concrete_b", -23.2f, 1.549f),   // concrete: plays at -19.4 LUFS x GainMechStep like the old lead final-metal-land-a (x4-loop -23.2 LUFS)
             ("sd_mech_plant_metal_a", -19.4f, 1.000f),   // metal: plays at -19.4 LUFS x GainMechStep like the old lead final-metal-land-a (x4-loop -19.4 LUFS)
             ("sd_mech_plant_metal_b", -19.4f, 1.000f),   // metal: plays at -19.4 LUFS x GainMechStep like the old lead final-metal-land-a (x4-loop -19.4 LUFS)
+            ("sd_mech_plant_grass_a", -23.8f, 1.660f),   // grass (level 16): the same rule (x4-loop -23.8 LUFS)
+            ("sd_mech_plant_grass_b", -19.1f, 0.966f),   // grass (level 16): the same rule (x4-loop -19.1 LUFS)
         };
+        public static readonly string[] BankMechPlantGrass = { "sd_mech_plant_grass_a", "sd_mech_plant_grass_b" };
         public static readonly string[] BankMechPlantSand = { "sd_mech_plant_sand_a", "sd_mech_plant_sand_b" };
         public static readonly string[] BankMechPlantConcrete = { "sd_mech_plant_concrete_a", "sd_mech_plant_concrete_b" };
         public static readonly string[] BankMechPlantMetal = { "sd_mech_plant_metal_a", "sd_mech_plant_metal_b" };
 
-        public enum PlantSurface { Sand, Concrete, Metal }
+        public enum PlantSurface { Sand, Concrete, Metal, Grass }
         /// <summary>The bank for the surface under the planted foot.</summary>
-        public static string[] BankMechPlant(PlantSurface s) => s == PlantSurface.Metal ? BankMechPlantMetal : s == PlantSurface.Concrete ? BankMechPlantConcrete : BankMechPlantSand;
+        public static string[] BankMechPlant(PlantSurface s) => s == PlantSurface.Metal ? BankMechPlantMetal : s == PlantSurface.Concrete ? BankMechPlantConcrete : s == PlantSurface.Grass ? BankMechPlantGrass : BankMechPlantSand;
         /// <summary>The robot steps' surface rule (AudioDirector.cs ~2550: bridge -> steel on L17, wood on L02; L17 or a road tile ->
         /// concrete; else sand). No wooden-deck mech take exists, so an L02 (wooden) bridge deck uses the hard concrete plant, never sand.</summary>
-        public static PlantSurface SurfaceFor(bool onBridgeDeck, bool city, bool roadTile)
-            => onBridgeDeck ? (city ? PlantSurface.Metal : PlantSurface.Concrete) : city || roadTile ? PlantSurface.Concrete : PlantSurface.Sand;
+        public static PlantSurface SurfaceFor(bool onBridgeDeck, bool city, bool roadTile, bool jungle = false)
+            => onBridgeDeck ? (city ? PlantSurface.Metal : PlantSurface.Concrete) : city || roadTile ? PlantSurface.Concrete : jungle ? PlantSurface.Grass : PlantSurface.Sand;   // level 16, off the road: grass
         /// <summary>The takes are sub-heavy: below ~0.85 their weight drops under what speakers play (the old stomp used .62-.72).</summary>
         public const float PlantPitchMin = 0.92f, PlantPitchMax = 1.06f, StompPitchMin = 0.85f, StompPitchMax = 0.95f, StompExtraDb = 2f;
 

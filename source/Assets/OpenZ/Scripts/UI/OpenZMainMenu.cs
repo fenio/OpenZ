@@ -51,17 +51,17 @@ namespace OpenZ
 
         // ------------------------------------------------------------------ state
         View view = View.Main; Side side = Side.None, sideClosing = Side.None;
-        int focusItem, focusCard, hoverCard = -1; const float HoverCardK = 0.3f; readonly float[] cardPeekK = new float[2];
+        int focusItem, focusCard, hoverCard = -1; const float HoverCardK = 0.3f; readonly float[] cardPeekK = new float[OzLevelDef.All.Length];
         float introAt = -10f, viewAt = -10f, sideAt = -10f, selectK, selectFrom, selectTo;
         bool kbMode, openedWithSelect;
         OzLevelDef[] levels; OzLevelInfo[] infos; OzLevelPreview[] previews;
         int bgLevel = -1, bgFrom = -1; float bgFadeAt = -10f, bgFadeDur = 1f, bgShownAt; bool bgWaitFrame;
-        readonly float[] liveK = new float[2], cardHoverK = new float[2], cardLiveK = new float[2], lw = new float[2];
+        readonly float[] liveK = new float[OzLevelDef.All.Length], cardHoverK = new float[OzLevelDef.All.Length], cardLiveK = new float[OzLevelDef.All.Length], lw = new float[OzLevelDef.All.Length];
 
         // ------------------------------------------------------------------ UI
         Canvas canvas; CanvasScaler scaler; RectTransform root; float CW = 1920; int builtW, builtH;
         Image blackFade, backdrop, vignette, selectWash; RawImage gradLeft, gradBottom;
-        readonly RawImage[] bgPoster = new RawImage[2], bgLive = new RawImage[2], bgBlur = new RawImage[2];
+        readonly RawImage[] bgPoster = new RawImage[OzLevelDef.All.Length], bgLive = new RawImage[OzLevelDef.All.Length], bgBlur = new RawImage[OzLevelDef.All.Length];
         RectTransform mainRoot, selectRoot, loadingRoot; CanvasGroup mainCg, selectCg, loadingCg;
         Image logo; OzText eyebrow, footer, footer2; Image underline, rail; OzAnniversaryBadge badge30;
         RectTransform caption; CanvasGroup captionCg; OzText captionTitle, captionSub; (Image bg, Image edge, OzText text) captionChip; OzText testChipText;
@@ -77,8 +77,8 @@ namespace OpenZ
             public RectTransform rt, imgRt; public CanvasGroup cg; public RawImage poster, live, mini; public Image glow, frameN, frameH, desat, progTrack, progFill; public CanvasGroup previewChip;
             public float x, y, w, imgH; public int index;
         }
-        readonly Card[] cards = new Card[2];
-        HudButton backBtn, deployBtn, cpuNormal, cpuEasy, cpuMedium, optNormal, optEasy, optMedium, headRow; Image deployFocus, headKnob; OzText headState, headText, headHint, cpuHint, optCpuHint, objLine, errorLine, headChipText;
+        readonly Card[] cards = new Card[OzLevelDef.All.Length];
+        HudButton backBtn, deployBtn, cpuNormal, cpuEasy, cpuMedium, optNormal, optEasy, optMedium, headRow; Image deployFocus, headKnob; OzText headState, headText, headHint, cpuHint, optCpuHint, objLine, errorLine;   // K347: the HEAD START chip "L02 ONLY" (headChipText) went with the old deploy bar
         float errorUntil;
 
         // options (same keys and look as OpenZPauseMenu)
@@ -125,7 +125,7 @@ namespace OpenZ
             if (Mouse.current != null) lastMouse = Mouse.current.position.ReadValue();
             StartMusicFallback();
             Debug.Log($"[OpenZ Menu] built in {(Time.realtimeSinceStartup - t0) * 1000f:0} ms: kit {(OzKit.Available ? "OK" : "MISSING (flat fallback)")}, text {(OzText.UsesTmp ? "TextMeshPro" : "legacy")}, "
-                      + $"L02 {(infos[0].Ok ? "map OK" : "fallback facts")}, L17 {(infos[1].Ok ? "map OK" : "fallback facts")}, audio {(DirectorLive ? "AudioDirector" : "fallback clips")}");
+                      + $"{MapsLog()}, audio {(DirectorLive ? "AudioDirector" : "fallback clips")}");
         }
 
         void OnDestroy()
@@ -159,7 +159,7 @@ namespace OpenZ
         void BuildBackground()
         {
             var bed = Hud.Img(root, "Bed", OzUi.GM950); bed.rectTransform.Fill();
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < levels.Length; i++)
             {
                 bgPoster[i] = Raw(root, "BgStill_" + levels[i].Id);
                 bgLive[i] = Raw(root, "BgVideo_" + levels[i].Id);
@@ -249,7 +249,7 @@ namespace OpenZ
 
             footer2 = Hud.Label(p, "Footer2", "A FAITHFUL FAN TRIBUTE REMAKE OF Z BY THE BITMAP BROTHERS (1996), CELEBRATING ITS 30TH ANNIVERSARY", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
                 .At(lx, OzMenuLayout.FooterY - 16, OzH.L, false, 1100);
-            footer = Hud.Label(p, "Footer", "OPENZ 1.0 · OPEN SOURCE GPL-3.0 · FREE, NOT FOR SALE · RULES PORTED FROM THE ZOD ENGINE (GPLv3)", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
+            footer = Hud.Label(p, "Footer", "OPENZ 1.1 · OPEN SOURCE GPL-3.0 · FREE, NOT FOR SALE · RULES PORTED FROM THE ZOD ENGINE (GPLv3)", OzMenuLayout.FooterSize, OzUi.Muted, 0.16f, OzStyle.Plain)
                 .At(lx, OzMenuLayout.FooterY, OzH.L, false, 1100);
             // contrast, under the preview caption plate (which ends at y 1020), never over other UI
             versionLabel = Hud.Label(p, "Version", OzVersion.Label, OzMenuLayout.FooterSize, OzUi.Dim, 0.16f, OzStyle.Plain)
@@ -324,10 +324,10 @@ namespace OpenZ
             AddSlider(mp, 1, 1, "ROBOT VOICES", "oz_vol_robots", "Robots");
             AddToggle(p, 0, "EDGE SCROLL", () => PlayerPrefs.GetInt("oz_edge_scroll", 1) == 1, v => PlayerPrefs.SetInt("oz_edge_scroll", v ? 1 : 0));
             AddToggle(p, 1, "HEALTH BARS ON EVERY DAMAGED UNIT", () => OpenZUnitOverlay.AlwaysBars, v => OpenZUnitOverlay.AlwaysBars = v);
-            AddToggle(p, 2, "SCREEN SHAKE", () => PlayerPrefs.GetInt("oz_shake", 1) == 1, v => PlayerPrefs.SetInt("oz_shake", v ? 1 : 0));
+            AddToggle(p, 2, "CAMERA SHAKE ON EXPLOSIONS", () => PlayerPrefs.GetInt("oz_shake", 1) == 1, v => PlayerPrefs.SetInt("oz_shake", v ? 1 : 0));
             AddToggle(p, 3, OzSettingTips.CalmLabel, () => OzMotion.Reduced, v => OzMotion.Reduced = v);
             AddToggle(p, 4, "HUD SCALE", null, null, true);
-            AddToggle(p, 5, "WEATHER · NIGHT RAIN AND THUNDER", () => OzWeather.Enabled, v => OzWeather.Enabled = v);   // weather_l17_v1 (oz_weather, default on)
+            AddToggle(p, 5, OzNightRain.Label, () => OzWeather.Enabled, v => OzWeather.Enabled = v);   // NIGHT & RAIN (oz_weather, default on; off = always day, no rain: OzNightRain.cs)
             AddToggle(p, 6, "YOUR TEAM COLOUR · VISUAL ONLY", () => TeamColors.Swap, v => { TeamColors.Swap = v; if (objLine != null && levels != null) objLine.Set(TeamColors.Words(levels[focusCard].Objective)); Debug.Log($"[OpenZ Menu] team colour: {(v ? "BLUE" : "RED")} (view only, next level)"); });
             toggles[toggles.Count - 1].names = new[] { "RED", "BLUE" };
             AddToggle(p, 7, "HIT FLASH ON DAMAGED UNITS", () => OpenZDamageStates.HitFlash, v => OpenZDamageStates.HitFlash = v);
@@ -337,8 +337,15 @@ namespace OpenZ
             AddCycle(p, toggles.Count, NightShadows.Label, () => NightShadows.Name, NightShadows.Step);
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             AddCycle(p, toggles.Count, OzQuality.Label, () => OzQuality.Name, OzQuality.Step);
+            AddCycle(p, toggles.Count, OzFpsCap.Label, () => OzFpsCap.Name, OzFpsCap.Step);                 // FRAME RATE LIMIT: 30 / 60 (oz_fps_cap, default 60, saved and applied at once)
             AddToggle(p, toggles.Count, OzQuality.FpsLabel, () => OzQuality.FpsOn, v => OzQuality.FpsOn = v);
             AddToggle(p, toggles.Count, MechWalk.Label, () => MechWalk.On, v => MechWalk.On = v);
+            AddCycle(p, toggles.Count, OzTouch.Label, () => OzTouch.ModeName, OzTouch.StepMode);            // touch and gamepad: AUTO / TOUCH ON / OFF (oz_touch, live; OzTouch.cs)
+            AddToggle(p, toggles.Count, OzStrikeGroups.Label, () => OzStrikeGroups.On, v => OzStrikeGroups.On = v);   // DV107 enemy strike groups: oz_strike_groups, default ON (ADVANCED tab, first row; OzStrikeGroups.cs)
+            if (OzShuttleStart.InOptions)                                                                      // K347: the SHUTTLE switch is the battlefield screen's box now (UI/OpenZMainMenu.ShuttleStart.cs): the old OPTIONS row below is not built
+            AddToggle(p, toggles.Count, OzShuttleOption.Label, () => OzShuttleOption.On, v => OzShuttleOption.On = v);   // DV118 the level 16 shuttle: oz_shuttle, default ON, read at the next level start (OzShuttleOption.cs)
+            AddCycle(p, toggles.Count, OzShuttleOrdersOption.Label, () => OzShuttleOrdersOption.Name, OzShuttleOrdersOption.Step);   // K256g SHUTTLE ORDERS: LANDABLE SPOTS ONLY (default) / ANYWHERE, oz_shuttle_orders, live (OzShuttleOrdersOption.cs); ADVANCED, under SHUTTLE
+            toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW);   // its longest value is wider than the 170 u of a cycle row
             ExeOptions(p);                                                                                   // menu_exe_v1: MUSIC + FULLSCREEN rows, the centred modal
             foreach (var b in new[] { optEasy, optMedium, optNormal }) if (b != null) optTips[b.Rt] = OzSettingTips.Difficulty;
             BuildOptTip();
@@ -703,14 +710,20 @@ namespace OpenZ
             backBtn.Rt.Place(br);
             Hud.Keycap(backBtn.Content, "Esc", "ESC", br.w - 10, (br.h - 14) * 0.5f);
             AddHot(backBtn.Rt, View.Select, GoMain, null, backBtn, "ui_menu_back");
-            Hud.Label(p, "Keys", "← →  OPERATION     ENTER  DEPLOY     C  CPU     H  HEAD START     ESC  BACK", 9, OzUi.Muted, 0.2f, OzStyle.Plain)
+            Hud.Label(p, "Keys", "← →  OPERATION     ENTER  DEPLOY     C  CPU     H  HEAD START     " + OzKeyNames.Name(ShuttleKey) + "  SHUTTLE     " + OzKeyNames.Name(HsKey) + "  HIGH SCORES     ESC  BACK", 9, OzUi.Muted, 0.2f, OzStyle.Plain)
                 .At(XR(OzMenuLayout.SelHintRX), OzMenuLayout.SelHintY, OzH.R, false, 900);
 
-            float gap = OzMenuLayout.CardGap;
-            float w = Mathf.Min((CW - 2 * OzMenuLayout.CardSide - gap) * 0.5f, OzMenuLayout.CardMaxImgH * OzMenuLayout.CardImgW / OzMenuLayout.CardImgH);
-            float ih = w * OzMenuLayout.CardImgH / OzMenuLayout.CardImgW, x0 = CW * 0.5f - w - gap * 0.5f;
-            for (int i = 0; i < 2; i++) cards[i] = BuildCard(p, i, x0 + i * (w + gap), OzMenuLayout.CardTop, w, ih);
+            int n = levels.Length; bool row3 = n > 2;                                                        // three or more: narrower gutters, a 3:2 picture, the row centred in the free band
+            float gap = row3 ? OzMenuLayout.CardGapN : OzMenuLayout.CardGap, gutter = row3 ? OzMenuLayout.CardSideN : OzMenuLayout.CardSide;
+            float aspect = row3 ? OzMenuLayout.CardAspectN : OzMenuLayout.CardImgH / OzMenuLayout.CardImgW;      // picture height / width
+            float maxImgH = row3 ? Mathf.Min(OzMenuLayout.CardMaxImgH, OzMenuLayout.CardRowBottomMax - OzMenuLayout.CardTop - OzMenuLayout.CardMeta) : OzMenuLayout.CardMaxImgH;   // a row of three never reaches under the commander's strip (wider than 16:9: narrower cards, the row stays centred)
+            float w = Mathf.Min((CW - 2 * gutter - gap * (n - 1)) / n, maxImgH / aspect);
+            float ih = w * aspect, x0 = (CW - (n * w + (n - 1) * gap)) * 0.5f;
+            float band = OzLayout.RefH - OzMenuLayout.DeployBarH - OzMenuLayout.CardBandPad - OzMenuLayout.CardBandTop;
+            float top = row3 ? Mathf.Max(OzMenuLayout.CardTop, Mathf.Min(OzMenuLayout.CardBandTop + (band - (ih + OzMenuLayout.CardMeta)) * 0.5f, OzMenuLayout.CardRowBottomMax - (ih + OzMenuLayout.CardMeta))) : OzMenuLayout.CardTop;
+            for (int i = 0; i < n; i++) cards[i] = BuildCard(p, i, x0 + i * (w + gap), top, w, ih);
             BuildDeployBar(p);
+            BuildHighScores(p);                                                                              // the HIGH SCORES button and its popup, last: their pointer areas lie over the cards and the bar (OpenZMainMenu.HighScores.cs)
         }
 
         Card BuildCard(RectTransform p, int i, float x, float y, float w, float ih)
@@ -764,7 +777,7 @@ namespace OpenZ
             }
             // meta bar
             Hud.Label(c.rt, "Level", "LEVEL " + d.Number, 11, OzUi.Amber, 0.3f, OzStyle.Plain).At(OzMenuLayout.CardLevelX, ih + OzMenuLayout.CardLevelY);
-            var name = Hud.Label(c.rt, "Name", d.Name, OzMenuLayout.CardNameSize, OzUi.Ink, 0f).At(OzMenuLayout.CardNameX, ih + OzMenuLayout.CardNameY, OzH.L, false, w * 0.6f);
+            var name = Hud.Label(c.rt, "Name", d.Name, w >= OzMenuLayout.CardNameFullW ? OzMenuLayout.CardNameSize : OzMenuLayout.CardNameSmall, OzUi.Ink, 0f).At(OzMenuLayout.CardNameX, ih + OzMenuLayout.CardNameY, OzH.L, false, w * 0.6f);
             float nameRight = OzMenuLayout.CardNameX + name.preferredWidth + 24f;
             Hud.Label(c.rt, "Mood", d.Mood, 11, OzUi.Ink2, 0.2f, OzStyle.Plain).At(w - OzMenuLayout.CardMoodRX, ih + OzMenuLayout.CardMoodY, OzH.R, false, 300);
             float cx = w - OzMenuLayout.CardMoodRX; var chips = infos[i].Chips(d);
@@ -775,8 +788,9 @@ namespace OpenZ
                 made.Insert(0, (ch.bg.transform.parent.GetComponent<RectTransform>(), ch.text.preferredWidth + 18f));
             }
             float total() { float t = 0; foreach (var m in made) t += m.w + OzMenuLayout.CardChipGap; return t - OzMenuLayout.CardChipGap; }
-            while (made.Count > 2 && cx - total() < nameRight) { Destroy(made[made.Count - 1].rt.gameObject); made.RemoveAt(made.Count - 1); }   // narrow card: drop the tile count first
+            while (made.Count > 1 && cx - total() < nameRight) { Destroy(made[made.Count - 1].rt.gameObject); made.RemoveAt(made.Count - 1); }   // narrow card: drop the tile count first
             for (int k = made.Count - 1; k >= 0; k--) { made[k].rt.Place(new OzRect(cx - made[k].w, ih + OzMenuLayout.CardChipsY, made[k].w, OzMenuLayout.CardChipH)); cx -= made[k].w + OzMenuLayout.CardChipGap; }
+            OzBestChip.Add(c.rt, d.Id, ih);                                                              // high scores: best score and rank at the chosen difficulty (OzBestChip.cs)
             int idx = i;
             AddHot(c.rt, View.Select, () => ClickCard(idx), hov => { if (hov) hoverCard = idx; else if (hoverCard == idx) hoverCard = -1; }, null, null);
             return c;
@@ -784,64 +798,31 @@ namespace OpenZ
 
         bool previewAny(int i) => previews[i] != null && (previews[i].Poster != null || previews[i].VideoOk);
 
-        void BuildDeployBar(RectTransform p)
+        string MapsLog()
         {
-            var bar = Hud.Node("DeployBar", p);
-            bar.anchorMin = new Vector2(0, 0); bar.anchorMax = new Vector2(1, 0); bar.pivot = new Vector2(0.5f, 0);
-            bar.offsetMin = new Vector2(-2, -2); bar.offsetMax = new Vector2(2, OzMenuLayout.DeployBarH);
-            var bg = Hud.Kit(bar, "Bg", "Select/deploy_bar", new OzRect(0, 0, 10, 10), null); bg.rectTransform.Fill();
-            if (OzKit.GetSprite("Select/deploy_bar") == null) bg.color = OzUi.A(OzUi.GM800, 0.96f);
-
-            var dr = OzMenuLayout.Deploy; var hr = OzMenuLayout.HeadStart; var cr = OzMenuLayout.Cpu;
-            float cpuX = XR(cr.x), headX = XR(hr.x);
-            Hud.Label(p, "ObjLabel", "OBJECTIVE", 10, OzUi.Muted, 0.24f, OzStyle.Plain).At(OzMenuLayout.ObjX, OzMenuLayout.ObjLabelY);
-            float objMax = cpuX - 40f - OzMenuLayout.ObjX;
-            objLine = Hud.Label(p, "Objective", TeamColors.Words(levels[focusCard].Objective), OzMenuLayout.ObjSize, OzUi.Ink, 0.06f).At(OzMenuLayout.ObjX, OzMenuLayout.ObjLineY, OzH.L, false, objMax);
-            float footY = OzMenuLayout.ObjFootY;
-            if (objLine.preferredWidth > objMax) { objLine.FontSize = 12; objLine.Tracking = 0.02f; }                // narrow canvases
-            if (objLine.preferredWidth > objMax) { objLine.Body(OzMenuLayout.ObjX, OzMenuLayout.ObjLineY - 4, objMax); footY += 6; }   // 4:3: two lines
-            Hud.Label(p, "ObjFoot", "YOU COMMAND RED · CPU COMMANDS BLUE · ZOD ENGINE RULES", 10, OzUi.Muted, 0.2f, OzStyle.Plain).At(OzMenuLayout.ObjX, footY, OzH.L, false, objMax);
-            errorLine = Hud.Label(p, "Error", "", 11, OzUi.AlertText, 0.14f, OzStyle.Plain).At(OzMenuLayout.ObjX, OzMenuLayout.ObjLabelY - 26, OzH.L, false, 1200);
-
-            // DIFFICULTY [EASY | MEDIUM | HARD]
-            Hud.Label(p, "CpuLabel", "DIFFICULTY", 10, OzUi.Muted, 0.24f, OzStyle.Plain).At(cpuX, cr.y + OzMenuLayout.BlockLabelDY);
-            Hud.Keycap(p, "CpuKey", "C", cpuX + cr.w, cr.y - 2);
-            float bw = (cr.w - 8) / 3f, ry = cr.y + OzMenuLayout.BlockRowDY;
-            cpuEasy = SmallButton(p, "CpuEasy", "EASY", new OzRect(cpuX, ry, bw, OzMenuLayout.BlockRowH), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Easy), 11);
-            cpuMedium = SmallButton(p, "CpuMedium", "MEDIUM", new OzRect(cpuX + bw + 4, ry, bw, OzMenuLayout.BlockRowH), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Medium), 11);
-            cpuNormal = SmallButton(p, "CpuHard", "HARD", new OzRect(cpuX + 2 * (bw + 4), ry, bw, OzMenuLayout.BlockRowH), View.Select, Side.Any, () => SetDifficulty(GameDifficulty.Hard), 11);
-            cpuHint = Hud.Label(p, "CpuHint", "", 9, OzUi.Muted, 0.16f, OzStyle.Plain).At(cpuX + cr.w, OzMenuLayout.BlockHintY, OzH.R, false, 420);
-
-            // HEAD START (L02 only)
-            Hud.Label(p, "HeadLabel", "HEAD START", 10, OzUi.Muted, 0.24f, OzStyle.Plain).At(headX, hr.y + OzMenuLayout.BlockLabelDY);
-            var hc = Hud.Chip(p, "HeadL02", new OzRect(headX + 96, hr.y - 3, 64, 16), "L02 ONLY", OzUi.GM950, OzUi.Amber, 8, 0.16f, OzUi.A(OzUi.Amber, 0.6f), 3);
-            headChipText = hc.text;
-            Hud.Keycap(p, "HeadKey", "H", headX + hr.w, hr.y - 2);
-            headRow = HudButton.Make(p, "HeadRow", null, new Vector2(hr.w, OzMenuLayout.BlockRowH), HudButtonKind.Small);
-            headRow.Rt.Place(new OzRect(headX, ry, hr.w, OzMenuLayout.BlockRowH));
-            headText = Hud.Label(headRow.Content, "Text", "+5 VEHICLES", 11, OzUi.Ink, 0.1f, OzStyle.Plain).At(12, OzMenuLayout.BlockRowH * 0.5f, OzH.L, true, 120);
-            Hud.Kit(headRow.Content, "Track", "Buttons/switch_track", new OzRect(hr.w - 12 - 48, (OzMenuLayout.BlockRowH - 18) * 0.5f, 48, 18), OzKit.Available ? (Color?)null : OzUi.GM950);
-            headKnob = Hud.Kit(headRow.Content, "Knob", "Buttons/switch_knob", new OzRect(0, (OzMenuLayout.BlockRowH - 14) * 0.5f, 22, 14), OzUi.Amber, Image.Type.Simple);
-            headState = Hud.Label(headRow.Content, "State", "", 9, OzUi.Amber, 0.2f, OzStyle.Plain).At(hr.w - 12 - 48 - 6, OzMenuLayout.BlockRowH * 0.5f, OzH.R, true, 40);
-            AddHot(headRow.Rt, View.Select, ToggleHeadStart, h => headTipOn = h, headRow, null);                    // menu_exe_v1: + the tooltip
-            headHint = Hud.Label(p, "HeadHint", "", 9, OzUi.Muted, 0.16f, OzStyle.Plain).At(headX, OzMenuLayout.BlockHintY, OzH.L, false, 300);
-            ExeHeadStart(p, hc);                                                                             // menu_exe_v1: no "L02 ONLY", readable label, tooltip
-
-            // DEPLOY (primary) + keyboard focus ring
-            float dx = XR(dr.x);
-            deployFocus = Hud.Kit(p, "DeployFocus", "Buttons/btn_l_focus", new OzRect(dx - 4, dr.y - 4, dr.w + 8, dr.h + 8), OzUi.A(Color.white, 0f));
-            if (OzKit.GetSprite("Buttons/btn_l_focus") == null) deployFocus.enabled = false;
-            deployBtn = HudButton.Make(p, "Deploy", "DEPLOY", new Vector2(dr.w, dr.h), HudButtonKind.Large, 18, 0.14f, HudButtonStyle.Primary, true);
-            deployBtn.Rt.Place(new OzRect(dx, dr.y, dr.w, dr.h));
-            AddHot(deployBtn.Rt, View.Select, Deploy, null, deployBtn, null);
+            var sb = new StringBuilder();
+            for (int i = 0; i < levels.Length; i++) { if (i > 0) sb.Append(", "); sb.Append(levels[i].Id).Append(infos[i].Ok ? " map OK" : " fallback facts"); }
+            return sb.ToString();
         }
+
+        /// <summary>The next level (in menu order, wrapping) that has a preview to show; `from` itself when no other has one.</summary>
+        int NextFlyby(int from)
+        {
+            for (int k = 1; k < levels.Length; k++) { int i = (from + k) % levels.Length; if (previewAny(i) && InMenuFlybys(i)) return i; }   // only the main menu's flyby list (OpenZMainMenu.FlybyList.cs)
+            return from;
+        }
+
+        /// <summary>
+        /// in one row, DEPLOY (UI/OpenZMainMenu.DeployBar.cs; the SHUTTLE block: UI/OpenZMainMenu.ShuttleStart.cs). The parts keep their names.</summary>
+        void BuildDeployBar(RectTransform p) => BuildDeployConsole(p);
 
         void RefreshDeployBar()
         {
             var d = OpenZDifficulty.Level;
             SetSelected(cpuNormal, d == GameDifficulty.Hard); SetSelected(cpuEasy, d == GameDifficulty.Easy); SetSelected(cpuMedium, d == GameDifficulty.Medium);
-            cpuHint.Set(OpenZDifficulty.Hint(d));
+            cpuHint.Set(OzDeployBar.CpuHint(d));                                                              // K347: the bar's own short hint (OpenZDifficulty.Hint stays the OPTIONS row's)
             RefreshHeadStart(d);                                                                             // menu_exe_v1: its own switch on every difficulty, both maps
+            RefreshDeployConsole(d);                                                                         // K347: the deploy bar: the card, the SHUTTLE slot (level 16; locked on HARD), the slide, the tooltips
             if (shownDeployCard != focusCard) { shownDeployCard = focusCard; if (deployBtn.Label != null) deployBtn.Label.Set("DEPLOY · " + levels[focusCard].Name); objLine.Set(TeamColors.Words(levels[focusCard].Objective)); }
             if (deployFocus.enabled) deployFocus.color = OzUi.A(Color.white, kbMode && view == View.Select ? 0.55f + 0.45f * Mathf.Sin(OzMotion.Now * 4f) * (OzMotion.Reduced ? 0f : 1f) : 0f);
             if (errorUntil > 0 && OzMotion.Now > errorUntil) { errorLine.Set(""); errorUntil = 0; }
@@ -872,6 +853,7 @@ namespace OpenZ
             view = View.Main; viewAt = OzMotion.Now; selectFrom = selectK; selectTo = 0f;
             mainRoot.gameObject.SetActive(true);
             Sfx("ui_menu_back");
+            if (bgLevel >= 0 && !InMenuFlybys(bgLevel)) SwitchBg(MenuFlybyOr(NextFlyby(bgLevel)), 0, !CanAlternate, HardCut);   // a card preview that is not on the main menu's flyby list (OpenZMainMenu.FlybyList.cs)
             if (bgLevel >= 0 && previews[bgLevel].VideoOk) previews[bgLevel].Player.isLooping = !CanAlternate;
             bgShownAt = OzMotion.Now;
         }
@@ -930,9 +912,9 @@ namespace OpenZ
         }
 
         // ================================================================== background flybys
-        bool CanAlternate => alternateFlybys && previewAny(0) && previewAny(1);
+        bool CanAlternate { get { if (!alternateFlybys) return false; int have = 0; for (int i = 0; i < previews.Length; i++) if (previewAny(i) && InMenuFlybys(i)) have++; return have > 1; } }
         /// <summary>The level whose flyby opens the main menu: the desert (L02) while both levels alternate, else the last played level.</summary>
-        int FirstFlyby { get { int d = Array.FindIndex(levels, l => l.Id == "L02"); return d >= 0 && CanAlternate ? d : focusCard; } }
+        int FirstFlyby { get { int d = Array.FindIndex(levels, l => l.Id == "L02"); return d >= 0 && CanAlternate ? d : MenuFlybyOr(focusCard); } }
         bool bgRotateFrom;                                                                                 // the running cross-fade is a loop-end alternation
 
         /// <summary>Show level `to` in the background: start its clip at `t` and cross-fade from the current one.</summary>
@@ -969,7 +951,7 @@ namespace OpenZ
             if (view == View.Main && CanAlternate && bgFrom < 0 && !bgWaitFrame)
             {
                 double left = cur.ShowingVideo ? cur.TimeLeft : stillHold - (OzMotion.Now - bgShownAt);
-                if (left <= LoopCutLead) { SwitchBg(1 - bgLevel, 0, false, HardCut); bgRotateFrom = true; }
+                if (left <= LoopCutLead) { SwitchBg(NextFlyby(bgLevel), 0, false, HardCut); bgRotateFrom = true; }
             }
 
             // Exact cross-fades with plain alpha blending (no dark dip): each level stacks still > video > blurred copy, level 0
@@ -978,9 +960,15 @@ namespace OpenZ
             // the upper one fades over it.
             float sk = OzEase.InOutSine(selectK), aspect = (float)Screen.width / Mathf.Max(1, Screen.height);
             float wIn = bgWaitFrame ? 0f : OzEase.InOutSine(fk);
-            for (int i = 0; i < 2; i++) lw[i] = i == bgLevel ? (bgFrom >= 0 ? wIn : 1f) : i == bgFrom ? 1f - wIn : 0f;
-            if (lw[1] < 0.999f && lw[0] > 0f) lw[0] = Mathf.Clamp01(lw[0] / (1f - lw[1]));
-            for (int i = 0; i < 2; i++)
+            int nl = levels.Length;
+            for (int i = 0; i < nl; i++) lw[i] = i == bgLevel ? (bgFrom >= 0 ? wIn : 1f) : i == bgFrom ? 1f - wIn : 0f;
+            float free = 1f;                                                                                  // share of the picture the stacks drawn above this one leave open
+            for (int i = nl - 1; i >= 0; i--)
+            {
+                if (free < 0.999f && free > 0.001f && lw[i] > 0f) lw[i] = Mathf.Clamp01(lw[i] / free);
+                free *= 1f - Mathf.Clamp01(lw[i]);
+            }
+            for (int i = 0; i < nl; i++)
             {
                 var p = previews[i];
                 liveK[i] = p.ShowingVideo ? 1f : Mathf.MoveTowards(liveK[i], 0f, dt / 0.3f);
@@ -1026,7 +1014,7 @@ namespace OpenZ
             TickIntro();
             TickViews(dt);
             if (view == View.Main) { TickItems(dt); TickCaption(); TickSide(); TickCredits(dt); TickChanges(dt); TickRoadmap(dt); TickFeedback(); if (side == Side.Options) RefreshOptions(); TickExe(dt); }
-            else if (view == View.Select) { TickCards(dt); RefreshDeployBar(); TickHeadTip(); }   // menu_exe_v1: head start tooltip
+            else if (view == View.Select) { TickCards(dt); RefreshDeployBar(); TickHeadTip(); TickHighScores(dt); }   // menu_exe_v1: head start tooltip
             TickOptTip();
             if (view == View.Select && side != Side.None) side = Side.None;
         }
@@ -1105,12 +1093,14 @@ namespace OpenZ
             }
             else if (view == View.Select)
             {
+                if (HighScoresKeys(kb, left, right, up, down, esc)) return;                              // the HIGH SCORES popup: its key opens it; open, it owns the keyboard (OpenZMainMenu.HighScores.cs)
                 if (left) { if (focusCard <= 0) Sfx("ui_disabled"); FocusCard(focusCard - 1, false); }     // sound_v3: the end of the list answers
                 if (right) { if (focusCard >= levels.Length - 1) Sfx("ui_disabled"); FocusCard(focusCard + 1, false); }
                 if (enter) Deploy();
                 if (esc) GoMain();
                 if (kb.cKey.wasPressedThisFrame) { SetDifficulty(OpenZDifficulty.Next(OpenZDifficulty.Level)); Sfx("ui_tab_switch"); }
                 if (kb.hKey.wasPressedThisFrame) ToggleHeadStart();
+                if (kb[ShuttleKey].wasPressedThisFrame && !kb.ctrlKey.isPressed && !kb.altKey.isPressed) ToggleShuttleStart(true);   // K347: the SHUTTLE box's key (ui_disabled where it is not offered)
             }
         }
 
@@ -1211,7 +1201,7 @@ namespace OpenZ
             if (live) stillLogged = -1;
             captionChip.bg.color = live ? (Color)OzUi.Alert : (Color)OzUi.GM500;
             capSb.Clear();
-            if (secs >= 0) { var o = levels[1 - bgLevel]; capSb.Append("NEXT · L").Append(o.Number).Append(' ').Append(o.Name).Append(" IN ").Append(UnitInfo.Mmss(secs)); captionSub.Set(OzText.Tab(capSb.ToString())); }
+            if (secs >= 0) { var o = levels[NextFlyby(bgLevel)]; capSb.Append("NEXT · L").Append(o.Number).Append(' ').Append(o.Name).Append(" IN ").Append(UnitInfo.Mmss(secs)); captionSub.Set(OzText.Tab(capSb.ToString())); }
             else captionSub.Set(live ? "LEVEL PREVIEW · LOOPING" : "LEVEL PREVIEW");
         }
 
@@ -1235,7 +1225,7 @@ namespace OpenZ
         void TickCards(float dt)
         {
             float kIn = OzMotion.T(viewAt, OzMotion.Dur(0.26f, true), 0f);
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < cards.Length; i++)
             {
                 var c = cards[i]; var p = previews[i];
                 bool on = i == focusCard;
@@ -1250,7 +1240,7 @@ namespace OpenZ
                 c.cg.alpha = view == View.Select ? ke : 1f;
                 SetAlpha(c.glow, 0.8f * e);
                 SetAlpha(c.frameH, OzKit.GetSprite("Select/card_frame_hover") != null ? e + HoverCardK * pk : 0f);
-                c.previewChip.alpha = e;
+                c.previewChip.alpha = previewAny(i) ? e : 0f;                                             // a level without a picture or clip shows no PREVIEW chip
                 // image: poster at 72 % brightness, 55 % saturation (grey wash) until hovered; the clip fades in over it
                 bool showLive = on && p.ShowingVideo && bgLevel == i;
                 cardLiveK[i] = Mathf.MoveTowards(cardLiveK[i], showLive ? 1f : 0f, dt / 0.3f);

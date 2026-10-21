@@ -34,9 +34,9 @@ namespace OpenZ.Sim
                         stillSince[o.Id] = (o.CenterX, o.CenterY, Time);
                 }
             }
-            if (nextIdleSweep < 0) nextIdleSweep = IdleSweepEvery;
+            if (nextIdleSweep < 0) nextIdleSweep = IdleSweepEvery * IdleSweepSlow();       // K434: x 1.3 while an Easy computer plays (Sim/ZBot.EasySlow.cs)
             if (Time < nextIdleSweep) return;
-            nextIdleSweep += IdleSweepEvery;
+            nextIdleSweep += IdleSweepEvery * IdleSweepSlow();
             foreach (var bot in Bots) if (!bot.Ignored) IdleSweep(bot.Team);
         }
 
@@ -50,7 +50,8 @@ namespace OpenZ.Sim
             {
                 if (o.Owner != team || !o.IsMobile || o.IsMinion || o.Destroyed || o.KillAt >= 0 || o.MoveSpeed <= 0) continue;
                 if (o.Waypoints.Count > 0 || o.AttackObject != null || o.HoldPosition || o.Patrolling || o.IsFortDefender) continue;
-                if (!stillSince.TryGetValue(o.Id, out var a) || Time - a.t < IdleSweepStillSec) continue;
+                if (o.StrikeHeld) continue;                                                     // DV107: a member of a strike group is not forgotten, it waits for its group
+                if (!stillSince.TryGetValue(o.Id, out var a) || Time - a.t < IdleSweepStillSec * IdleSweepSlow(team)) continue;   // K434: 117 s on Easy
                 bool nearHome = false;
                 foreach (var b in Objects)
                 {

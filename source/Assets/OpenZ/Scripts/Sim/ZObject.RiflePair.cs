@@ -14,7 +14,10 @@ namespace OpenZ.Sim
     {
         /// <summary>ProcessAttackDamage, hitscan branch, a hit that is not a driver snipe: the HP it removes from t. DV78 for a
         /// listed robot pair, else HullDamage (Zod's Damage, DV29).</summary>
-        int DirectHitDamage(ZObject t)
+        int DirectHitDamage(ZObject t) => HeroHit(BaseHitDamage(t));                      // DV108: a hero squad's strong shot (Sim/ZHeroSquad.cs); every other robot: as before
+
+        /// <summary>The hit of a robot of this type (before DV108's strong shot).</summary>
+        int BaseHitDamage(ZObject t)
         {
             if (ZWorld.RiflePairDeviation && IsRobot && t.IsRobot && !IsFortDefender && !t.IsFortDefender
                 && ZWorld.RiflePair.TryGetValue((Type, t.Type), out int pair) && pair > Damage) return pair;

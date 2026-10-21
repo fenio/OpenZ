@@ -45,6 +45,7 @@ namespace OpenZ.Sim
                 if (!u.IsMobile || u.Owner != Team || Gone(u) || u.IsFortDefender || u.IsMinion || u.Destroyed || u.KillAt >= 0) continue;
                 if (!(u.Kind == ZKind.Robot || u.Kind == ZKind.Vehicle) || !u.CanMove || u.Stunned) continue;
                 if (u.Kind == ZKind.Vehicle && u.Type == "crane") continue;                                  // the crane mends, it does not storm forts
+                if (u.StrikeHeld) continue;                                                                  // DV107: a member of a strike group goes with its group
                 if (u.Waypoints.Count > 0 || u.IsMoving) continue;                                           // busy (Zod's orders, a grab, a dodge)
                 if (u.AttackObject != null && InReach(u, u.AttackObject)) continue;                            // really fighting (target in its range)
                 ZObject f = null; double fd = double.MaxValue;

@@ -51,6 +51,11 @@ namespace OpenZ
         public bool Begin(string first = "overview")
         {
             if (!rts || !camT || game == null || game.World == null) return false;
+            if (game.level == "L16")
+            {   // the level sets its start hour when it wakes, the sun turns to it only in the day clock's own Update: the jungle's
+                // sunrise shot takes its heading from the sun, so the sun is put where the start hour has it before the shots are built
+                var dn = UnityEngine.Object.FindFirstObjectByType<DayNight>(); if (dn) dn.Apply(dn.timeOfDay);
+            }
             rts.Place();                                                                              // the pose the level starts with
             homeFocus = rts.focus; homeHeight = rts.height; homePos = camT.position; homeRot = camT.rotation;
             rts.enabled = false;

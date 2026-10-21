@@ -26,7 +26,7 @@ namespace OpenZ
         void LateUpdate()
         {
             if (hud == null || hud.input == null || hud.W == null) return;
-            string c = Decide();
+            string c = OzShuttleOrderAim.Cursor(Decide(), hud);                                   // K256g SHUTTLE ORDERS: NO where only shuttles would take the move and none can ever land there (View/OzShuttleOrderAim.cs)
             if (!Mathf.Approximately(hud.input.MarkerTime, lastMarker)) { lastMarker = hud.input.MarkerTime; OrderMark = Ed(previous); }   // the cursor at order time
             OzSoundV3.CursorChanged(previous, c, hud.input.Hover);                                    // sound_v3: lock / nono / world hover
             previous = c; Current = c;
@@ -74,7 +74,7 @@ namespace OpenZ
             }
             Vector2 mp = m.position.ReadValue();
             // Zod: EXIT on the single selected ejectable unit itself
-            if (sel.Count == 1 && sel[0].CanEjectCrew() && input.ScreenRect(sel[0]).Contains(mp)) return "exit";   // apc_v1 DV15: APC = passengers aboard
+            if (sel.Count == 1 && OzShuttleAirOffers.Exit(sel[0]) && input.ScreenRect(sel[0]).Contains(mp)) return "exit";   // apc_v1 DV15: APC = passengers aboard; K430b: never on a shuttle up in the air (UI/OzShuttleAirOffers.cs)
             var h = input.Hover;
             if (h != null)
             {
@@ -87,6 +87,7 @@ namespace OpenZ
                     bool ctrlHeld = Keyboard.current != null && Keyboard.current.ctrlKey.isPressed;
                     if (h.Kind == ZKind.Building && h.Owner == Team.Neutral && !ctrlHeld && !door) return canMove ? "move" : "cannon";
                     { string emptyCursor = ZWorld.EmptyClickCursor(h, ctrlHeld, robots, canMove, canAttack, explosives); if (emptyCursor != null) return emptyCursor; }   // DV81: over an empty vehicle or gun never ATTACK without Ctrl (ENTER with a robot selected, else MOVE); Ctrl = ATTACK, as for neutral buildings
+                    if (!door && ZWorld.PyroBurnCursor(h, sel, me, ctrlHeld)) return "attack";   // DV113: Ctrl over a building or bridge with a Pyro selected = ATTACK (it burns it), where explosives-only showed NO (Sim/ZObject.PyroForceBurn.cs)
                     if (canMove)
                     {
                         if (h.Type == "grenades" && pickup) return "grab";

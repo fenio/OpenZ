@@ -29,6 +29,8 @@ namespace OpenZ.Sim
         /// <summary>DV44 (ZCommit.cs): Zod A* searches run so far, and their work (open-list scans + closed-list walks; the path budget
         /// counts work per tick). Counters only: the search itself is Zod's.</summary>
         public int AStarRuns; public long Work;
+        /// <summary>Level 16 (ZWorld.Crocodiles.cs): the factor on a water tile's weight in the ROBOT grids (1 = Zod; vehicles never enter water).</summary>
+        public float WaterCost = 1f;
 
         public void Reset(int w, int h)
         {
@@ -57,6 +59,7 @@ namespace OpenZ.Sim
             vehicle[x, y] = new Info { side = side, diag = diag, passable = v };
             robotNoRocks[x, y] = robot[x, y];
             vehicleNoRocks[x, y] = vehicle[x, y];
+            if (t == PfTile.Water && WaterCost != 1f) { robot[x, y].side = robotNoRocks[x, y].side = (int)(100 * (speed * WaterCost)); robot[x, y].diag = robotNoRocks[x, y].diag = (int)((1.414 * 100) * (speed * WaterCost)); }   // level 16: the swamp weighs double for robots
         }
 
         /// <summary>zpath_finding.cpp:473-546: a vehicle tile weighs the sum of its 2x2 footprint.</summary>
@@ -198,7 +201,8 @@ namespace OpenZ.Sim
         // ------------------------------------------------------------------ Find_Path (zpath_finding.cpp:810-900)
         /// <summary>Returns 0 when no search is needed (direct line possible, or start/end in different regions: the unit
         /// then heads straight for the target like Zod). Otherwise a non-zero id and the path in <paramref name="points"/>.</summary>
-        public int FindPath(int sx, int sy, int ex, int ey, bool isRobot, bool hasExplosives, out List<(int x, int y)> points)
+        public int FindPath(int sx, int sy, int ex, int ey, bool isRobot, bool hasExplosives, out List<(int x, int y)> points) { int rp = ZRuleProf.Enter(ZRuleProf.Path); int r = FindPathCore(sx, sy, ex, ey, isRobot, hasExplosives, out points); ZRuleProf.Exit(rp); return r; }   // b109: rule tick timer per part, log only (Sim/ZRuleProf.cs)
+        int FindPathCore(int sx, int sy, int ex, int ey, bool isRobot, bool hasExplosives, out List<(int x, int y)> points)
         {
             points = null;
             bool force = ForceSearch; ForceSearch = false;
@@ -256,14 +260,26 @@ namespace OpenZ.Sim
                 int i = index[x, y]; if (i == -1) return;
                 index[x, y] = -1; size--; list[i] = list[size]; index[list[i].x, list[i].y] = i;
             }
+            /// <summary>Back to an empty list with every index at -1, for the next search. An entry that left the open list is on the
+            /// closed list (`moved`), so the two lists name every tile whose index was ever set (Remove leaves the index of the last
+            /// entry it takes off set: Zod's swap-remove writes it back).</summary>
+            public void Clear(PArray moved)
+            {
+                for (int i = 0; i < size; i++) index[list[i].x, list[i].y] = -1;
+                if (moved != null) for (int i = 0; i < moved.size; i++) index[moved.list[i].x, moved.list[i].y] = -1;
+                size = 0;
+            }
         }
+        PArray aOpen, aClosed;                                                          // the two lists of the search, kept between searches (cleared, not built anew)
 
         List<(int, int)> AStar(int startPx, int startPy, int endPx, int endPy, bool isRobot, Info[,] t)
         {
             int sx = startPx / 16, sy = startPy / 16, ex = endPx / 16, ey = endPy / 16;
             var result = new List<(int, int)>();
             if (!TileOk(sx, sy, sx, sy, isRobot, t) || !TileOk(ex, ey, ex, ey, isRobot, t)) { result.Add((endPx, endPy)); return result; }
-            var open = new PArray(W, H); var closed = new PArray(W, H);
+            if (aOpen == null || aOpen.index.GetLength(0) != W || aOpen.index.GetLength(1) != H) { aOpen = new PArray(W, H); aClosed = new PArray(W, H); }
+            else { aOpen.Clear(aClosed); aClosed.Clear(null); }                           // (what the last search left; a search that threw is cleared here too)
+            var open = aOpen; var closed = aClosed;
             open.Add(new P { x = sx, y = sy });
             P cp = default;
             while (open.size > 0)
@@ -283,9 +299,9 @@ namespace OpenZ.Sim
                 while (true)
                 {
                     path.Insert(0, cp);
-                    int i = 0;
-                    for (; i < closed.size; i++) if (cp.px == closed.list[i].x && cp.py == closed.list[i].y) { cp = closed.list[i]; break; }
-                    Work += i + 1;                                                 // DV44 path budget (ZCommit.cs): counter only
+                    int i = closed.index[cp.px, cp.py];                            // (a tile is on the closed list once: its index is where Zod's walk of the list finds it)
+                    if (i < 0) i = closed.size; else cp = closed.list[i];
+                    Work += i + 1;                                                 // DV44 path budget (ZCommit.cs): counter only (what that walk cost)
                     if (i >= closed.size) { path.Clear(); break; }
                     if (cp.x == sx && cp.y == sy) break;
                 }

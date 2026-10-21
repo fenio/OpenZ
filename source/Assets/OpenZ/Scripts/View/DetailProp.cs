@@ -69,6 +69,8 @@ namespace OpenZ
         [NonSerialized] public Func<Vector3, Vector3, bool> ShotTest;
         [NonSerialized] public Func<Vector3, float> BlastDist;
         [NonSerialized] public bool HpOwned;
+        /// <summary>DV88: many props of one look (the trees of level 16) share one pool of bits instead of one each. Null = its own pool, as before.</summary>
+        [NonSerialized] public DetailKit.Bits SharedBits;
 
         public bool Broken { get; private set; }
         public float Hp { get; private set; }
@@ -321,7 +323,7 @@ namespace OpenZ
 
         public DetailKit.Bits Bits()
         {
-            if (bits == null) { bits = new DetailKit.Bits(debris != null && debris.Length > 0 ? debris : new[] { Color.gray }); DetailPropHub.Track(bits); }
+            if (bits == null) { bits = SharedBits ?? new DetailKit.Bits(debris != null && debris.Length > 0 ? debris : new[] { Color.gray }); DetailPropHub.Track(bits); }   // DV88: SharedBits (null for every prop but the trees of level 16)
             return bits;
         }
 

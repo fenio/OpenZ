@@ -24,7 +24,7 @@ namespace OpenZ
     /// PLACE = stored cannon placement (PlayerInput.BeginPlaceCannon). SET RALLY / CLEAR = rally points (OpenZRallyPoints).
     /// </summary>
     [DefaultExecutionOrder(10)]
-    public class OpenZProductionWindow : MonoBehaviour
+    public partial class OpenZProductionWindow : MonoBehaviour
     {
         [Tooltip("Zod: the window sits next to its building in map space; off = docked at the left of the screen")] public bool anchorToBuilding = true;
 
@@ -151,21 +151,26 @@ namespace OpenZ
             }
             bStop = Btn("Stop", "STOP", "STOP|Stop production and clear the queue (Zod: Cancel).|", HudButtonStyle.Danger);
             bPlace = Btn("Place", "PLACE", "PLACE|Place the stored cannon: then click a free 2x2 spot inside this zone.|" + OzBindings.Cap(OzAction.PlaceCannon), HudButtonStyle.Normal);
-            bRally = Btn("Rally", "SET RALLY", "SET RALLY|Click the map or minimap (Shift+clicks = a route, Esc cancels). Zod way: nothing selected, right-click the map.|", HudButtonStyle.Normal);
+            bRally = Btn("Rally", "SET RALLY", "SET RALLY|Click the map or minimap (Shift+clicks = a route, Esc cancels). Zod way: nothing selected, right-click the map.|" + OzBindings.Cap(OzAction.RepairVehicles), HudButtonStyle.Normal);   // K327: its key, the repair key while a build menu is open (View/OzRallyKey.cs)
             bClear = Btn("ClearRally", "CLEAR", "CLEAR RALLY|Remove the rally points: new units stop at the door.|", HudButtonStyle.Normal);
-            bStop.OnClick = c => { if (Building != null && W.StopBuilding(hud.Player, Building)) { OzSfx.Ui("ui_production_cancel"); AudioDirector.Announce("ann_manufacturing_cancelled"); hud.Toast("PRODUCTION STOPPED", HudStyle.Muted); } };
+            bStop.OnClick = c => { if (Building != null && W.StopBuilding(hud.Player, Building)) { OzFactoryReminder.ProductionSet(Building); OzSfx.Ui("ui_production_cancel"); AudioDirector.Announce("ann_manufacturing_cancelled"); hud.Toast("PRODUCTION STOPPED", HudStyle.Muted); } };
             bPlace.OnClick = c => { var b = Building; if (b != null && b.StoredCannons.Count > 0) { hud.input.BeginPlaceCannon(b); hud.Toast($"PLACE THE {UnitInfo.Name(b.StoredCannons[0])}: CLICK A SPOT IN THE ZONE", HudStyle.Amber, 3f); Close(); } };
             // keeps its building, OpenZRallyPoints.armedFor)
             bRally.OnClick = c => { if (hud.Rally.Armed) hud.Rally.Disarm(); else { hud.Rally.Arm(); if (hud.Rally.Armed) Close(true); } };
             bClear.OnClick = c => hud.Rally.Clear(Building);
+            DressButtons();   // k252 (UI/OpenZProductionWindow.Buttons.cs, UI/OzReadyGuns.cs): bigger close X; STOP, CLEAR, wide green SET RALLY; PLACE moves into the CANNONS row
             AudioDirector.manualProductionAnnounce = true;
             win.gameObject.SetActive(false);
         }
 
         // ------------------------------------------------------------------ open / close
+        /// <summary>Checks (b30): times a build menu was opened since the game started, by whatever route (a click on the building,
+        /// the factory list, a cannon plate, a message).</summary>
+        public static int Opens;
         public void Open(ZObject b)
         {
             if (b == null || !b.IsProducer || b.Owner != hud.Player || b.Destroyed) return;             // bfort/brobot/bvehicle MakeGuiWindow: no window for a destroyed building
+            Opens++;
             if (Building != b && hud.Rally) hud.Rally.Disarm();
             bool was = Building != null;
             Building = b; builtId = -1; nextText = 0f; closing = null;
@@ -186,10 +191,12 @@ namespace OpenZ
             leaderRoot.gameObject.SetActive(false);
         }
 
-        /// <summary>Own, alive fort / factory under the pointer (last in list order, like Zod's hover object).</summary>
+        /// <summary>Own, alive fort / factory under the pointer (last in list order, like Zod's hover object). K429: its production badge,
+        /// drawn over it, counts as the building (a badge first: it lies on top).</summary>
         public ZObject ProducerUnder(Vector2 mp)
         {
             if (W == null) return null;
+            var onBadge = OpenZUnitOverlay.BadgeUnder(W, hud.Player, mp); if (onBadge != null) return onBadge;   // K429 (UI/OpenZUnitOverlay.BadgeClick.cs)
             ZObject hit = null;
             foreach (var o in W.Objects)
                 if (o.IsProducer && o.Owner == hud.Player && !o.Destroyed && hud.input.ScreenRect(o).Contains(mp)) hit = o;
@@ -204,13 +211,18 @@ namespace OpenZ
             var b = Building;
             if (b != null && (b.Owner != hud.Player || W.Get(b.Id) == null)) { Close(); b = null; }            // captured or gone (gwproduction.cpp:106-111)
             if (b != null && kb != null && kb.escapeKey.wasPressedThisFrame && !hud.Rally.Armed && hud.input.Placing == null && !hud.Modal) { Close(); b = null; }
-            if (m.leftButton.wasPressedThisFrame && !hud.Modal)
+            // Zod (zplayer.cpp:3313-3331, zplayer_events.cpp:229-232) opens the window on the PRESS on an own fort / factory with no
+            // own unit under the pointer and keeps the selection, so a box-select that began on a building opened the menu instead
+            // of the box. b30: the window opens when that press is let go as a CLICK: still on the same building, the pointer
+            // never further than OpenZHud.BuildingClickSlopPx from where it went down (a press that travels further is handed to
+            // PlayerInput as a box by OpenZHud.Update, which also closes an open window). The selection is kept as before
+            // (OpenZHud holds that press back from PlayerInput). Any other press on the map closes the window (and PlayerInput
+            // deselects / starts a box as usual).
+            if (m.leftButton.wasPressedThisFrame && !hud.Modal && b != null && hud.PressCapture == OpenZHud.Capture.None && hud.input.Placing == null) { Close(); b = null; }
+            if (m.leftButton.wasReleasedThisFrame && !hud.Modal && hud.PressCapture == OpenZHud.Capture.Building && hud.PressBuilding != null)
             {
-                // Zod (zplayer.cpp:3313-3331): a press on an own fort / factory with no own unit under the pointer opens its
-                // window at once and keeps the selection (OpenZHud captured that press away from PlayerInput); any other
-                // press on the map closes the window (and PlayerInput deselects / starts a box as usual).
-                if (hud.PressCapture == OpenZHud.Capture.Building && hud.PressBuilding != null) { if (hud.PressBuilding != b) Open(hud.PressBuilding); }
-                else if (b != null && hud.PressCapture == OpenZHud.Capture.None && hud.input.Placing == null) Close();
+                Vector2 up = m.position.ReadValue(); float slop = OpenZHud.BuildingClickSlopPx;
+                if ((up - hud.PressPos).sqrMagnitude <= slop * slop && ProducerUnder(up) == hud.PressBuilding && hud.PressBuilding != b) Open(hud.PressBuilding);
             }
             if (Building == null)
             {
@@ -253,6 +265,7 @@ namespace OpenZ
                 }
                 row++;
             }
+            row = PlaceTileAt(perClass, row);   // k252 (UI/OpenZProductionWindow.Buttons.cs, UI/OzReadyGuns.cs): the PLACE tile after the last gun of the CANNONS row
             rows = Mathf.Max(1, row);
             float h = H(rows), yq = OzLayout.ProdQueueY0 + OzLayout.ProdRowH * rows;
             win.sizeDelta = new Vector2(OzLayout.ProdW, h);
@@ -298,6 +311,7 @@ namespace OpenZ
             if (b.Building && b.CurUnit == unit) { OzSfx.Ui("ui_production_pick"); hud.Toast($"{UnitInfo.Name(unit)} IS ALREADY IN PRODUCTION", HudStyle.Muted); return; }
             if (b.Building) W.StopBuilding(hud.Player, b);                                                 // Zod: Cancel ...
             bool started = W.StartBuilding(hud.Player, b, unit);
+            if (started) OzFactoryReminder.ProductionSet(b);   // factory reminder (k247, UI/OzFactoryReminder.cs): he set this factory's production himself
             if (started) { OzSfx.Ui("ui_production_ok"); AudioDirector.Announce("ann_starting_manufacture"); } else OzSfx.Ui("ui_error");
             if (started)                                                                                   // ... pick, OK
                 hud.Toast($"PRODUCING {UnitInfo.Name(unit)} · {UnitInfo.Mmss(b.BFinal - b.BInit)}", HudStyle.Amber);
@@ -309,6 +323,7 @@ namespace OpenZ
             if (b.Building && b.Queue.Count >= ZObject.MAX_QUEUE_ITEMS) { hud.Toast("QUEUE FULL (5)", HudStyle.Danger); return; }
             bool idle = !b.Building;
             bool queued = W.AddBuildingQueue(hud.Player, b, unit);
+            if (queued) OzFactoryReminder.ProductionSet(b);   // factory reminder (k247, UI/OzFactoryReminder.cs): he set this factory's production himself
             if (!queued) OzSfx.Ui("ui_error");
             else if (idle) { OzSfx.Ui("ui_production_ok"); AudioDirector.Announce("ann_starting_manufacture"); }
             else { OzSfx.Ui("ui_queue_add"); AudioDirector.Announce("ann_production_queued"); }
@@ -330,6 +345,7 @@ namespace OpenZ
             var b = Building; if (b == null) return;
             bool on = !b.RepeatProduction;
             if (!W.SetBuildingRepeat(hud.Player, b, on)) { OzSfx.Ui("ui_error"); return; }
+            OzFactoryReminder.ProductionSet(b);   // factory reminder (k247, UI/OzFactoryReminder.cs): REPEAT on / off is a production change of his
             OzSfx.Ui(on ? "ui_toggle_on" : "ui_toggle_off");
             hud.Toast(on ? "REPEAT ON · THE LAST UNIT KEEPS BEING BUILT" : "REPEAT OFF · STOPS AFTER THE QUEUE", on ? HudStyle.Amber : HudStyle.Muted);
         }
@@ -338,7 +354,7 @@ namespace OpenZ
         {
             var b = Building; if (b == null || i >= b.Queue.Count) return;
             var u = b.Queue[i];
-            if (W.CancelBuildingQueue(hud.Player, b, i, u)) { OzSfx.Ui("ui_queue_remove"); hud.Toast($"{UnitInfo.Name(u)} REMOVED FROM THE QUEUE", HudStyle.Muted); }
+            if (W.CancelBuildingQueue(hud.Player, b, i, u)) { OzFactoryReminder.ProductionSet(b); OzSfx.Ui("ui_queue_remove"); hud.Toast($"{UnitInfo.Name(u)} REMOVED FROM THE QUEUE", HudStyle.Muted); }
         }
 
         /// <summary>Zod's window state in Zod's order (zbuilding.cpp:77-83 GetBuildState, then gwproduction.cpp:383-387 SetState):
@@ -435,10 +451,8 @@ namespace OpenZ
             SetB(bClear, b.RallyPoints.Count > 0 || pend != null);
             SetB(bRally, true);
             if (bRally.Selected != hud.Rally.Armed) { bRally.Selected = hud.Rally.Armed; bRally.Refresh(); }
-            // PLACE: disabled unless a cannon is stored; then primary, blinking primary / alert every 300 ms (guide 9.6)
-            var placeStyle = b.StoredCannons.Count > 0 ? HudButtonStyle.Primary : HudButtonStyle.Normal;
-            bool placeBlink = b.StoredCannons.Count > 0 && !OzMotion.Reduced && OzMotion.Blink(OzMotion.BlinkSlow);
-            if (bPlace.Style != placeStyle || bPlace.Alert != placeBlink) { bPlace.Style = placeStyle; bPlace.Alert = placeBlink; bPlace.Refresh(); }
+            // PLACE: disabled unless a cannon is stored; then the tile shows the gun and glows amber (the SET RALLY face too)
+            RefreshPlaceTile(b);   // k252 (UI/OpenZProductionWindow.Buttons.cs, UI/OzReadyGuns.cs): the PLACE tile and the green SET RALLY
             bRally.Label.Set(hud.Rally.Armed ? "CANCEL" : "SET RALLY");
         }
 
@@ -619,14 +633,14 @@ namespace OpenZ
         void Clusters(Vector2 cs)
         {
             zoneCount = 0;
-            var mm = OzLayout.Minimap; float mx = mm.XOn(cs.x);
+            var mm = OzHudLayout.At(OzPanel.Minimap, OzLayout.Minimap); float mx = mm.XOn(cs.x);
             zones[zoneCount++] = new Vector3(mx, mx + mm.w, OzLayout.RefH - mm.y);
-            var up = OzLayout.UnitPanelFor(OpenZHud.CanvasWidth);   /* menu_exe_v1 */ float ux = up.XOn(cs.x);
+            var up = OzHudLayout.At(OzPanel.Unit, OzLayout.UnitPanelFor(OpenZHud.CanvasWidth));   /* menu_exe_v1 */ float ux = up.XOn(cs.x);
             zones[zoneCount++] = new Vector3(ux, ux + up.w, OzLayout.RefH - up.y + OzLayout.AlertTab.h);        // + the A alert tab above it
-            var cb = OzLayout.CommandBar;
+            var cb = OzHudLayout.At(OzPanel.Command, OzLayout.CommandBar);
             zones[zoneCount++] = new Vector3(cb.x, cb.x + cb.w, OzLayout.RefH - cb.y);
             float ft = hud.FactoryListTop;
-            if (ft > 0f) zones[zoneCount++] = new Vector3(OzLayout.FactoryX, OzLayout.FactoryX + OzLayout.FactoryW, ft);
+            if (ft > 0f) zones[zoneCount++] = new Vector3(cb.x, cb.x + OzLayout.FactoryW, ft);   // the list stands at the command bar's left edge (OzLayout.FactoryX = OzLayout.CommandBar.x)
         }
 
         float MinBottom(float x0, float x1)

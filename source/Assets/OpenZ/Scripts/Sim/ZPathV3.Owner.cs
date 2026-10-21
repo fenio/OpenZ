@@ -105,7 +105,7 @@ namespace OpenZ.Sim
         bool SpotOnLane(int x, int y, bool robot)
         {
             int h = robot ? 8 : 16;
-            foreach (var L in Lanes) if (BoxInZone(L, x - h, y - h, 2 * h, 2 * h)) return true;
+            foreach (var L in LanesNear(x, y)) if (BoxInZone(L, x - h, y - h, 2 * h, 2 * h)) return true;
             return false;
         }
 

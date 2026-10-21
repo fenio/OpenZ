@@ -118,6 +118,15 @@ namespace OpenZ
             float from = hadStrike ? OpenZNukeStrike.LastImpactTime + PostImpactDelay : Time.time + 0.4f;
             skippable = true;                                                                // endings_v1: Enter / Space skip from the impact on
             while (Time.time < from) yield return null;
+            // level 16 endings: the two robots on the sun loungers, the fallen fort's mushroom far behind them (ZodBriefing.EndingScene.cs);
+            // any other level, or no set bound: false, and everything below runs as before
+            if (!draw && ZodBriefing.EndingSceneWanted(won))
+            {
+                speaking = true;                                                             // no other robot / announcer line starts under the scene
+                yield return ZodBriefing.EndingScene(won, () => released);
+                if (!released) Release("ending scene done");
+                yield break;
+            }
             // endings_v1: the lines wait until the nuke's death wave is over (OpenZEnding: the eliminated team dies outward from the bomb)
             float w0 = Time.time;
             while (OpenZEnding.WaveRunning && Time.time - w0 < 7f) yield return null;

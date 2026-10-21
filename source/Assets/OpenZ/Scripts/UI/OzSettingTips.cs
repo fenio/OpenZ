@@ -9,7 +9,7 @@ namespace OpenZ
     public static class OzSettingTips
     {
         /// <summary>The old "REDUCED MOTION" switch (OzMotion.Reduced, saved as before).</summary>
-        public const string CalmLabel = "CALM SCREEN · NO BLINKING OR SHAKE";
+        public const string CalmLabel = "CALM MODE · NO FLASHES OR BLINKING";
         /// <summary>
         /// (= the live pathing bit for bit), saved in oz_path_v3, read by ZGame at the next match start.</summary>
         public const string PathV3Label = "SMOOTHER PATHING", PrefPathV3 = "oz_path_v3";
@@ -38,23 +38,33 @@ namespace OpenZ
         {
             ["EDGE SCROLL"] = "EDGE SCROLL|The map scrolls when the mouse touches the edge of the screen. WASD, the arrow keys and the minimap always scroll.|",
             ["HEALTH BARS ON EVERY DAMAGED UNIT"] = "HEALTH BARS ON EVERY DAMAGED UNIT|On: every damaged unit shows its health bar. Off: only selected and hovered units show it.|",
-            ["SCREEN SHAKE"] = "SCREEN SHAKE|The camera shakes on big explosions and heavy hits.|",
-            [CalmLabel] = "CALM SCREEN|For comfort: no blinking alerts, no screen shake, softer lightning and instant menu animations.|",
+            ["CAMERA SHAKE ON EXPLOSIONS"] = "CAMERA SHAKE ON EXPLOSIONS|The camera shakes on big explosions and heavy hits.|",
+            [CalmLabel] = "CALM MODE|For comfort: no blinking alerts or flashes, no camera shake, softer lightning and instant menu animations.|",
             ["UI SCALE"] = "UI SCALE|Size of the whole interface. Left arrow: smaller. Right arrow: bigger.|",
             ["HUD SCALE"] = "HUD SCALE|Size of the in-game interface. Left arrow: smaller. Right arrow: bigger.|",
-            ["WEATHER · NIGHT RAIN AND THUNDER"] = "WEATHER|Rain, lightning and thunder at night on the city map.|",
+            [OzNightRain.Label] = OzNightRain.Tip,                                          // NIGHT & RAIN: off = always day, no rain (OzNightRain.cs)
             ["YOUR TEAM COLOUR · VISUAL ONLY"] = "YOUR TEAM COLOUR|Play as red (like Z) or blue. Only the colours change, never the rules or the map. From the next match.|",
             ["HIT FLASH ON DAMAGED UNITS"] = "HIT FLASH|Units flash briefly when they take a hit.|",
             ["MOTION BLUR · FAST DEBRIS AND SHELLS"] = "MOTION BLUR|On (default): fast flying debris, blown-off turrets and wreck parts blur, shells, rockets and tracers leave a soft tail, sparks streak, and the smoke and fire of blasts are a little softer. The ground, buildings and standing units stay sharp, also while the camera moves or shakes.|",
             [PathV3Label] = "SMOOTHER PATHING|On (default): less back-and-forth in open ground, groups settle when close enough, units stuck over 5 s may step over wreck debris; bridges and bottlenecks keep the classic planner. Off = the classic pathing (rollback). Applies from the next match.|",
             ["MUSIC · SOUNDTRACK"] = "MUSIC|Switches the soundtrack on or off, in the menu and in battle.|",
-            ["FULLSCREEN · NATIVE RESOLUTION"] = "FULLSCREEN|On: full screen at your monitor's own resolution. Off: a window.|",
+            [OzSettings.FullLabel] = "FULLSCREEN|On: the game fills the screen, at the size the RESOLUTION row sets. Off: a window.|",
+            [OzSettings.ResLabel] = "RESOLUTION|Lower it on a slower computer. NATIVE is the sharpest.|",
             [NightShadows.Label] = NightShadows.Tip,
             [CraterField.Label] = CraterField.Tip,
             [OzQuality.Label] = OzQuality.Tip,
             [OzQuality.FpsLabel] = OzQuality.FpsTip,
+            [OzFpsCap.Label] = OzFpsCap.Tip,                                               // FRAME RATE LIMIT: 30 / 60
             [MechWalk.Label] = MechWalk.Tip,
+            [OzOvertake.Label] = OzOvertake.Tip,                                           // DV105: fast units pass slow ones (OzOvertake.cs)
+            [OzOverlapOption.Label] = OzOverlapOption.Tip,                                 // FRIENDLY UNITS OVERLAP (OzOverlapOption.cs)
+            [OzTouch.Label] = OzTouch.Tip,                                                  // touch and gamepad (OzTouch.cs)
+            [OzTrackpadScroll.Label] = OzTrackpadScroll.Tip,                                // TRACKPAD SCROLL: ZOOM / MOVE MAP (OzTrackpadScroll.cs)
             [MinimalLabel] = "MINIMAL UI|Hide the permanent HUD panels; keep the menu button and the minimap.|",
+            [OzStrikeGroups.Label] = OzStrikeGroups.Tip,                                    // enemy strike groups (DV107)
+            [OzShuttleOption.Label] = OzShuttleOption.Tip,                                  // the level 16 shuttle (DV118)
+            [OzShuttleOrdersOption.Label] = OzShuttleOrdersOption.Tip,                      // K256g: the shuttle's orders only to landable places (OzShuttleOrdersOption.cs)
+            [OzFreeCam.Label] = OzFreeCam.Tip,                                             // FREE CAMERA (OzFreeCam.cs)
         };
 
         // ---- options tabs: one table for both menus (the main menu's OPTIONS modal, the pause menu's OPTIONS panel)
@@ -63,12 +73,12 @@ namespace OpenZ
         /// <summary>Row label -> tab; the order here is the order of the rows on their tab.</summary>
         static readonly (string label, int tab)[] TabRows =
         {
-            ("MUSIC · SOUNDTRACK", TabMain), ("ANNOUNCER CHATTER", TabMain), (RobotChatterLabel, TabMain), ("FULLSCREEN · NATIVE RESOLUTION", TabMain), ("HUD SCALE", TabMain), ("UI SCALE", TabMain),
-            ("EDGE SCROLL", TabGame), ("HEALTH BARS ON EVERY DAMAGED UNIT", TabGame), (MinimalLabel, TabGame), ("YOUR TEAM COLOUR · VISUAL ONLY", TabGame),
-            ("SCREEN SHAKE", TabGame), (CalmLabel, TabGame), ("HIT FLASH ON DAMAGED UNITS", TabGame),
-            (OzQuality.Label, TabGraphics), (NightShadows.Label, TabGraphics), ("WEATHER · NIGHT RAIN AND THUNDER", TabGraphics),
+            ("MUSIC · SOUNDTRACK", TabMain), ("ANNOUNCER CHATTER", TabMain), (RobotChatterLabel, TabMain), (OzSettings.FullLabel, TabMain), (OzSettings.ResLabel, TabMain), ("HUD SCALE", TabMain), ("UI SCALE", TabMain),
+            ("EDGE SCROLL", TabGame), (OzFreeCam.Label, TabGame), ("HEALTH BARS ON EVERY DAMAGED UNIT", TabGame), (MinimalLabel, TabGame), (OzHudLayout.Label, TabGame), ("YOUR TEAM COLOUR · VISUAL ONLY", TabGame),
+            ("CAMERA SHAKE ON EXPLOSIONS", TabGame), (CalmLabel, TabGame), ("HIT FLASH ON DAMAGED UNITS", TabGame), (OzOverlapOption.Label, TabGame),
+            (OzQuality.Label, TabGraphics), (OzFpsCap.Label, TabGraphics), (NightShadows.Label, TabGraphics), (OzNightRain.Label, TabGraphics),
             ("MOTION BLUR · FAST DEBRIS AND SHELLS", TabGraphics), (OzQuality.FpsLabel, TabGraphics),
-            (PathV3Label, TabAdvanced), (CraterField.Label, TabAdvanced), (MechWalk.Label, TabAdvanced), ("PLAY INTRO · ON GAME START", TabAdvanced),
+            (OzStrikeGroups.Label, TabAdvanced), (OzTouch.Label, TabAdvanced), (OzTrackpadScroll.Label, TabAdvanced), (PathV3Label, TabAdvanced), (OzOvertake.Label, TabAdvanced), (CraterField.Label, TabAdvanced), (MechWalk.Label, TabAdvanced), ("PLAY INTRO · ON GAME START", TabAdvanced),
         };
         static int TabRow(string label) { for (int i = 0; i < TabRows.Length; i++) if (TabRows[i].label == label) return i; return -1; }
         /// <summary>The options tab of a row label. A label that is not in the table shows on ADVANCED, so a new row is never lost.</summary>

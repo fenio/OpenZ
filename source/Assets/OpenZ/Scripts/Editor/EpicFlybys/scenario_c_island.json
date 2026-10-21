@@ -1,0 +1,70 @@
+{
+  "name": "scenario_c_island",
+  "title": "The island",
+  "about": "Golden hour, from RTS heights. The map's own flag island in the west swamp is a quiet red camp: two red robots lie on loungers by two campfires, the flag is red, the gun crewed, a laser squad on the north shore and a pyro squad in the camp, all holding their places. Blue robots step off the east bank and wade the crocodiles' channel under the guard's fire; crocodiles take three of them on the way (the slow roll, the fast dive, the slow roll); the loungers get up as the blue come near, and the survivors land and fight the guard (lasers, pyros, the gun). Every shot looks from the south side, so the lasers on the north shore are seen firing side-on, never from behind.",
+  "level": "L16",
+  "scene": "L16_Jungle",
+  "output": "flyby_c_island_4k",
+  "seconds": 28.0,
+  "time_of_day": 0.38,
+  "weather": "clear",
+  "seed": 1603,
+  "settle_s": 3.0,
+  "floor_m": 1.6,
+  "drift": 0.9,
+  "flyby_sky": true,
+  "lounge_wake_m": 15,
+  "full": {"width": 3840, "height": 2160, "fps": 60},
+  "preview": {"width": 1920, "height": 1080, "fps": 60},
+  "camera": [
+    {"t": 0.0, "pos": [33, 28, -165], "look": [64, 0, -131], "fov": 38, "cut": true, "ease": "inout", "note": "shot 1: high from the south-west, the sun behind on the left: the camp with the two loungers (their feet towards the lens) and their campfires, the flag and the gun in front, the lasers on the north shore firing side-on across the frame at the waders, the channel behind with the blue stepping off the east bank; catches 1 (about 5.7 s) and 2 (about 7.7 s) in the channel"},
+    {"t": 9.5, "pos": [36, 28, -168], "look": [65, 0, -132], "fov": 37, "note": "a slow truck to the right"},
+    {"t": 9.5, "pos": [74, 30, -176], "look": [66, 0, -133], "fov": 38, "cut": true, "ease": "inout", "note": "shot 2: high from the south up the channel: the second wave wading, catch 3 (about 12 s), the first wave landing on the island's east shore (left)"},
+    {"t": 18.0, "pos": [70, 30, -175], "look": [62, 0, -132], "fov": 38},
+    {"t": 18.0, "pos": [44, 26, -170], "look": [58, 0, -131], "fov": 38, "cut": true, "ease": "inout", "note": "shot 3: the landing fight in the camp (lasers, pyros, the gun) from the south-south-west (the lasers fire across the frame, not away from the lens), rising to a high frame over the island and the water"},
+    {"t": 23.0, "pos": [42, 31, -174], "look": [59, 0, -131], "fov": 38},
+    {"t": 28.0, "pos": [40, 38, -178], "look": [62, -1, -132], "fov": 40, "note": "high over the island and the channel from the south-west"}
+  ],
+  "sun_birds": {"on": false},
+  "units": [
+    {"tag": "red_laser", "team": "r", "type": "laser", "x": 59.5, "z": -124.8, "hp_k": 3.0, "start": "hold", "note": "the north shore of the island beside the gun; holds its place (fires at what comes within 17 m, never wades out)"},
+    {"tag": "red_pyro", "team": "r", "type": "pyro", "x": 59, "z": -137, "hp_k": 3.0, "start": "hold", "note": "the south part of the camp (run 18: moved from 59,-133, where its spread stood in shot 1's sight lines to catches 1 and 2 and pushed the south lounger's robot off its lounger); holds its place"},
+    {"tag": "blue_a", "team": "b", "type": "grunt", "x": 81, "z": -130.3, "hp_k": 12.0, "start": "idle", "note": "first wave, on the east bank south of the gun's line from shot 1's lens; ordered across the channel at 0.3 s"},
+    {"tag": "blue_b", "team": "b", "type": "psycho", "x": 79.5, "z": -133.3, "hp_k": 12.0, "start": "idle", "note": "first wave, ordered across at 0.6 s"},
+    {"tag": "blue_c", "team": "b", "type": "tough", "x": 81, "z": -125, "hp_k": 12.0, "start": "idle", "note": "second wave (slow, rockets), ordered across at 6 s (behind the gun from shot 1's lens; shot 2 sees it)"},
+    {"tag": "blue_d", "team": "b", "type": "grunt", "x": 77.5, "z": -139.5, "hp_k": 12.0, "start": "idle", "note": "second wave, ordered across at 6.3 s through the south of the channel (close to shot 2)"}
+  ],
+  "props": [
+    {"kind": "campfire", "x": 53.1, "z": -131.0, "note": "campfire 1, 2.2 m before the feet of the north lounger (run 18)"},
+    {"kind": "campfire", "x": 56.8, "z": -134.4, "note": "campfire 2, 2.2 m before the feet of the east lounger (run 18)"}
+  ],
+  "setup": [
+    {"action": "award_flag", "x": 57, "z": -131, "team": "r", "note": "the flag of the island (zone 6) is red"},
+    {"action": "crew_gun", "x": 60, "z": -128, "team": "r", "note": "the gun of the island is crewed by a red robot (the game's own boarding)"},
+    {"action": "lounge_at", "tag": "red_lounge", "team": "r", "type": "grunt", "hp_k": 1.2, "hold": true, "x": 56.2, "z": -128.47, "face": [53.1, -131.0], "parasol": [55.6, -127.3], "note": "the north lounger: lying from frame 0 on flat land (run 18: was 55,-127.4 on a 0.41 m slope), feet south-west to campfire 1, the parasol at its west side; hold position: it does not walk off before an enemy comes within its reach"},
+    {"action": "lounge_at", "tag": "red_lounge", "team": "r", "type": "grunt", "hp_k": 1.2, "hold": true, "x": 59.9, "z": -131.87, "face": [56.8, -134.4], "parasol": [60.9, -132.7], "note": "the east lounger: lying from frame 0 on flat land between the flag and the east shore (run 18: was 54,-134.1 on a 0.39 m slope beside the pyros), feet south-west to campfire 2, the parasol at its east side"}
+  ],
+  "cues": [
+    {"t": 0.0, "action": "log_units"},
+    {"t": 0.3, "action": "order:attack_move", "tag": "blue_a", "via": [71, -130.3, 61.5, -130.6], "x": 59.5, "z": -124.8, "note": "straight across the channel south of the gun's line (plain moves through the water, ashore just south of the gun), then an attack move on the lasers"},
+    {"t": 0.6, "action": "order:attack_move", "tag": "blue_b", "via": [70, -133.6, 60.5, -133.2], "x": 57.5, "z": -133.5, "note": "across and ashore into the camp, then an attack move on the pyros and the flag side"},
+    {"t": 3.4, "action": "croc_catch", "tag": "blue_a", "kind": "roll", "window_s": 5, "note": "catch 1: the slow roll in shot 1 (the robot nearest the middle of the frame that the lens sees)"},
+    {"t": 5.4, "action": "croc_catch", "tag": "blue_b", "kind": "fast", "window_s": 4, "note": "catch 2: the fast dive in shot 1, while catch 1 still rolls"},
+    {"t": 6.0, "action": "order:attack_move", "tag": "blue_c", "via": [72, -125.5, 62.5, -125.4], "x": 60, "z": -124.8},
+    {"t": 6.3, "action": "order:attack_move", "tag": "blue_d", "via": [70, -136.8, 59.5, -136.6], "x": 59, "z": -133},
+    {"t": 10.6, "action": "wake", "tag": "red_lounge", "note": "a lounger still lying by now gets up (normally the blue in the channel woke them earlier: an enemy within 15 m)"},
+    {"t": 10.8, "action": "croc_catch", "tag": "blue_d", "kind": "roll", "window_s": 5, "note": "catch 3: the slow roll close to the camera of shot 2"},
+    {"t": 18.0, "action": "log_units"},
+    {"t": 18.0, "action": "log_landing", "note": "the landing: at least 4 blue robots alive"},
+    {"t": 21.0, "action": "log_landing", "note": "at least 2 blue squads with a robot ashore on the island"},
+    {"t": 22.0, "action": "log_landing", "note": "the fight lasts into shot 3: blue and red both alive"},
+    {"t": 27.5, "action": "log_units"}
+  ],
+  "audio": {
+    "mute_buses": ["Music", "UI", "Voice", "Voice/Announcer", "Voice/Robots", "Voice/Commander"],
+    "silence_clips": ["sd_robot_croc_alarm_a", "sd_robot_cry_cut_a", "sd_vo_croc_hurry_a", "sd_vo_croc_hurry_b", "sd_vo_croc_hurry_c", "sd_vo_croc_hurry_d", "sd_vo_croc_hurry_e", "sd_vo_croc_flee_a", "sd_vo_croc_flee_b", "sd_vo_croc_flee_c", "sd_vo_croc_bank_a", "sd_vo_croc_bank_b"],
+    "silence_prefixes": ["sd_vo_", "sd_robot_cry", "sd_robot_croc_alarm"],
+    "voice_gate": true,
+    "music_off": true
+  }
+}

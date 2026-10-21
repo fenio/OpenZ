@@ -30,9 +30,9 @@ namespace OpenZ.EditorTools
             });
             list.Add(new Deviation
             {
-                id = "DV55", change = "Close grab: a flag within Zod's flag distance / an empty vehicle within 5 tiles is taken by the single closest idle unit, also a player-held one",
+                id = "DV55", change = "Close grab: a flag within Zod's flag distance / an empty vehicle within 5 tiles is taken by the single closest idle unit, also a player-held one (with DV84 on: the vehicle within 220 px)",
                 zod = "every idle leader within auto_grab 220 px grabs (zobject.cpp:1603-1853); OpenZ DV38 holds player-ordered units (no auto-grab) and sends one unit per target (the first to check)",
-                openz = $"a held unit still takes an empty vehicle within {ZWorld.CloseGrabPx} px and a flag within {ZWorld.CloseGrabFlagPx} px (Zod's auto_grab_flag_distance) that it sees and can reach; on a human team only the closest eligible idle unit (squad = one) goes for any auto-grab; sight rule of ai paths unchanged (never through rocks)",
+                openz = $"a held unit still takes an empty vehicle within {ZWorld.CloseGrabPx} px and a flag within {ZWorld.CloseGrabFlagPx} px (Zod's auto_grab_flag_distance) that it sees and can reach; on a human team only the closest eligible idle unit (squad = one) goes for any auto-grab; sight rule of ai paths unchanged (never through rocks); with DV84 on a held unit takes an empty vehicle or gun within Zod's auto_grab_vehicle_distance (220 px) like a flag, not only within {ZWorld.CloseGrabPx} px (OpenZParity.V11GrabCertain.cs)",
                 measured = "harness grab: held squad 3-5 tiles away went 0/18 -> 17/18 L02, 0/18 -> 18/18 L17 (running), held squad 9-12 tiles from an empty vehicle 0 (flags: taken up to ZWorld.CloseGrabFlagPx)",
                 toggle = "oz_close_grab (off in Zod exact)", status = St("oz_close_grab"),
             });

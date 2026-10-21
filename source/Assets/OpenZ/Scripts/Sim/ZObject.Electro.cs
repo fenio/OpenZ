@@ -68,7 +68,7 @@ namespace OpenZ.Sim
         /// weapon, vapc.cpp:266-342; D13).</summary>
         public bool IsElectroWeapon => IsElectrobot || (Kind == ZKind.Vehicle && Type == "apc" && Drivers.Count > 0 && CrewWeaponType == ZElectro.Type);
         /// <summary>D7: he enters vehicles and cannons only on a direct order (no idle auto-grab, the CPU never sends him).</summary>
-        public bool NoAutoEnter => ZWorld.ElectrobotNoAutoEnter && IsElectrobot;
+        public bool NoAutoEnter => (ZWorld.ElectrobotNoAutoEnter && IsElectrobot) || HeroNoAutoBoard;   // KH (item 186): the heroes board only on the player's order too (Sim/ZHeroSquad.Kh.cs)
 
         /// <summary>View: 0..1 over the recharge (1 = charged, also during the windup).</summary>
         public double ElectroCharge01
@@ -115,7 +115,7 @@ namespace OpenZ.Sim
             if (!CanAttackObject(t)) { Fizzle(t); Disengage(); return; }
             if (now < elRelease) { elTarget = t.Id; return; }
             if (!WithinAttackRadius(t)) { Fizzle(t); Disengage(); return; }                   // out of range / line on the release tick
-            Bolt(t, time);
+            if (!ZapMissCover(t)) Bolt(t, time);                                              // DV122: the zap may miss a kneeling / lying sniper (Sim/ZObject.ProneTarget.cs)
         }
 
         void Bolt(ZObject t, double time)
@@ -207,6 +207,7 @@ namespace OpenZ.Sim
             CheckPassiveEngage(time, true);
             ProcessAttackDamage(time, LastAttackPlayerGiven);
             CraneGunStep(time);
+            DriverFireStep(time);                                                             // DV87: the hatch driver of a stunned tank fires too
             long left = stunEnd - World.TickIndex;
             if (left % 100 == 0) World.Emit(ZEventType.StunPulse, this, null, CenterX, CenterY, left / 100);
             return true;

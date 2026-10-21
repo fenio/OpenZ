@@ -68,7 +68,7 @@ namespace OpenZ
     /// RETRY, R = REPLAY (restart this level), Esc = MAIN MENU.
     /// </summary>
     [DefaultExecutionOrder(-43)]
-    public class OpenZEndScreen : MonoBehaviour
+    public partial class OpenZEndScreen : MonoBehaviour
     {
         public bool IsShown { get; private set; }
         /// <summary></summary>
@@ -144,8 +144,8 @@ namespace OpenZ
             post = kind == "victory" ? new OzPost("OZ_EndScreen", -45f, -0.9f, 0.35f) : kind == "defeat" ? new OzPost("OZ_EndScreen", -70f, -1.1f, 0.45f) : new OzPost("OZ_EndScreen", -60f, -1f, 0.4f);
             Color accent = win ? OzUi.Amber : kind == "defeat" ? (Color)OzUi.Alert : (Color)OzUi.Ink2;
             float cx = OzLayout.RefW * 0.5f;
-            string level = game.level == "L17" ? "THE CAR PARK" : "THE DESERT";
-            string lvlCode = game.level == "L17" ? "L17" : game.level == "L02" ? "L02" : game.level;
+            string level = game.level == "L17" ? "THE CAR PARK" : game.level == "L16" ? "THE JUNGLE" : "THE DESERT";
+            string lvlCode = game.level;
             Team enemy = me == Team.Red ? Team.Blue : Team.Red;
 
             dimImage = null;
@@ -178,9 +178,9 @@ namespace OpenZ
             if (OzKit.GetSprite("Portrait/portrait_mask") != null) pm.gameObject.AddComponent<Mask>().showMaskGraphic = false; else pm.color = OzUi.GM950;
             Hud.Kit(pm.transform, "Bg", "Portrait/portrait_bg_" + (game.level == "L17" ? "city" : "desert"), new OzRect(0, 0, OzLayout.EndFlankWell, OzLayout.EndFlankWell), null, Image.Type.Simple);
             var art = Hud.Node("Art", pm.transform); art.Fill(); var ri = art.gameObject.AddComponent<RawImage>(); ri.raycastTarget = false;
-            ri.texture = UnitArt.Portrait(face, me); ri.enabled = ri.texture != null;
+            ri.texture = OzHeroSquadView.FacePortrait(face, me); ri.enabled = ri.texture != null;   // DV108: the hero squad's picture (else UnitArt.Portrait)
             Hud.Kit(flankL, "Frame", "Portrait/portrait_frame", new OzRect(8, 8, OzLayout.EndFlankWell, OzLayout.EndFlankWell), null, Image.Type.Simple).enabled = OzKit.Available;
-            Hud.Label(flankL, "Name", UnitInfo.Name(face), 11, OzUi.Ink, 0.16f).At(OzLayout.EndFlankW * 0.5f, 116, OzH.C, false, OzLayout.EndFlankW - 16f);
+            Hud.Label(flankL, "Name", OzHeroSquadView.FaceName(face), 11, OzUi.Ink, 0.16f).At(OzLayout.EndFlankW * 0.5f, 116, OzH.C, false, OzLayout.EndFlankW - 16f);
             Hud.Label(flankL, "Comms", "COMMS · " + TeamColors.Name(me), 8, OzUi.Muted, 0.24f, OzStyle.Plain).At(OzLayout.EndFlankW * 0.5f, 133, OzH.C, false, OzLayout.EndFlankW - 16f);
             flankR = Flank(new OzRect(OzAnchor.TC, cx + OzLayout.EndFlankDX - OzLayout.EndFlankW, OzLayout.EndFlankY, OzLayout.EndFlankW, OzLayout.EndFlankH));
             if (winner != Team.Neutral) Hud.Kit(flankR, "Emblem", "Bits/emblem_" + TeamColors.Key(winner) + "_lg", new OzRect(8, 8, 96, 96), null, Image.Type.Simple);
@@ -266,10 +266,11 @@ namespace OpenZ
             Debug.Log("[OpenZ] end screen layout: " + LayoutStatus);
 
             // buttons + hint
+            BuildScore(accent, sx0);                                                                     // score, rank and the level's table (OpenZEndScreen.Score.cs)
             string primary = win ? "CONTINUE" : "RETRY";
             Button(0, "REPLAY", cx - 330, 220, HudButtonStyle.Normal, OzScenes.Restart, "REPLAY|Play this level again from the start.|R");
             Button(1, primary, cx - 100, 200, HudButtonStyle.Primary, win ? (System.Action)OzScenes.Next : OzScenes.Restart,
-                   win ? "CONTINUE|The next operation (Car Park after the Desert).|ENTER" : "RETRY|Fight this battle again.|ENTER");
+                   win ? "CONTINUE|The next operation.|ENTER" : "RETRY|Fight this battle again.|ENTER");
             Button(2, "MAIN MENU", cx + 110, 220, HudButtonStyle.Normal, OzScenes.MainMenu, OzScenes.HasMenu ? "MAIN MENU|Back to the front end.|ESC" : "MAIN MENU|The front end is not in the build yet: this loads the first level.|ESC");
             focusRing = Hud.Kit(root, "Focus", "Buttons/btn_l_focus", new OzRect(OzAnchor.TC, cx - 104, OzLayout.EndButtonsY - 4, 208, 58), OzUi.Amber);
             focusRing.enabled = OzKit.Available; focus = 1;
@@ -294,7 +295,7 @@ namespace OpenZ
             if (hud != null && hud.W != null)
             {
                 var n = new Dictionary<string, int>();
-                foreach (var o in hud.W.Objects) if (o.Kind == ZKind.Robot && o.Owner == me && !o.Destroyed) n[o.Type] = n.TryGetValue(o.Type, out var c) ? c + 1 : 1;
+                foreach (var o in hud.W.Objects) if (o.Kind == ZKind.Robot && o.Owner == me && !o.Destroyed) { var fk = OzHeroSquadView.FaceKey(o); n[fk] = n.TryGetValue(fk, out var c) ? c + 1 : 1; }   // DV108: Alan and Brad are their own kind here
                 string best = null; int bn = 0; foreach (var kv in n) if (kv.Value > bn) { best = kv.Key; bn = kv.Value; }
                 if (best != null) return best;
             }
@@ -418,6 +419,7 @@ namespace OpenZ
             float reveal = T(2.3f, OzMotion.Dur(1.1f));
             if (!Mathf.Approximately(chart.Reveal, reveal)) { chart.Reveal = reveal; chart.SetVerticesDirty(); }
             // 3.20 buttons fade in (200 ms, 60 ms stagger); focus on CONTINUE / RETRY
+            AnimateScore();                                                                              // 2.45 the score strip (OpenZEndScreen.Score.cs)
             for (int i = 0; i < buttons.Count; i++) SetGroupAlpha(buttons[i].Rt, T(3.2f + 0.06f * i, OzMotion.Dur(0.2f, true)));
             float kbtn = T(3.2f, OzMotion.Dur(0.2f, true));
             if (focusRing)

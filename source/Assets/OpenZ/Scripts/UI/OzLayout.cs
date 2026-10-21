@@ -149,7 +149,8 @@ namespace OpenZ
         public const float EndStatY = 470, EndStatW = 232, EndStatH = 132, EndStatGap = 16;
         public const float EndChartY = 618, EndChartW = 976, EndChartH = 168;
         public static readonly OzRect EndChartGraph = new OzRect(16, 38, 944, 106);
-        public const float EndButtonsY = 822, EndButtonH = 50, EndHintY = 898;
+        public const float EndButtonsY = 880, EndButtonH = 50, EndHintY = 956;   // high scores: 58 u lower (were 822 / 898), the score strip stands between the chart and the buttons
+        public const float EndScoreY = 800, EndScoreH = 64;
 
         // ---- pause + options (guide 9.12), absolute y, x from the canvas centre
         public const float PauseW = 460, PauseH = 600, PauseY = 260, PauseDX = -472, OptionsDX = 12;

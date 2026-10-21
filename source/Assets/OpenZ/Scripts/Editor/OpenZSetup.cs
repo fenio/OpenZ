@@ -163,6 +163,12 @@ namespace OpenZ.EditorTools
                 var gm02 = SaveMat(MatEnv, n, sand); OpenZTexturesV2.ApplyGround(gm02, "L02"); return gm02;   // textures_v2: crisp roads + detail
             }
             if (n == "M_L17_Ground") { var g = Lit(T("L17_ground_paint.png"), 0.05f); g.SetColor("_BaseColor", new Color(0.86f, 0.87f, 0.9f)); var gm17 = SaveMat(MatEnv, n, g); OpenZTexturesV2.ApplyGround(gm17, "L17"); return gm17; }   // textures_v2
+            if (n == "M_L16_Ground") { var g16 = SaveMat(MatEnv, n, Lit(T("L16_ground_paint.png"), 0.05f)); OpenZL16Look.ApplyGround(g16, false); return g16; }   // level 16: the layered ground (the baked far picture stays as its far view)
+            if (n == "M_Cliff_JungleRock") { var c16 = SaveMat(MatEnv, n, Cliff(T("L16_cliff_rock.png"))); OpenZL16Look.ApplyGround(c16, true); return c16; }   // level 16 rock walls: the same layered recipe (cliff rock from the side), casting shadows
+            if (n == "M_Water_Swamp") return SaveMat(MatEnv, n, WaterStylized(true));                      // level 16, first water: the murky preset (the swamp preset replaces it)
+            if (n == "M_L16_Ground") return SaveMat(MatEnv, n, Lit(T("L16_ground_paint.png"), 0.05f));   // level 16, first ground: the baked far picture (the layered ground replaces it)
+            if (n == "M_Cliff_JungleRock") return SaveMat(MatEnv, n, Cliff(T("L16_cliff_rock.png")));
+            if (n == "M_Water_Swamp") return SaveMat(MatEnv, n, WaterStylized(true));                      // level 16, first water: the murky preset (the swamp preset replaces it)
             if (n == "M_Cliff_Sandstone") return SaveMat(MatEnv, n, Cliff(T("cliff_strata.png")));
             if (n == "M_Cliff_CityRock") return SaveMat(MatEnv, n, Cliff(T("cliff_strata_city.png")));
             if (n == "M_QuayWall") { var q = TeamMat(new Color(0.58f, 0.58f, 0.56f), null, false, 0, 0.1f); return SaveMat(MatEnv, n, q); }   // #9 concrete quay walls
@@ -184,9 +190,11 @@ namespace OpenZ.EditorTools
         }
 
         [MenuItem("OpenZ/2 Remap Environment Materials")]
-        public static void RemapEnvironment()
+        public static void RemapEnvironment() => RemapEnvironmentOf("L02_environment", "L17_environment", "BRG_desert", "BRG_city", "props_map12", "props_vicecity");
+
+        static void RemapEnvironmentOf(params string[] files)
         {
-            foreach (var f in new[] { "L02_environment", "L17_environment", "BRG_desert", "BRG_city", "props_map12", "props_vicecity" })
+            foreach (var f in files)
             {
                 string p = $"{Env}/{f}.fbx";
                 var imp = (ModelImporter)AssetImporter.GetAtPath(p);
@@ -574,12 +582,41 @@ namespace OpenZ.EditorTools
         static readonly Dictionary<string, int> GroupSize = new Dictionary<string, int>
             { { "grunt", 3 }, { "psycho", 3 }, { "sniper", 3 }, { "tough", 2 }, { "pyro", 4 }, { "laser", 4 } };
 
+        /// <summary>Level 16 only: import settings of its ground picture and rock texture, then the materials of its environment
+        /// model. Never touches a material, prefab or model of the two other levels.</summary>
+        [MenuItem("OpenZ/L16 Jungle/1 Imports and environment materials")]
+        public static void L16ImportsAndMaterials()
+        {
+            SetTexture($"{Tex}/L16_ground_paint.png", 8192, 16, TextureWrapMode.Clamp, false);
+            SetTexture($"{Tex}/L16_cliff_rock.png", 2048, 8, TextureWrapMode.Repeat, false);
+            AssetDatabase.SaveAssets();
+            // The remap writes a material asset for every name the model carries: a foreign name would overwrite a tuned material
+            // of the other levels. Anything but the three level 16 names stops here, nothing is remapped.
+            string model = $"{Env}/L16_environment.fbx";
+            var modelImp = AssetImporter.GetAtPath(model) as ModelImporter;
+            if (modelImp == null) { Debug.LogError("[OpenZ] L16: missing " + model); return; }
+            var own = new HashSet<string> { "M_L16_Ground", "M_Cliff_JungleRock", "M_Water_Swamp" };
+            var foreign = AssetDatabase.LoadAllAssetsAtPath(model).OfType<Material>().Select(m => m.name)
+                .Concat(modelImp.GetExternalObjectMap().Keys.Where(k => k.type == typeof(Material)).Select(k => k.name))
+                .Distinct().Where(nm => !own.Contains(nm) && nm != "No Name").ToList();   // "No Name" = the importer's name for a mesh without a material (the walk collider)
+            if (foreign.Count > 0)
+            {
+                Debug.LogError("[OpenZ] L16: the model carries other materials (" + string.Join(", ", foreign) + "): nothing remapped. Its materials must be M_L16_Ground, M_Cliff_JungleRock, M_Water_Swamp.");
+                return;
+            }
+            RemapEnvironmentOf("L16_environment");
+        }
+        [MenuItem("OpenZ/L16 Jungle/2 Build L16 Jungle Scene")] public static void BuildL16() => BuildLevel("L16");
+        /// <summary>The level being built: Spawn reads it for the choices that differ per level.</summary>
+        static string SpawnLv = "L02";
+
         [MenuItem("OpenZ/5 Build L02 Desert Scene")] public static void BuildL02() => BuildLevel("L02");
         [MenuItem("OpenZ/5 Build L17 Car Park Scene")] public static void BuildL17() => BuildLevel("L17");
 
         public static string BuildLevel(string lv)
         {
-            bool city = lv == "L17";
+            bool city = lv == "L17", jungle = lv == "L16";
+            SpawnLv = lv;
             var log = new System.Text.StringBuilder();
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             // environment: Blender FBX arrives rotated 180 deg around Y -> undo it and verify the tile markers
@@ -625,9 +662,10 @@ namespace OpenZ.EditorTools
             // skirt: sea (city) or sand (desert) far beyond the terrain edge so no void shows through border gaps (critic #2)
             var skirt = GameObject.CreatePrimitive(PrimitiveType.Plane); skirt.name = "SKIRT";
             UnityEngine.Object.DestroyImmediate(skirt.GetComponent<Collider>());
-            skirt.transform.position = new Vector3(0, city ? -1.7f : -1.2f, 0);   // below the water surface / harbour + river beds inside the map
+            skirt.transform.position = new Vector3(0, city ? -1.7f : jungle ? -7f : -1.2f, 0);   // below the water surface / harbour + river beds inside the map
             skirt.transform.localScale = new Vector3(240, 1, 240);                 // (was swallowed by the comment above: SKIRT stayed 10 x 10 m)
             skirt.GetComponent<Renderer>().sharedMaterial = city ? AssetDatabase.LoadAssetAtPath<Material>($"{MatEnv}/M_Water_Harbour.mat")
+                                                          : jungle ? SaveMat(MatEnv, "M_Skirt_Jungle", TeamMat(new Color(0.16f, 0.22f, 0.10f), null, false, 0, 0.05f))
                                                                  : SaveMat(MatEnv, "M_Skirt_Sand", TeamMat(new Color(0.84f, 0.64f, 0.36f), null, false, 0, 0.05f));
             skirt.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
             // sun, sky, fog
@@ -638,9 +676,9 @@ namespace OpenZ.EditorTools
             RenderSettings.skybox = SkyMat();                                  // gradient sky (critic #2: flat grey through the L17 notch)
             RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Linear; RenderSettings.fogStartDistance = 220; RenderSettings.fogEndDistance = 760;
             var dn = new GameObject("DayNight").AddComponent<DayNight>(); dn.sun = sun; dn.lampRoot = env.transform; dn.timeOfDay = 0.08f;
-            dn.warmth = city ? 0.35f : 1f;   // the city reads cool grey, the desert warm (critic: city looked sandy)
+            dn.warmth = city ? 0.35f : jungle ? 0.7f : 1f;   // the city reads cool grey, the desert warm (critic: city looked sandy)
             var atmo = new GameObject("Atmosphere").AddComponent<Atmosphere>();
-            atmo.preset = city ? Atmosphere.Preset.City : Atmosphere.Preset.Desert; atmo.dayNight = dn; atmo.lampRoot = env.transform; atmo.level = lv;
+            atmo.preset = city || jungle ? Atmosphere.Preset.City : Atmosphere.Preset.Desert; atmo.dayNight = dn; atmo.lampRoot = env.transform; atmo.level = lv;
             atmo.groundMaterial = AssetDatabase.LoadAssetAtPath<Material>($"{MatEnv}/M_{lv}_Ground.mat");
             var vol = new GameObject("PostFX").AddComponent<Volume>(); vol.isGlobal = true;
             vol.sharedProfile = AssetDatabase.LoadAssetAtPath<VolumeProfile>($"{Root}/Settings/OpenZ_PostFX.asset");
@@ -661,7 +699,9 @@ namespace OpenZ.EditorTools
             var zgame = zgo.AddComponent<ZGame>(); zgame.level = lv; zgame.player = Team.Red;
             zgame.unitPrefabs = new[] { "robot", "tough", "jeep", "light", "medium", "heavy", "apc", "missile_launcher", "crane", "gatling", "gun", "howitzer", "missile_cannon", "grenades",
                                      "bridge_desert_intact", "bridge_desert_destroyed", "bridge_city_intact", "bridge_city_destroyed",
-                                     "bridge_desert_damaged", "bridge_city_damaged", "bridge_desert_chunks", "bridge_city_chunks" }
+                                     "bridge_desert_damaged", "bridge_city_damaged", "bridge_desert_chunks", "bridge_city_chunks",
+                                     "bridge_jungle_intact", "bridge_jungle_damaged", "bridge_jungle_destroyed", "bridge_jungle_chunks",
+                                     "bs01_grunt", "bs01_psycho", "bs01_tough", "bs01_sniper", "bs01_pyro", "bs01_laser", "bs01_electrobot" }
                                 .Select(Pf).Where(g => g).ToArray();
             var zin = zgo.AddComponent<PlayerInput>(); zin.game = zgame; zin.cam = rts;
             var zov = zgo.AddComponent<SelectionOverlay>(); zov.input = zin; zov.overlayMaterial = OverlayMat();
@@ -682,7 +722,7 @@ namespace OpenZ.EditorTools
             log.AppendLine(AntiClip(env.transform, zroot));
             log.AppendLine("markers " + (markersOk ? "OK" : "WRONG"));
             Directory.CreateDirectory($"{Root}/Scenes");
-            string sp = $"{Root}/Scenes/{lv}_{(city ? "CarPark" : "Desert")}.unity";
+            string sp = $"{Root}/Scenes/{lv}_{(city ? "CarPark" : jungle ? "Jungle" : "Desert")}.unity";
             EditorSceneManager.SaveScene(scene, sp);
             var list = EditorBuildSettings.scenes.ToList();
             if (!list.Any(s => s.path == sp)) { list.Add(new EditorBuildSettingsScene(sp, true)); EditorBuildSettings.scenes = list.ToArray(); }
@@ -732,8 +772,9 @@ namespace OpenZ.EditorTools
                 {
                     bool vert = type == "bridge_vert"; int len = 5 + (o.extra_links < 100 ? o.extra_links : 0);
                     w = vert ? 4 : len; h = vert ? len : 4;
-                    key = $"bridge_{(city ? "city" : "desert")}_{(o.health_percent <= 0 ? "destroyed" : "intact")}";
-                    float mw = city ? 8f : 7.8f, ml = city ? 12f : 20.6f;
+                    bool plank = SpawnLv == "L16";
+                    key = $"bridge_{(city ? "city" : plank ? "jungle" : "desert")}_{(o.health_percent <= 0 ? "destroyed" : "intact")}";
+                    float mw = city || plank ? 8f : 7.8f, ml = city ? 12f : plank ? 22f : 20.6f;
                     yaw = vert ? 0 : 90; scale = new Vector3((vert ? w : h) * 2 / mw, 1, (vert ? h : w) * 2 / ml);
                     team = Team.Neutral; break;
                 }
@@ -742,7 +783,7 @@ namespace OpenZ.EditorTools
             {
                 if (cat == "cannon") { key = type == "gun" ? "gun" : type; w = h = 2; yaw = teamYaw; }
                 else if (cat == "vehicle") { key = type; w = h = 2; yaw = team == Team.Neutral ? rng.Next(2) * 180 : teamYaw; }   // parked along the bays
-                else if (cat == "robot") { key = type == "tough" ? "tough" : "robot"; }
+                else if (cat == "robot") { key = SpawnLv == "L16" && Pf("bs01_" + type) != null ? "bs01_" + type : type == "tough" ? "tough" : "robot"; }
                 else if (type == "flag") key = "flag";
                 else if (type == "grenades") key = "grenades";
                 else if (type == "hut") key = "hut";

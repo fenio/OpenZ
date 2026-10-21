@@ -614,7 +614,7 @@ namespace OpenZ
                 float want = transform.TransformPoint(new Vector3(lp.x, fy, lp.z)).y - 0.03f;
                 if (want > wp.y) wp.y = Mathf.Lerp(wp.y, want, wr);
             }
-            v.transform.position = wp;
+            var k386From = v.transform.position; v.transform.position = wp; BoardingView.FollowHull(v, wp - k386From);   // K386: a crew posed this frame moves with its hull (BoardingView.K386.cs)
         }
 
         /// <summary>Top of the ramp / threshold in front of the door (rig-local y) and its blend weight (fades out 0.7 m past

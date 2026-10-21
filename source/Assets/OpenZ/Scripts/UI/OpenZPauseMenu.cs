@@ -121,23 +121,43 @@ namespace OpenZ
             AddSlider(mp, 1, 1, "ROBOT VOICES", "oz_vol_robots", "Robots", v => OzAudio.Set("Robots", v), OzSettingTips.Robots);
             AddToggle(p, 0, "EDGE SCROLL", () => PlayerPrefs.GetInt("oz_edge_scroll", 1) == 1, v => { PlayerPrefs.SetInt("oz_edge_scroll", v ? 1 : 0); ApplyEdgeScroll(); });
             AddToggle(p, 1, "HEALTH BARS ON EVERY DAMAGED UNIT", () => OpenZUnitOverlay.AlwaysBars, v => OpenZUnitOverlay.AlwaysBars = v);
-            AddToggle(p, 2, "SCREEN SHAKE", () => PlayerPrefs.GetInt("oz_shake", 1) == 1, v => PlayerPrefs.SetInt("oz_shake", v ? 1 : 0));
+            AddToggle(p, 2, "CAMERA SHAKE ON EXPLOSIONS", () => PlayerPrefs.GetInt("oz_shake", 1) == 1, v => PlayerPrefs.SetInt("oz_shake", v ? 1 : 0));
             AddToggle(p, 3, OzSettingTips.CalmLabel, () => OzMotion.Reduced, v => OzMotion.Reduced = v);
             AddToggle(p, 4, "UI SCALE", null, null, true);
             AddToggle(p, 5, "ANNOUNCER CHATTER", null, null, true, true);
             AddToggle(p, 6, OzSettingTips.RobotChatterLabel, null, null, true, true, true);
-            AddToggle(p, 7, "WEATHER · NIGHT RAIN AND THUNDER", () => OzWeather.Enabled, v => OzWeather.Enabled = v);   // weather_l17_v1 (oz_weather, default on)
+            AddToggle(p, 7, OzNightRain.Label, () => OzWeather.Enabled, v => OzWeather.Enabled = v);   // NIGHT & RAIN (oz_weather, default on; off = always day, no rain: OzNightRain.cs)
             AddToggle(p, 8, "HIT FLASH ON DAMAGED UNITS", () => OpenZDamageStates.HitFlash, v => OpenZDamageStates.HitFlash = v);
             AddToggle(p, 9, "MOTION BLUR · FAST DEBRIS AND SHELLS", () => UnitLookMotionGate.MotionBlurOn, v => UnitLookMotionGate.MotionBlurOn = v);
             AddToggle(p, 10, OzSettingTips.PathV3Label, () => OzSettingTips.PathV3, v => OzSettingTips.PathV3 = v);
+            AddToggle(p, toggles.Count, OzOvertake.Label, () => OzOvertake.On, v => OzOvertake.On = v);     // DV105 FAST UNITS PASS SLOW ONES: oz_overtake, default OFF, from the next match (OzOvertake.cs)
             AddToggle(p, 11, OzSettingTips.MinimalLabel, () => OzSettingTips.MinimalUi, v => OzSettingTips.MinimalUi = v);
+            AddToggle(p, toggles.Count, OzFreeCam.Label, () => OzFreeCam.On, v => OzFreeCam.On = v);     // FREE CAMERA: oz_free_camera, default OFF, live (OzFreeCam.cs)
             AddToggle(p, toggles.Count, NightShadows.Label, null, null, true);
             { var ns = toggles[toggles.Count - 1]; ns.row.OnClick = c => { NightShadows.Step(c.right || c.shift ? -1 : Arrow(ns)); OzSfx.Ui("ui_tab_switch"); }; ns.row.OnRightClick = c => NightShadows.Step(-1); }
             AddToggle(p, toggles.Count, CraterField.Label, () => CraterField.Enabled, v => CraterField.Enabled = v);
             AddToggle(p, toggles.Count, OzQuality.Label, null, null, true);
             { var gq = toggles[toggles.Count - 1]; gq.row.OnClick = c => { OzQuality.Step(c.right || c.shift ? -1 : Arrow(gq)); OzSfx.Ui("ui_tab_switch"); }; gq.row.OnRightClick = c => OzQuality.Step(-1); }
+            AddToggle(p, toggles.Count, OzFpsCap.Label, null, null, true);                                  // FRAME RATE LIMIT: 30 / 60 (oz_fps_cap, default 60, saved and applied at once)
+            { var fc = toggles[toggles.Count - 1]; fc.row.OnClick = c => { OzFpsCap.Step(c.right || c.shift ? -1 : Arrow(fc)); OzSfx.Ui("ui_tab_switch"); }; fc.row.OnRightClick = c => OzFpsCap.Step(-1); }
             AddToggle(p, toggles.Count, OzQuality.FpsLabel, () => OzQuality.FpsOn, v => OzQuality.FpsOn = v);
+            AddToggle(p, toggles.Count, OzTouch.Label, null, null, true);                                   // touch and gamepad: AUTO / TOUCH ON / OFF (oz_touch, live; OzTouch.cs)
+            { var tg = toggles[toggles.Count - 1]; tg.row.OnClick = c => { OzTouch.StepMode(c.right || c.shift ? -1 : Arrow(tg)); OzSfx.Ui("ui_tab_switch"); }; tg.row.OnRightClick = c => OzTouch.StepMode(-1); }
+            AddToggle(p, toggles.Count, OzTrackpadScroll.Label, null, null, true);                          // TRACKPAD SCROLL: ZOOM (default) / MOVE MAP, oz_trackpad_scroll, live (OzTrackpadScroll.cs)
+            { var tp = toggles[toggles.Count - 1]; tp.row.OnClick = c => { OzTrackpadScroll.Step(c.right || c.shift ? -1 : Arrow(tp)); OzSfx.Ui("ui_tab_switch"); }; tp.row.OnRightClick = c => OzTrackpadScroll.Step(-1); }
             AddToggle(p, toggles.Count, MechWalk.Label, () => MechWalk.On, v => MechWalk.On = v);
+            AddToggle(p, toggles.Count, OzOverlapOption.Label, null, null, true);                          // FRIENDLY UNITS OVERLAP: NO (default) / YES, oz_overlap, live (OzOverlapOption.cs); the cycle form of this menu
+            { var ov = toggles[toggles.Count - 1]; ov.row.OnClick = c => { OzOverlapOption.Step(c.right || c.shift ? -1 : Arrow(ov)); OzSfx.Ui("ui_tab_switch"); }; ov.row.OnRightClick = c => OzOverlapOption.Step(-1); }
+            AddToggle(p, toggles.Count, OzHudLayout.Label, null, null, true);                               // ARRANGE INTERFACE: this menu closes, then the panels can be dragged (OpenZHud.Arrange.cs)
+            { var ar = toggles[toggles.Count - 1]; ar.row.Tooltip = OzHudLayout.Tip; ar.row.OnClick = c => { Close(); hud.RequestArrange(); }; ar.row.OnRightClick = null; }
+            AddToggle(p, toggles.Count, OzSettings.FullLabel, () => OzSettings.Fullscreen, v => OzSettings.Fullscreen = v);   // FULLSCREEN, directly over RESOLUTION as in the main menu (oz_fullscreen, saved and applied at once)
+            AddToggle(p, toggles.Count, OzSettings.ResLabel, null, null, true);                             // RESOLUTION: NATIVE (default) and the lower steps of this display (oz_res_h, OzSettings), saved and applied at once
+            { var rs = toggles[toggles.Count - 1]; rs.value.At(OzLayout.PauseW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW); rs.row.OnClick = c => { OzSettings.StepResolution(c.right || c.shift ? -1 : Arrow(rs)); OzSfx.Ui("ui_tab_switch"); }; rs.row.OnRightClick = c => OzSettings.StepResolution(-1); }
+            AddToggle(p, toggles.Count, OzStrikeGroups.Label, () => OzStrikeGroups.On, v => OzStrikeGroups.On = v);   // DV107 enemy strike groups: oz_strike_groups, default ON, live (ADVANCED tab, first row; OzStrikeGroups.cs)
+            if (OzShuttleStart.InOptions)                                                                      // K347: the SHUTTLE switch is the battlefield screen's box now (UI/OpenZMainMenu.ShuttleStart.cs): the old OPTIONS row below is not built
+            AddToggle(p, toggles.Count, OzShuttleOption.Label, () => OzShuttleOption.On, v => OzShuttleOption.On = v);   // DV118 the level 16 shuttle: oz_shuttle, default ON, read at the next level start (OzShuttleOption.cs)
+            AddToggle(p, toggles.Count, OzShuttleOrdersOption.Label, null, null, true);                    // K256g SHUTTLE ORDERS: LANDABLE SPOTS ONLY (default) / ANYWHERE, oz_shuttle_orders, live (OzShuttleOrdersOption.cs); ADVANCED, under SHUTTLE
+            { var so = toggles[toggles.Count - 1]; so.value.At(OzLayout.PauseW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW); so.row.OnClick = c => { OzShuttleOrdersOption.Step(c.right || c.shift ? -1 : Arrow(so)); OzSfx.Ui("ui_tab_switch"); }; so.row.OnRightClick = c => OzShuttleOrdersOption.Step(-1); }
             foreach (var t in toggles) if (string.IsNullOrEmpty(t.row.Tooltip)) t.row.Tooltip = OzSettingTips.For(t.label);
             BuildOptTabs(p);                                                                                 // options tabs: the strip, every tab's rows from the top (no row squeezing any more)
             foreach (var b in speedBtns) b.Tooltip = OzSettingTips.Speed;
@@ -250,6 +270,8 @@ namespace OpenZ
 
         /// <summary>Proof hooks: open an options tab (with the OPTIONS page shown), the open tab, the labels of the rows shown now.</summary>
         public void ProofOptTab(int tab) { showControls = false; if (optTabBtns.Count > 0) ShowOptTab(Mathf.Clamp(tab, 0, optTabBtns.Count - 1)); }
+        /// <summary>Pause the game and show OPTIONS on one tab (the slow-computer plate opens GRAPHICS this way).</summary>
+        public void OpenOptions(int tab) { Open(); if (!IsOpen) return; showControls = false; if (optTabBtns.Count > 0) ShowOptTab(Mathf.Clamp(tab, 0, optTabBtns.Count - 1)); }
         public int ProofOptTabOpen => optTab;
         public string ProofOptTabRows
         {
@@ -302,7 +324,7 @@ namespace OpenZ
             post ??= new OzPost("OZ_Pause", -55f, -1.2f, 0.4f, 55);
             canvas.gameObject.SetActive(true);
             optionsRoot.gameObject.SetActiveFast(!showControls); controlsRoot.gameObject.SetActiveFast(showControls);
-            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L02" ? "L02 · DESERT" : game.level;
+            string lvl = game.level == "L17" ? "L17 · CAR PARK" : game.level == "L16" ? "L16 · JUNGLE" : game.level == "L02" ? "L02 · DESERT" : game.level;
             sub.Set(OzText.Tab($"OPERATION {lvl} · {UnitInfo.Clock(game.World.Time)}"));
             RefreshValues();                                                                             // ui_pause / ui_resume: the audio track follows game.paused
         }
@@ -324,7 +346,7 @@ namespace OpenZ
             if (esc)
             {
                 if (IsOpen) Close();
-                else if (!(hud.EndScreen && hud.EndScreen.IsShown) && !(hud.Production && hud.Production.IsOpen) && !(hud.Rally && hud.Rally.Armed) && hud.input.Placing == null) Open();
+                else if (!(hud.EndScreen && hud.EndScreen.IsShown) && !(hud.Production && hud.Production.IsOpen) && !(hud.Rally && hud.Rally.Armed) && hud.input.Placing == null && !hud.ArrangeOwnsEsc) Open();
             }
             ApplyShake();
             if (Time.unscaledTime < audioRetryUntil && Time.unscaledTime > nextAudioRetry) { nextAudioRetry = Time.unscaledTime + 2f; OzAudio.Apply(); }   // the audio table may load after the HUD
@@ -382,8 +404,15 @@ namespace OpenZ
             }
             foreach (var t in toggles)
             {
+                if (t.label == OzHudLayout.Label) { t.value.Set("DRAG THE PANELS  ▶"); continue; }
                 if (t.label == NightShadows.Label) { t.value.Set(OzText.Tab($"◀  {NightShadows.Name}  ▶")); continue; }
+                if (t.label == OzTouch.Label) { t.value.Set(OzText.Tab($"◀  {OzTouch.ModeName}  ▶")); continue; }
+                if (t.label == OzTrackpadScroll.Label) { t.value.Set(OzText.Tab($"◀  {OzTrackpadScroll.Name}  ▶")); continue; }   // TRACKPAD SCROLL: ZOOM / MOVE MAP
+                if (t.label == OzShuttleOrdersOption.Label) { t.value.Set(OzText.Tab($"◀  {OzShuttleOrdersOption.Name}  ▶")); continue; }   // K256g SHUTTLE ORDERS: LANDABLE SPOTS ONLY / ANYWHERE
                 if (t.label == OzQuality.Label) { t.value.Set(OzText.Tab($"◀  {OzQuality.Name}  ▶")); continue; }
+                if (t.label == OzFpsCap.Label) { t.value.Set(OzText.Tab($"◀  {OzFpsCap.Name}  ▶")); continue; }
+                if (t.label == OzOverlapOption.Label) { t.value.Set(OzText.Tab($"◀  {OzOverlapOption.Name}  ▶")); continue; }   // FRIENDLY UNITS OVERLAP: NO / YES
+                if (t.label == OzSettings.ResLabel) { t.value.Set(OzText.Tab($"◀  {OzSettings.ResolutionName}  ▶")); continue; }
                 if (t.chatter && t.robots) { t.value.Set(OzText.Tab($"◀  {AudioDirector.RobotChatter.Names[AudioDirector.RobotChatter.Level]}  ▶")); continue; }
                 if (t.chatter) { t.value.Set(OzText.Tab($"◀  {AudioDirector.Chatter.Names[AudioDirector.Chatter.Level]}  ▶")); continue; }
                 if (t.scale)

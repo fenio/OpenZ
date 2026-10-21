@@ -79,6 +79,7 @@ Shader "OpenZ/TeamLit"
         [Header(teamcolor_v2 per renderer from TeamPaint (leave 0 on materials))]
         _OZTeamVivid ("Vivid team albedo (linear) + w: 0 unset, 1 neutral, 2 owned", Vector) = (0, 0, 0, 0)
         _OZTeamGlow ("Team rim / night glow (linear)", Vector) = (0, 0, 0, 0)
+        _OZDead ("Dead robot: 0 alive .. 1 dead (per renderer from TeamPaint / OzDeadTint)", Range(0, 1)) = 0
         _OZPanel ("Team panel rect, mesh space (cx, cz, half x, half z)", Vector) = (0, 0, 0, 0)
         _OZPanelY ("Team panel: from mesh y, edge soft, corner, strength", Vector) = (0, 0, 0, 0)
         _OZFortPaint ("TG2 fort palette on tower guns: cream (linear) + w: reference luminance, 0 = off", Vector) = (0, 0, 0, 0)
@@ -92,6 +93,7 @@ Shader "OpenZ/TeamLit"
         _UnitShade ("Unit shade: ambient, warm bounce in shade, highlight cap, matte (1 = no sheen)", Vector) = (1.0, 0.15, 0.1, 0)
         _UnitKick ("Unit kicker: from, to, day strength, night widen", Vector) = (0.74, 0.93, 0.8, 0.14)
         [Toggle] _SeeThru ("See-through cutout around units behind it (rock pillars, RockSeeThru)", Float) = 0
+        [HideInInspector] _OZCamFade ("K440: share of the object cut away near the game camera (0 = drawn .. 1 = gone; per renderer, OzShuttleCamFade)", Range(0, 1)) = 0
         [Header(HT heavytank legacy look)]
         [Toggle] _LegacyHeavy ("Heavy tank: legacy look (gunmetal + khaki + team accents, black-grey empty)", Float) = 0
         _HeavyLook ("Heavy look: khaki ref lum, empty panel grey, empty metal gain, team strength", Vector) = (0.1575, 0.42, 0.8, 1)
@@ -151,6 +153,7 @@ Shader "OpenZ/TeamLit"
             half _RimPower;
             float4 _OZTeamVivid;   // teamcolor_v2
             float4 _OZTeamGlow;
+            half _OZDead;   // item 228: a dead robot's figure greyer, luminance kept (OzDeadTint)
             float4 _OZPanel;
             float4 _OZPanelY;
             float4 _OZFortPaint;   // TG2 (TeamPaint.FortPalette)
@@ -158,6 +161,7 @@ Shader "OpenZ/TeamLit"
             half _NightClass;   // night_v2
             half _UnitLook; half _PaintFromAlpha; half4 _UnitRamp; half4 _UnitShade; half4 _UnitKick;   // unitlook_v2
             half _SeeThru;
+            half _OZCamFade;   // K440: the cut near the game camera (OzShuttleCamFade, per renderer; 0 = drawn as always)
             half _LegacyHeavy; half4 _HeavyLook;
             half _UseNormalMap; half _BumpScale; half _UseMaskMap; half4 _EmissionMapColor; half _EmissionNight;   // fort_v2 optional maps
             half _Rust; float _RustWaterY; float _RustScale;
@@ -218,6 +222,20 @@ Shader "OpenZ/TeamLit"
             }
             return cut;
         }
+        // K440 (item 441): the game camera never sees into a shuttle. OzShuttleCamFade sets _OZCamFade per renderer as the ship comes near
+        // the eye (0 = drawn .. 1 = gone; every other object keeps 0 and leaves at the first test). The see-through cut's own 4x4 Bayer
+        // pattern on the pixel grid with one threshold for the whole object: at a pixel either every surface of it is drawn or none is, so
+        // where its hull is cut its inside is cut too. Colour, depth and depth-normals alike (they agree); never its shadow.
+        void OZCamFadeClip(float4 positionCS)
+        {
+            if (_OZCamFade > 0.001)
+            {
+                uint2 p = (uint2)positionCS.xy;
+                uint x0 = p.x & 1u, y0 = p.y & 1u, x1 = (p.x >> 1) & 1u, y1 = (p.y >> 1) & 1u;
+                uint b = ((((x0 ^ y0) << 1) | y0) << 2) | (((x1 ^ y1) << 1) | y1);
+                clip((1.0 - _OZCamFade) - ((half)b + 0.5) / 16.0);
+            }
+        }
         // palms_v3 BODY_ mesh moves in the level wind (the flags' and banners' direction, strength and gusts). Only PalmWind's
         // run-time copies of the palm materials have _OzWindPalm.w = 1; every other TeamLit material keeps 0 and leaves at the
         // first (uniform) branch. Every pass calls it on the same world position, so colour, shadow, depth and depth-normals
@@ -230,8 +248,10 @@ Shader "OpenZ/TeamLit"
             q += dot(q, q.yzx + 33.33);
             return frac((q.x + q.y) * q.z);
         }
+        #include "OpenZFloraWind.hlsl"                                                                  // level 16: trees and plants in the wind and the rain (OzFloraWind.cs)
         float3 OZPalmWind(float3 pw)
         {
+            if (_OzWindPalm.w < -1.5) pw = OZFloraWind(pw);                                              // a level 16 plant (run-time material copy, kind stored negative); the next line lets it go, the palms below are untouched
             if (_OzWindPalm.w < 0.5 || _OZPalmWind.z <= 0.0) return pw;
             float3 foot = float3(UNITY_MATRIX_M._m03, UNITY_MATRIX_M._m13, UNITY_MATRIX_M._m23);         // BODY_'s origin = the palm's foot
             float3 top = mul(UNITY_MATRIX_M, float4(_OzWindPalm.xyz, 1.0)).xyz;                         // the trunk top = the crown pivot
@@ -332,6 +352,7 @@ Shader "OpenZ/TeamLit"
                 return step(0.5, max(_Stylize, _Accent)) * step(0.05, rimLum) * step(_Triplanar, 0.5) * step(_SeeThru, 0.5);
             }
 
+            #include "OzShuttleSelfShadow.hlsl"                                     // K256g2: the flying shuttle's own self-shadow (_OzSelfShadowOn 0 = unchanged)
             #include "OpenZUnitLook.hlsl"                                           // unitlook_v2: clean unit shading
 
             TEXTURE2D(_BaseMap); SAMPLER(sampler_BaseMap);
@@ -516,6 +537,7 @@ Shader "OpenZ/TeamLit"
             {
                 UNITY_SETUP_INSTANCE_ID(i);
                 half seeCut = OZSeeThruClip(i.positionWS, i.positionCS);          // rocks_v2: units behind rock pillars stay visible
+                OZCamFadeClip(i.positionCS);                                      // K440: a shuttle near the game camera is cut whole (never seen into)
                 half4 tex;
                 if (_Triplanar > 0.5)
                 {
@@ -681,11 +703,13 @@ Shader "OpenZ/TeamLit"
                 d.shadowMask = half4(1, 1, 1, 1);
 
                 half4 c = UniversalFragmentPBR(d, s);
+                half ozSSK = OZSelfShadowApply(c, d, s, i.positionWS, ozShadowN);                // K256g2: the flying shuttle's pods shade its hull (1 = unchanged)
                 half nClass = OZNightClass();                                            // night_v2
                 c.rgb = OZNightEnvFix(c.rgb, d, s, nClass);                              // night_v2: no day-sky reflection at night
                 if (_Stylize > 0.5)
                 {
                     Light ml = GetMainLight(d.shadowCoord);
+                    ml.shadowAttenuation *= ozSSK;                                           // K256g2: the same self-shadow on the stylized key light
                     half ndl = dot(d.normalWS, ml.direction);
                     half direct = saturate(ndl) * ml.shadowAttenuation;
                     // soft shading: a wrap-light fill only on the terminator and the dark side (no hard black falloff)
@@ -769,6 +793,7 @@ Shader "OpenZ/TeamLit"
                 }
                 c.rgb *= 1.0 - seeCut * _OZSeeThruParams.w;                         // rocks_v2: darker rim frames the unit
                 if (_OzWetness > 0.001 && nClass < 0.5) c.rgb *= OZWetEnvDarken((half)d.normalWS.y);   // weather_l17_v1: wet stone (environment class only)
+                c.rgb = lerp(c.rgb, dot(c.rgb, half3(0.2126, 0.7152, 0.0722)).xxx * 1.15, saturate(_OZDead) * 0.55);   // item 228: a dead robot (OzDeadTint): greyer, luminance kept (+15 %), hue kept; 0 on everything alive
                 c.rgb = MixFog(c.rgb, i.fogFactor);
                 return half4(c.rgb, 1);
             }
@@ -829,7 +854,7 @@ Shader "OpenZ/TeamLit"
             struct Attributes { float4 positionOS : POSITION; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS : SV_POSITION; float3 positionWS : TEXCOORD0; };
             Varyings vert(Attributes i) { Varyings o; UNITY_SETUP_INSTANCE_ID(i); o.positionWS = OZPalmWind(TransformObjectToWorld(i.positionOS.xyz)); o.positionCS = TransformWorldToHClip(o.positionWS); return o; }   // palm_wind
-            half frag(Varyings i) : SV_Target { OZSeeThruClip(i.positionWS, i.positionCS); return i.positionCS.z; } // rocks_v2
+            half frag(Varyings i) : SV_Target { OZSeeThruClip(i.positionWS, i.positionCS); OZCamFadeClip(i.positionCS); return i.positionCS.z; } // rocks_v2; K440
             ENDHLSL
         }
 
@@ -845,7 +870,7 @@ Shader "OpenZ/TeamLit"
             struct Attributes { float4 positionOS : POSITION; float3 normalOS : NORMAL; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct Varyings { float4 positionCS : SV_POSITION; float3 normalWS : TEXCOORD0; float3 positionWS : TEXCOORD1; };
             Varyings vert(Attributes i) { Varyings o; UNITY_SETUP_INSTANCE_ID(i); o.positionWS = OZPalmWind(TransformObjectToWorld(i.positionOS.xyz)); o.positionCS = TransformWorldToHClip(o.positionWS); o.normalWS = TransformObjectToWorldNormal(i.normalOS); return o; }   // palm_wind
-            half4 frag(Varyings i) : SV_Target { OZSeeThruClip(i.positionWS, i.positionCS); return half4(NormalizeNormalPerPixel(i.normalWS), 0); } // rocks_v2
+            half4 frag(Varyings i) : SV_Target { OZSeeThruClip(i.positionWS, i.positionCS); OZCamFadeClip(i.positionCS); return half4(NormalizeNormalPerPixel(i.normalWS), 0); } // rocks_v2; K440
             ENDHLSL
         }
 

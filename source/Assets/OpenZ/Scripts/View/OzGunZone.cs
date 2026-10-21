@@ -85,10 +85,11 @@ namespace OpenZ
     /// second anyway; the mesh is rebuilt only when the answer changed. Ground heights are sampled once per zone in slices of
     /// about a millisecond per frame, then the area fades in. No new sound: the mode start is heard through ui_cannon_place_arm
     /// (AudioDirector), a refused click through ui_cannon_place_invalid; the refused click also says why in a HUD notice.
-    /// View only.
+    /// View only. The look drawn is the tiles look (OzGunZone.Tiles.cs: the real gun cells on the drawn ground); this wash and
+    /// outline is its fallback when that shader or the drawn heights are missing.
     /// </summary>
     [DefaultExecutionOrder(76)]
-    public class OzGunZone : MonoBehaviour
+    public partial class OzGunZone : MonoBehaviour                              // the tiles look: OzGunZone.Tiles.cs
     {
         public static OzGunZone I { get; private set; }
         /// <summary>Adds itself next to PlayerInput in every loaded scene (set false to add it by hand).</summary>
@@ -154,6 +155,7 @@ namespace OpenZ
             if (mesh) Destroy(mesh);
             if (padMesh) Destroy(padMesh);
             if (mat) Destroy(mat);
+            TilesDestroy();                                                         // the tiles look's mesh, material, textures
             if (I == this) I = null;
         }
 
@@ -246,7 +248,7 @@ namespace OpenZ
             }
             if (!heightsReady) { SampleSome(firstSlice ? 2.5 : 1.2, now); firstSlice = false; }
             float lw = ScreenWidth(lineWidth);
-            if (heightsReady && (dirty || !built || Mathf.Abs(lw - builtW) > 0.06f * builtW)) Build(lw);
+            if (heightsReady && (dirty || !built || TilesRebuild(lw))) Build(lw);   // TilesRebuild: the line width (plain look) or a crater in the zone (tiles look)
             if (!built) return;
             alpha = Mathf.MoveTowards(alpha, 1f, dt / Mathf.Max(0.01f, fadeIn));
             Draw();
@@ -294,6 +296,7 @@ namespace OpenZ
 
         void Draw()
         {
+            if (DrawTiles()) return;                                                  // the tiles look (OzGunZone.Tiles.cs)
             var m = Mat();
             if (!m || !mesh) return;
             float gainNow = gain * Mathf.Lerp(1f, nightGain, Mathf.Clamp01(Shader.GetGlobalFloat(NightId)));
@@ -331,6 +334,7 @@ namespace OpenZ
 
         void Build(float w)
         {
+            if (BuildTiles(w)) return;                                                // the tiles look (OzGunZone.Tiles.cs)
             builtW = w; dirty = false; built = true; Rebuilds++; HighTiles = 0;
             vv.Clear(); cc.Clear(); tt.Clear();
             Profile(w);
@@ -480,7 +484,7 @@ namespace OpenZ
                     if (Mathf.Max(a, Mathf.Max(b2, c2)) - Mathf.Min(a, Mathf.Min(b2, c2)) > 2f * z.maxStep + 0.1f) tall++;
                 }
                 int onTop = z.HighTiles;                                                             // tiles drawn on a surface above floorMax (a cliff top?)
-                int bad = differ + badGround + below + high + outside + tall + onTop;
+                int bad = differ + badGround + below + high + outside + tall + onTop + z.TilesAudit(sb, w, b, c);   // the tiles look's own line (cells, ground fit, shader)
                 violations += bad;
                 sb.Append(bad == 0 ? "OK   " : "FAIL ").Append("zone ").Append(b.ZoneIndex).Append(" (").Append(b.Type).Append("): ")
                   .Append(spots).Append(" spots asked, picture differs from the rule on ").Append(differ)

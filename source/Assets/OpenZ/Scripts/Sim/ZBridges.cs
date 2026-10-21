@@ -1201,7 +1201,7 @@ namespace OpenZ.Sim
                 bool busy = (b.Dir >= 0 && b.Dir != d) || b.Waiting > 0;
                 // a free deck: Zod's path stays unless wading is faster anyway; a busy deck (reserved the other way or with a
                 // queue): robots do not queue for it, they wade, unless the deck is clearly faster
-                wade = af && (!vf || (busy ? wadeCost <= viaCost * RobotBridgeAdvantage + RobotBridgeMargin : wadeCost < viaCost));
+                wade = af && (!vf || (!W.CrocKeepsToBridge && (busy ? wadeCost <= viaCost * RobotBridgeAdvantage + RobotBridgeMargin : wadeCost < viaCost)));   // level 16: no wading round a bridge that can be crossed (ZWorld.Crocodiles.cs)
                 if (wade) b.RobotWades++; else b.RobotBridge++;
             }
             st.lastChoice = b; st.lastChoiceWp = wp; st.lastChoiceWade = wade;
@@ -1319,17 +1319,12 @@ namespace OpenZ.Sim
                 bool In(double x, double y) { double al = block.Vertical ? y : x, la = block.Vertical ? x : y; return al >= sa0 && al < sa1 && la >= sl0 && la < sl1; }
                 side = !In(CX(o), CY(o)) && !In(gxp, gyp);
             }
-            List<ZLane> gaps = null;                                                            // 1-tile robot gaps (ZLanes: one robot at a time) not at the start / goal
-            if (noGaps)
-            {
-                gaps = new List<ZLane>();
-                foreach (var L in Lanes)
-                    if (!L.VehicleLane && !(CX(o) >= L.ZX0 && CX(o) < L.ZX1 && CY(o) >= L.ZY0 && CY(o) < L.ZY1) && !(gxp >= L.ZX0 && gxp < L.ZX1 && gyp >= L.ZY0 && gyp < L.ZY1)) gaps.Add(L);
-            }
+            double gox = CX(o), goy = CY(o);                                                    // 1-tile robot gaps (ZLanes: one robot at a time) not at the start / goal
+            bool Gap(ZLane L) => !L.VehicleLane && !(gox >= L.ZX0 && gox < L.ZX1 && goy >= L.ZY0 && goy < L.ZY1) && !(gxp >= L.ZX0 && gxp < L.ZX1 && gyp >= L.ZY0 && gyp < L.ZY1);
             bool Closed(int tx, int ty)
             {
                 if (block == null) return false;
-                if (gaps != null) foreach (var L in gaps) if (tx * 16 < L.X1 && L.X0 < (tx + fw) * 16 && ty * 16 < L.Y1 && L.Y0 < (ty + fw) * 16) return true;
+                if (noGaps) foreach (var L in LanesNear(tx * 16 + fw * 8, ty * 16 + fw * 8)) if (tx * 16 < L.X1 && L.X0 < (tx + fw) * 16 && ty * 16 < L.Y1 && L.Y0 < (ty + fw) * 16 && Gap(L)) return true;   // (a gap its footprint touches is one of the lanes round the tile, not any lane of the map)
                 if (side)
                 {
                     double cx = tx * 16 + fw * 8, cy = ty * 16 + fw * 8, al = block.Vertical ? cy : cx, la = block.Vertical ? cx : cy;
@@ -1406,7 +1401,7 @@ namespace OpenZ.Sim
             switch (W.Map.ClassAt(tx, ty))
             {
                 case ZClass.Road: return 1.0 / ZConst.ROAD_SPEED;
-                case ZClass.Water: return 1.0 / ZConst.WATER_SPEED;
+                case ZClass.Water: return 1.0 / ZConst.WATER_SPEED * W.Path.WaterCost;   // level 16: in step with the path grid (ZWorld.Crocodiles.cs); 1 everywhere else
                 default: return 1.0;
             }
         }

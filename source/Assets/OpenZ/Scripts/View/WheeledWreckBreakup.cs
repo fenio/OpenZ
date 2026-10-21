@@ -37,6 +37,7 @@ namespace OpenZ
             if (o.Type == "apc")
             {
                 if (v.GetComponent<ApcDome>()) { ApcDome.BreakOff(v, centre, 1f, id); torn++; names.Add("dome"); }
+                if (RoundHatch.BreakOff(v, centre, 1f, id)) names.Add("roof hatch");                          // DV87: two of the three modelled wrecks are torn open under the driver's roof hatch
                 if ((h >> 3) % 10u < 7u && ApcRearDoor.Of(v)) { ApcRearDoor.BreakOff(v, centre, 1f, id); torn++; names.Add("rear door"); }
                 int kw = ApcCraneKit.Wreck(v, centre, id, names);
                 bins = kw >= 0 ? kw : TearHull(v, centre, Mathf.Max(1, want - torn), 4, id, names);
@@ -391,7 +392,7 @@ namespace OpenZ
         public static RollingWheel Newest;
         public static int Live { get { live.RemoveAll(w => !w); return live.Count; } }
 
-        Rigidbody rb; float tipSign = 1f, radius, age, lastGround = -9f, lastBounce = -9f, restT, popAt = -1f, wetT = -1f, sinkT = -1f, peakV; int bounces, id; bool flat, wet, popping, loopOn, frozen;
+        Rigidbody rb; float tipSign = 1f, radius, age, lastGround = -9f, lastBounce = -9f, restT, popAt = -1f, wetT = -1f, sinkT = -1f, peakV; int bounces, id; bool flat, wet, popping, loopOn, frozen, waded;
         Vector3 start; Vector3 sinkFrom; string loopKey;
 
         static PhysicsMaterial tyreMat;
@@ -489,6 +490,25 @@ namespace OpenZ
         Vector3 Axis => transform.right;
         bool Grounded => age - lastGround < 0.15f;
 
+        /// <summary>Checks: wheels lifted onto the drawn ground at rest, and the largest lift (m).</summary>
+        public static int Seated; public static float SeatedMost;
+        /// <summary>How far the wheel's lowest point stands in the drawn ground under that point (m, 0 = on it or over it).</summary>
+        public float InGround()
+        {
+            var g = ZGame.I; var mc = GetComponentInChildren<MeshCollider>(true); if (!g || !mc || !mc.sharedMesh) return 0f;
+            float pen = 0f;
+            foreach (var v in mc.sharedMesh.vertices) { var wp = mc.transform.TransformPoint(v); pen = Mathf.Max(pen, g.GroundY(wp.x, wp.z) - wp.y); }
+            return pen;
+        }
+        /// <summary>At rest the wheel lies ON the drawn ground. Where its rim stands in it (the sloping bed of a ford, a soft contact),
+        /// it is lifted clear: never lowered, never more than 0.4 m.</summary>
+        void SeatOnGround()
+        {
+            float pen = InGround();
+            if (pen <= 0.01f) return;
+            pen = Mathf.Min(pen, 0.4f); transform.position += Vector3.up * pen; Seated++; SeatedMost = Mathf.Max(SeatedMost, pen);
+        }
+
         void FixedUpdate()
         {
             if (!rb || rb.isKinematic || wet) return;
@@ -523,17 +543,21 @@ namespace OpenZ
             float sp = rb && !rb.isKinematic ? rb.linearVelocity.magnitude : 0f;
             peakV = Mathf.Max(peakV, sp); MaxSpeed = Mathf.Max(MaxSpeed, sp);
             var fxp = OpenZFxPlayer.I;
-            if (!wet && fxp && fxp.isActiveAndEnabled && fxp.WetAt(p))
+            if (!wet && fxp && fxp.isActiveAndEnabled && OzWaterLanding.OpenWaterNear(p, radius + 0.5f, out float wy, out float wbed))   // b27: the drawn water with the bed under it, not the map's water tiles
             {
-                float wy = fxp.SurfaceY(p);
-                if (p.y - radius * 0.4f <= wy)
-                {   // into the water: splash, then it sinks
-                    wet = true; wetT = age; Splashes++;
-                    fxp.Splash(new Vector3(p.x, wy, p.z), 0.6f);
-                    AudioDirector.Fire("dst_debris_splash", p, id, 0.8f * TyreGain);
-                    OzSoundLog.Add("WHEEL", "dst_debris_splash", null, "wheel splash", 0.8f * TyreGain, p);
-                    StopLoop(0.15f);
-                    if (rb) { rb.linearDamping = 4f; rb.angularDamping = 4f; }
+                bool deep = wy - wbed >= OzWaterLanding.SinkDepth;
+                if (p.y - radius * 0.4f <= wy && (deep || !waded))
+                {   // b27: into the water: the shared water landing rule makes the splash, the rings and one sound. Deep water: it sinks
+                    // away as before. A ford or a stream shallower than the wheel sinks: one splash, then it rolls on and falls flat on the bed
+                    Splashes++; waded = true;
+                    OzWaterLanding.Splash(new Vector3(p.x, wy, p.z), OzWaterLanding.SizeOf(radius * 2f), "wheel", sp, false, id);
+                    OzSoundLog.Add("WHEEL", "water landing", null, deep ? "wheel splash" : "wheel splash (shallow: it rolls on)", 0.8f * TyreGain, p);
+                    if (deep)
+                    {
+                        wet = true; wetT = age;
+                        StopLoop(0.15f);
+                        if (rb) { rb.linearDamping = 4f; rb.angularDamping = 4f; }
+                    }
                 }
             }
             if (wet)
@@ -562,6 +586,7 @@ namespace OpenZ
                 if (restT > 0.5f)
                 {   // at rest: stop simulating, keep the pose
                     frozen = true; rb.isKinematic = true; rb.interpolation = RigidbodyInterpolation.None;
+                    SeatOnGround();
                     foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
                     StopLoop(0.3f);
                     popAt = age + 6f + (RobotDeathRule.Hash(id, 3, 37u) & 1023u) / 1023f * 4f;          // 6-10 s at rest
@@ -587,6 +612,7 @@ namespace OpenZ
                 {
                     int tx = (int)(at.x * 0.5f), ty = (int)(-at.z * 0.5f);
                     if (gm.World.Map.ClassAt(tx, ty) == ZClass.Road) ev = "veh_wheels_asphalt";
+                    else if (gm.level == "L16") { string jg = AudioDirector.JungleGround(at); string want = jg == "mud" ? "veh_wheels_mud" : "veh_wheels_grass"; if (AudioDirector.Has(want)) ev = want; }   // level 16: a thrown wheel rolls on grass or mud
                 }
                 if (AudioDirector.I.StartLoop(loopKey, ev, at, transform, 0.01f, 1f) > 0) { loopOn = true; LoopStarts++; OzSoundLog.Add("WHEEL", ev, null, "wheel roll loop on", 0.5f, at); }
             }
@@ -596,7 +622,7 @@ namespace OpenZ
             float vol = Mathf.Clamp(0.3f + n * 0.09f, 0.3f, 1f) * TyreGain;
             CombatAudio.I?.PlayPitched("debris", at, vol, 0f, id, Random.Range(0.92f, 1.08f) * Mathf.Lerp(1.12f, 0.88f, Mathf.InverseLerp(0.3f, 0.8f, radius)), "sd_tyre_bounce_a", "sd_tyre_bounce_b");
             OzSoundLog.Add("WHEEL", "sd_tyre_bounce", "sd_tyre_bounce_a|b", "wheel bounce " + n.ToString("F1") + " m/s", vol, at);
-            if (n > 3f && WreckFx.OnScreen(at)) { var fxp = OpenZFxPlayer.I; if (fxp && fxp.isActiveAndEnabled) fxp.Dust(at, Mathf.Min(0.9f, 0.25f + n * 0.05f)); else FxManager.I?.Dust(at, 0.4f); }
+            if (n > 3f && WreckFx.OnScreen(at) && !OzWaterLanding.UnderSurface(at)) { var fxp = OpenZFxPlayer.I; if (fxp && fxp.isActiveAndEnabled) fxp.Dust(at, Mathf.Min(0.9f, 0.25f + n * 0.05f)); else FxManager.I?.Dust(at, 0.4f); }
         }
 
         void StopLoop(float fade)

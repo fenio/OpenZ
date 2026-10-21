@@ -35,7 +35,7 @@ namespace OpenZ
         public const string ChainKey = "OpenZ.FinalGate.Chain";
         static readonly Dictionary<string, string> ChainScene = new Dictionary<string, string>
         {
-            ["L02"] = "Assets/OpenZ/Scenes/L02_Desert.unity", ["L17"] = "Assets/OpenZ/Scenes/L17_CarPark.unity", ["MENU"] = "Assets/OpenZ/Scenes/MainMenu.unity"
+            ["L02"] = "Assets/OpenZ/Scenes/L02_Desert.unity", ["L16"] = "Assets/OpenZ/Scenes/L16_Jungle.unity", ["L17"] = "Assets/OpenZ/Scenes/L17_CarPark.unity", ["MENU"] = "Assets/OpenZ/Scenes/MainMenu.unity"
         };
         static string pendingJob;
         static void OnChainLoaded(Scene sc, LoadSceneMode mode)
@@ -188,11 +188,13 @@ namespace OpenZ
         }
 
         // ------------------------------------------------------------------ the run
+        /// <summary>The frame cap of a gate job (a development setting, 60 when it is not set).</summary>
+        public const string CapPref = "oz_gate_cap";
         IEnumerator Start()
         {
             lastMark = T;
             Directory.CreateDirectory(OutDir); Directory.CreateDirectory(PartsDir);
-            Application.targetFrameRate = 60;                                    // the Play cap (the project rules); frame times are measured under it
+            Application.targetFrameRate = Mathf.Clamp(PlayerPrefs.GetInt(CapPref, 60), 20, 72);   // the Play cap (60; frame times are measured under it). A run on a hot machine sets oz_gate_cap to 30: its frame times then say nothing
             soundT0 = Time.unscaledTime;
             StartCoroutine(Watch());
             Mark($"final gate job {job}, {DateTime.Now:yyyy-MM-dd HH:mm:ss}, scene {SceneManager.GetActiveScene().name}, screen {Screen.width}x{Screen.height}, " +
@@ -253,7 +255,7 @@ namespace OpenZ
             yield return Guard(SetTod(DayTod), "day (settings / ending)", 10f);
             yield return Guard(PauseOptions(), "settings (pause menu options)", ShotTimeout);
             if (g.level == "L02") yield return Guard(LegacyLineUp(), "LegacyMatchCheck F6 / F7 / F8 (VX38)", 120f);
-            else yield return Guard(WallWalk(), "GP51 L17 wall walk", 90f);
+            else if (g.level == "L17") yield return Guard(WallWalk(), "GP51 L17 wall walk", 90f);
             if (dn) dn.running = dnRunning0;
             W.Bots.Clear(); W.Bots.AddRange(savedBots); Mark($"CPU bots back ({savedBots.Count})");
             yield return Guard(Ending(g.level != "L17"), "ending", 120f);
@@ -316,6 +318,11 @@ namespace OpenZ
                 l.Add(new Shot("quay_c", "pos:19,-214", 55f, 55f, "props_on_land quay spot 3"));
                 l.Add(new Shot("bridge_water_2", "go:WAT_BridgeSpan_0;sim:bridge", 45f, 50f));
             }
+            else if (lv == "L16")
+            {   // level 16: the plank bridge once more from closer, the red fort's surroundings from higher up
+                l.Add(new Shot("bridge_water_2", "sim:bridge", 45f, 50f));
+                l.Add(new Shot("forts_red_wide", "fort:red", 110f, 55f, "the jungle round the red fort"));
+            }
             else
             {
                 l.Add(new Shot("oasis_pond", "pos:86,-97", 55f, 55f, "east-middle bridge south end"));
@@ -330,7 +337,7 @@ namespace OpenZ
                 l.Add(new Shot("fortgun_blue_h22", "fortgun:blue", 22f, 55f, "VX77 blue fort gun, h 22"));
                 l.Add(new Shot("fortgun_blue_h55", "fortgun:blue", 55f, 55f, "VX77 blue fort gun, h 55"));
             }
-            else
+            else if (lv != "L16")
             {   // waterfall v3: the h 70 game camera (as play_h70.png) and the source basin from above
                 l.Add(new Shot("waterfall_h70", "pos3:72.3,-10.8,6", 70f, 55f, "waterfall v3 at the game camera h 70 (vs play_h70.png)"));
                 l.Add(new Shot("waterfall_top", "pos3:72.4,-7.9,17.8", 40f, 62f, "waterfall v3 source basin from above (vs v2_top.png)"));
@@ -345,6 +352,11 @@ namespace OpenZ
                 l.Add(low("low_bridge", "go:WAT_BridgeSpan_1|WAT_BridgeSpan_0;sim:bridge", 5f, 12f, 25f, "VX15 bridge deck / debris, low"));
                 l.Add(low("low_fort_red", "fort:red", 9f, 16f, 20f, "VX15 fort walls on the concrete, low (texels)"));
                 l.Add(low("low_concrete", "fort:red", 22f, 40f, 0f, "VX15 L17 concrete plates at the closest zoom (texels)"));
+            }
+            else if (lv == "L16")
+            {
+                l.Add(low("low_bridge", "sim:bridge", 5f, 12f, 25f, "the plank bridge and its banks, low"));
+                l.Add(low("low_fort_red", "fort:red", 9f, 16f, 20f, "the fort on the grass, low"));
             }
             else
             {
@@ -867,6 +879,7 @@ namespace OpenZ
             [ZEventType.GameOver] = "victory|defeat|win|lose|mus|ann_|end",
             [ZEventType.Promoted] = "promot",
             [ZEventType.RunOverHit] = "run|squash|crush|imp|over",
+            [ZEventType.DriverShot] = "bolt|rifle|sniper|laser|flame|rocket|electro|mg|pyro",        // DV87: the hatch driver's own weapon (mg: the psycho's bursts; pyro: the jet's start and loop)
         };
         const float SoundWindowBefore = 0.1f, SoundWindowAfter = 1.0f;
 

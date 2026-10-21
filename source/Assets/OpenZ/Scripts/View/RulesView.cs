@@ -190,7 +190,7 @@ namespace OpenZ
         {
             if (bridgeVariants.TryGetValue(o.Id, out var v)) return v;
             var cur = Static(o.Id); if (!cur) return null;
-            string biome = game.level == "L17" ? "city" : "desert";
+            string biome = game.level == "L17" ? "city" : game.level == "L16" ? "jungle" : "desert";
             bool placedDestroyed = o.Source != null && o.Source.health_percent <= 0;
             v = new GameObject[3]; v[placedDestroyed ? 2 : 0] = cur;
             for (int st = 0; st < 3; st++)
@@ -224,10 +224,10 @@ namespace OpenZ
         /// <summary>Kit chunks (8 per biome) thrown from the middle third of the deck: real physics, bounce, settle, sink.</summary>
         void BridgeChunks(ZObject o, int n, bool small)
         {
-            var set = game.Prefab($"Z_bridge_{(game.level == "L17" ? "city" : "desert")}_chunks"); if (!set) return;
+            var set = game.Prefab($"Z_bridge_{(game.level == "L17" ? "city" : game.level == "L16" ? "jungle" : "desert")}_chunks"); if (!set) return;
             var parts = new List<Transform>(); foreach (Transform t in set.transform) parts.Add(t);
             if (parts.Count == 0) return;
-            var c = game.CenterWorld(o); var deck = c.y + (game.level == "L17" ? 0.3f : 1.2f);
+            var c = game.CenterWorld(o); var deck = c.y + (game.level == "L02" ? 1.2f : 0.3f);
             bool vert = o.Type == "bridge_vert";
             for (int i = 0; i < n; i++)
             {
@@ -244,7 +244,7 @@ namespace OpenZ
                 rb.linearVelocity = away * Random.Range(2f, 6.5f) * (small ? 0.5f : 1f) + Vector3.up * Random.Range(6f, 12.5f) * (small ? 0.6f : 1f);
                 rb.angularVelocity = Random.insideUnitSphere * Random.Range(2f, 7f);
                 if (game.level == "L17") AudioDirector.AttachImpacts(go, "dst_debris_metal", "dst_debris_splash");   // sound_v3: the city bridge is steel
-                go.AddComponent<RockChunkLife>();
+                go.AddComponent<RockChunkLife>().floats = game.level == "L16";                          // the jungle bridge is planks: wood floats
             }
             if (!small) FxManager.I?.DemolitionDust(c + Vector3.up * 0.5f, 5f, 5f, 0.6f);
         }
@@ -316,8 +316,8 @@ namespace OpenZ
         {
             rebuilding.Add(o.Id); if (crane) CraneRebuilds++;
             OzRuinFires.End(o.Id);                                                              // the deck comes back: no fire under it
-            var set = game.Prefab($"Z_bridge_{(game.level == "L17" ? "city" : "desert")}_chunks");
-            var c = game.CenterWorld(o); float deck = c.y + (game.level == "L17" ? 0.3f : 1.2f); bool vert = o.Type == "bridge_vert";
+            var set = game.Prefab($"Z_bridge_{(game.level == "L17" ? "city" : game.level == "L16" ? "jungle" : "desert")}_chunks");
+            var c = game.CenterWorld(o); float deck = c.y + (game.level == "L02" ? 1.2f : 0.3f); bool vert = o.Type == "bridge_vert";
             var pieces = new List<(Transform t, Vector3 from, Vector3 to, Quaternion r0, Quaternion r1, float t0, float t1)>();
             if (set)
             {

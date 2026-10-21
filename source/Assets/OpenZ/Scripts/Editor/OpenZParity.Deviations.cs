@@ -42,7 +42,22 @@ namespace OpenZ.EditorTools
         }
 
         static List<Deviation> CollectDeviations(Func<string, int, int> getInt)
+        {   // DV87: every probe below measures without the hatch-driver rule (a Play session leaves the switch on; the menu
+            // OpenZ/Deviations/Write Deviations Block and the release gate come here too); the DV87 probe turns the rule on itself
+            using var strikeGroupsHold = ZWorld.StrikeGroupsOff();                              // DV107: every probe measures without strike groups (a Play session leaves the switch on); the DV107 probe sets the switch itself
+            bool driverFire = ZWorld.DriverFireDeviation; ZWorld.DriverFireDeviation = false;
+            using var grenadeBoostHold = ZWorld.GrenadeBoostOff();                              // DV104: every probe measures with Zod's grenade; the DV104 probe turns the rule on itself
+            using var overtakeHold = ZWorld.OvertakeOff();                                      // DV105: nor with faster units passing (a Play session may leave the switch on); its own probe sets the switch itself
+            using var kc5Hold = ZWorld.Kc5RulesOff();                                         // DV110 / DV111: nor with the veteran heal and the fort sniper; their probes set them themselves
+            using var heroSquadHold = ZWorld.HeroSquadsOff();                                   // DV108: nor with the level data's extra hero squads; the DV108 probe sets the switch itself
+            try { return CollectDeviationsBody(getInt); }
+            finally { ZWorld.DriverFireDeviation = driverFire; }
+        }
+
+        static List<Deviation> CollectDeviationsBody(Func<string, int, int> getInt)
         {
+            using var followOff = CalmFollowOffScope();                                   // DV109: the block's probes run without calm follow (a Play session leaves it on); its own probe sets it (OpenZParity.V11CalmFollow.cs)
+            using var calmOff = CalmOffScope();                                           // b49 / KC1: the block's probes run without calm movement, the fort run, the rocks rule and the overlap option (a Play session leaves them on); their own probes set them (OpenZParity.V11Calm.cs)
             var list = new List<Deviation>();
             foreach (var make in new Func<Func<string, int, int>, Deviation>[] { DevBridge, DevSnipe, DevHeadStart, DevEasy, DevBalance, DevPathing, DevFortGun })
             {
@@ -129,8 +144,53 @@ namespace OpenZ.EditorTools
             try { list.Add(DevExitLanes(getInt)); }
             catch (Exception ex) { list.Add(new Deviation { id = "DV66", change = "DevExitLanes", zod = "-", openz = "-", measured = "probe threw " + ex.GetType().Name + ": " + ex.Message, toggle = "-", status = DevCheck }); }
 #if !OPENZ_HARNESS
+            AddSnipeSafeDeviation(list, getInt);                                              // version 1.1 (DV82 no driver sniping on a bridge or in a door; OpenZParity.V11SnipeSafe.cs)
+            AddElectroSteadyDeviation(list, getInt);                                          // version 1.1 (DV83 the Electrobot stands and fires; OpenZParity.V11ElectroSteady.cs)
+            AddGrabCertainDeviation(list, getInt);                                            // version 1.1 (DV84 one unit takes it, for certain; OpenZParity.V11GrabCertain.cs)
+            AddDriverFireDeviation(list, getInt);                                             // version 1.1 (DV87 hatch drivers fire their own weapon; OpenZParity.V11DriverFire.cs)
+            AddGrenadeBoostDeviation(list, getInt);                                           // version 1.1 (DV104 a thrown grenade is judged by where it lands: radius x 1.2, a direct hit x 1.15, an area hit x 0.9; OpenZParity.V11GrenadeBoost.cs)
             AddDeathDeviations(list);                                                         // deaths_mech_v1 (DV17-DV20, view only)
             AddMusicV3Deviation(list);                                                        // music_v3 (DV50, view only)
+            AddHighScoresDeviation(list);
+            AddL16ShuttleDeviation(list, getInt);                                             // level 16 (DV95 the robots' shuttle in the place of one hut; OpenZParity.L16Shuttle.cs)
+            AddPlayableShuttleDeviation(list);                                        // DV118 the level 16 shuttle is the player's transport (OpenZParity.V11Shuttle.cs)
+            AddShuttleHpDeviation(list);                                              // DV131 every shuttle starts with the light tank's hit points x 1.2 (OpenZParity.V11ShuttleHp.cs)
+            AddL16PyramidsDeviation(list, getInt);                                            // level 16 (DV89 the two pyramids are destroyable map items; OpenZParity.L16Pyramids.cs)
+            AddOrderSpreadDeviation(list);                                            // DV90 a large group order at or through a zone: the first path searches are spread over ticks (OpenZParity.V11OrderSpread.cs)
+            AddStrikeGroupDeviation(list, getInt);                                    // DV107 enemy strike groups (OpenZParity.V11StrikeGroups.cs)
+            AddBotHeavyDeviation(list);                                               // DV115 the CPU builds a mix of units: heavy tanks / missile launchers from 8:00, Tough / Psycho / Sniper squads (OpenZParity.V11BotHeavy.cs)
+            AddOvertakeDeviation(list, getInt);                                       // DV105 faster units pass slower ones, an Options row, OFF by default (OpenZParity.V11Overtake.cs)
+            AddCalmDeviation(list, getInt);                                           // DV101 calm movement: a kept route, the same team closer in tight places, the player's order first; the overlap option (OpenZParity.V11Calm.cs)
+            AddFortRunDeviation(list, getInt);                                        // DV102 the run into the enemy fort from 16 tiles (OpenZParity.V11FortRun.cs)
+            AddRockRoundDeviation(list, getInt);                                      // DV103 round a rock when the way round is not much longer (OpenZParity.V11RockRound.cs)
+            AddCalmFollowDeviation(list, getInt);                                     // DV109 calm follow behind a slower unit (OpenZParity.V11CalmFollow.cs)
+            AddCrocodileDeviations(list, getInt);                                   // level 16: the crocodile rule and its three companions (OpenZParity.L16Crocodiles.cs)
+            AddL16MapDeviation(list);                                               // level 16: step tiles and scenery tiles of its level data                                                     // level high scores and ranks (view only; OpenZParity.HighScores.cs)
+            AddSquadSplitDeviation(list);                                           // DV98 a squad member left far behind becomes a squad of his own (OpenZParity.V11SquadSplit.cs)
+            AddTreeTilesDeviation(list);                                            // DV88 level 16: the trees that close a tile can be destroyed like rocks (OpenZParity.V11TreeTiles.cs)
+            AddKc5Deviations(list);                                                 // DV110 a new veteran heals 15 %, DV111 the fort's roof defender is a sniper (OpenZParity.V11Kc5.cs)
+            AddSniperHeadshotDeviation(list);                                       // DV116 sniper headshots: 15 % of a sniper's hits on a robot destroy it at once (OpenZParity.V11SniperHeadshot.cs)
+            AddSniperSteadyDeviation(list);                                         // DV120 snipers stand and fire: no walk past an enemy in range, no walk back (OpenZParity.V11SniperSteady.cs)
+            AddToughSteadyDeviation(list);                                          // DV123 Toughs stand and fire: no walk past an enemy in range, no walk back, fewer small steps after a kill (OpenZParity.V11ToughSteady.cs)
+            AddNoAutoFlagDeviation(list, getInt);                                   // DV130 a player's robot under fire runs to no flag by itself; a flag the player clicked always (OpenZParity.V11NoAutoFlag.cs)
+            AddHeavyFallDeviation(list);                                            // DV124 a big faller (shuttle, fort cannon, turret) fells the tree it comes down on (OpenZParity.V11HeavyFall.cs)
+            AddShuttleQueueDeviation(list);                                         // DV125 the shuttle flies the whole Shift queue: middle points in the air, the landing at the last (OpenZParity.V11ShuttleQueue.cs)
+            AddShuttleFairSpotDeviation(list);                                      // DV128 the shuttle lands where its gear fits on dry ground: the pods may reach over water, a flag counts by its pole and cloth, a gun always (OpenZParity.V11FairSpot.cs)
+            AddGroundFireDeviation(list);                                           // DV117 burning ground bites an enemy who stays in it (OpenZParity.V11GroundFire.cs)
+            AddProneTargetDeviation(list);                                          // DV122 a kneeling or lying sniper is a smaller target, the stance a rule (OpenZParity.V11ProneTarget.cs)
+            AddHeroSquadDeviation(list);                                            // DV108 hero squads placed by the level data: ALAN & BRAD (OpenZParity.V11HeroSquad.cs)
+            AddHeroBoostDeviation(list);                                            // DV112 hero squads stronger: ALAN & BRAD + their self-repair (OpenZParity.V11HeroBoost.cs)
+            AddHeroPlusDeviation(list);                                             // DV133 hero squads stronger again: ALAN & BRAD +15 % hit points and damage on top of DV112 (OpenZParity.V11HeroPlus.cs)
+            AddL16FortTurretDeviation(list);                                        // DV99 level 16: the blue fort's towers, a missile cannon on the east door tower, its howitzer on the back tower (OpenZParity.L16FortTurret.cs)
+            AddL16LeftChannelDeviation(list);                                        // DV119 level 16: the swamp channel west of the gatling island is three tiles wide (OpenZParity.V11LeftChannel.cs)
+            AddJeepChargeDeviation(list);                                            // DV121 the jeep runs robots over, then drives back to its spot (OpenZParity.V11JeepCharge.cs)
+            AddPyroForceBurnDeviation(list);                                        // DV113 with Ctrl held, Pyros burn buildings and bridges (OpenZParity.V11PyroForceBurn.cs)
+            AddL16EmptyLauncherDeviation(list);                                     // DV114 level 16: the empty gun beside the red fort is an empty missile cannon, a little off its flag (OpenZParity.L16EmptyLauncher.cs)
+            AddL17ShuttleDeviation(list);                                           // DV134 level 17's own shuttles: an EMPTY one in the car park's red side, the SHUTTLE box's one by the red fort (OpenZParity.V11L17Shuttle.cs)
+            AddEasySlowDeviation(list);                                               // DV127 the EASY computer takes its big decisions 30 % slower (OpenZParity.V11EasySlow.cs)
+            AddShuttleDoorwayDeviation(list);                                       // DV126 the shuttle destroyed while a squad walks in or out: drawn outside = saved, past the doorway = lost (OpenZParity.V11ShuttleDoorway.cs)
+            AddExitWalkDeviation(list);                                             // DV132 out of the carrier first: robots let out of the shuttle or an APC fight, walk and can be targeted once their figures are out (OpenZParity.V11ExitWalk.cs)
+            AddShuttleKickDeviation(list);                                          // DV129 the shuttle's kickflip is a real manoeuvre: the dash, the harder target, the evasive self-flip (OpenZParity.V11ShuttleKick.cs)
 #endif
             return list;
         }
@@ -162,7 +222,7 @@ namespace OpenZ.EditorTools
                           "buildings the drawn stream only passes through burn visually for the legacy 12.5 s (no damage).");
             sb.AppendLine();
             sb.AppendLine("Not deviations (presentation only; the sim and its numbers are untouched): the 3D camera controls (WASD / arrows / edge / minimap, " +
-                          "eased wheel zoom 22-230 m; the start height of 70 m is Zod's 800x600 framing), view-side unit spacing, legacy M12 visuals drawn on " +
+                          "eased wheel zoom 25-200 m; the start height of 70 m is Zod's 800x600 framing), view-side unit spacing, legacy M12 visuals drawn on " +
                           "Zod's client fire clock at Zod's 37.5 m/s bullet speed, 3D positional audio. The pause menu's GAME SPEED (25-400 %) is Zod's own " +
                           "options menu (gmm_options.h:8-11); every level starts at 1x (row \"normal play game speed\").");
         }
@@ -339,9 +399,9 @@ namespace OpenZ.EditorTools
             bool ok = made.Count == ZGame.HeadStartTypes.Length && crewed;
             return new Deviation
             {
-                id = "DV3", change = "Extra starting vehicles (head start, both maps)",
-                zod = $"the L02 map gives neither side a vehicle ({before} red vehicles at start; 126/126 start objects = the Zod map files); L17 = the map's own start units",
-                openz = $"a switch on both maps and every difficulty (level select HEAD START, off by default), human vs CPU only: L02 +{string.Join(", ", ZGame.HeadStartTypes)} , crewed, parked by the player's fort; L17 +{string.Join(", ", ZGame.EasyL17Types)}, parked EMPTY by the fort like the other L17 start vehicles (DV32: robots collect them; crewed only with DV32 off / Zod exact) (ZWorld.AddHeadStart); never in bot vs bot, bot matches or the parity suite",
+                id = "DV3", change = "Extra starting vehicles (head start, all three maps)",
+                zod = $"the L02 map gives neither side a vehicle ({before} red vehicles at start; 126/126 start objects = the Zod map files); L16 and L17 = the map's own start units",
+                openz = $"a switch on all three maps and every difficulty (level select HEAD START, off by default), human vs CPU only: L02 +{string.Join(", ", ZGame.HeadStartTypes)} , crewed, parked by the player's fort; L16 +{string.Join(", ", ZGame.HeadStartL16Types)}, crewed, parked by the fort (the map starts each side with a heavy and a medium tank and nothing fast); L17 +{string.Join(", ", ZGame.EasyL17Types)}, parked EMPTY by the fort like the other L17 start vehicles (DV32: robots collect them; crewed only with DV32 off / Zod exact) (ZWorld.AddHeadStart); never in bot vs bot, bot matches or the parity suite",
                 measured = $"L02 red vehicles {before} -> {before + made.Count} ({string.Join(", ", made.Select(v => v.Type))}), crewed {(crewed ? "yes" : "NO")}",
                 toggle = $"PlayerPrefs {ZGame.HeadStartPref} = {(on ? "1 (on)" : "0 (off, default)")}; level select HEAD START (key H) on every difficulty; menu OpenZ/Deviations/Head Start On L02",
                 status = !ok ? DevCheck : on ? DevActive : DevActive + " (off by pref)",

@@ -37,9 +37,15 @@ namespace OpenZ
                 AudioDirector.MusicEnabled = v;                                                               // saves oz_music, fades the menu music in / out
                 Debug.Log($"[OpenZ Menu] music: {(v ? "ON" : "OFF")} (oz_music {(v ? 1 : 0)}, saved)");
             });
-            AddToggle(p, j + 1, "FULLSCREEN · NATIVE RESOLUTION", () => OzSettings.Fullscreen, v => OzSettings.Fullscreen = v);
+            AddToggle(p, j + 1, OzSettings.FullLabel, () => OzSettings.Fullscreen, v => OzSettings.Fullscreen = v);
             if (OpenZ.Intro.OzIntro.Offered) AddToggle(p, j + 2, "PLAY INTRO · ON GAME START", () => OpenZ.Intro.OzIntro.Enabled, v => OpenZ.Intro.OzIntro.Enabled = v);
             exeMusicRow = toggles[j].row.Rt; exeFullRow = toggles[j + 1].row.Rt;
+            AddCycle(p, toggles.Count, OzSettings.ResLabel, () => OzSettings.ResolutionName, OzSettings.StepResolution);   // RESOLUTION, under FULLSCREEN (OzSettingTips.TabRows): NATIVE (default) and the lower steps of this display (oz_res_h), saved and applied at once
+            toggles[toggles.Count - 1].value.At(OptW - 2 * OzLayout.OptX - 16, OzLayout.OptToggleH * 0.5f, OzH.R, true, OzSettings.ResValueW);   // its longest value is wider than the 170 u of a cycle row
+            AddToggle(p, toggles.Count, OzOvertake.Label, () => OzOvertake.On, v => OzOvertake.On = v);         // DV105 FAST UNITS PASS SLOW ONES: oz_overtake, default OFF, from the next match (OzOvertake.cs); its tab and place come from OzSettingTips
+            AddToggle(p, toggles.Count, OzFreeCam.Label, () => OzFreeCam.On, v => OzFreeCam.On = v);         // FREE CAMERA: oz_free_camera, default OFF, live (OzFreeCam.cs); its tab and place come from OzSettingTips
+            AddCycle(p, toggles.Count, OzOverlapOption.Label, () => OzOverlapOption.Name, OzOverlapOption.Step);   // FRIENDLY UNITS OVERLAP: NO (default) / YES, oz_overlap, live (OzOverlapOption.cs); its tab and place (under HIT FLASH, GAME tab) come from OzSettingTips
+            AddCycle(p, toggles.Count, OzTrackpadScroll.Label, () => OzTrackpadScroll.Name, OzTrackpadScroll.Step);   // TRACKPAD SCROLL: ZOOM (default) / MOVE MAP, oz_trackpad_scroll, live (OzTrackpadScroll.cs); its tab and place (ADVANCED, under TOUCH · GAMEPAD) come from OzSettingTips
             float h = BuildOptTabs(p);                                                                        // options tabs: the strip, every tab's rows from the top; the plate is as tall as the tallest tab
             optionsScale = Mathf.Min(OptionsMaxScale, ModalMaxH / h, (CW - OzMenuLayout.CreditsX - 60f) / OptW);   // beside the list: 60 u stay free on the right
             Modal(optionsRt, OptW, h, Side.Options, true);
@@ -126,11 +132,11 @@ namespace OpenZ
             if (chip.bg) chip.bg.transform.parent.gameObject.SetActive(false);
             var lbl = p.Find("HeadLabel"); if (lbl && lbl.GetComponent<Graphic>() is Graphic g) g.color = OzUi.Ink2;
             var hr = OzMenuLayout.HeadStart; float headX = XR(hr.x);
-            headTip = Hud.Node("HeadStartTip", p).Place(new OzRect(headX - 70, hr.y - 142, 336, 122));
+            headTip = Hud.Node("HeadStartTip", p).Place(new OzRect(headX - 70, hr.y - 156, 336, 136));
             Hud.Plate(headTip, "md", 0f, OzUi.Amber);
             headTipCg = headTip.gameObject.AddComponent<CanvasGroup>(); headTipCg.alpha = 0f; headTipCg.blocksRaycasts = false;
             Hud.Label(headTip, "Title", "HEAD START · KEY H", 12, OzUi.Amber, 0.2f).At(16, 14, OzH.L, false, 300);
-            Hud.Label(headTip, "Body", "Extra vehicles wait at your fort when the match starts.\nL02 DESERT: 2 light tanks, 2 jeeps, 1 mech, crewed.\nL17 CAR PARK: 1 MLRS, 1 heavy tank, parked empty.\nOFF: the standard map start.",
+            Hud.Label(headTip, "Body", "Extra vehicles wait at your fort when the match starts.\nL02 DESERT: 2 light tanks, 2 jeeps, 1 mech, crewed.\nL16 JUNGLE: 2 jeeps, 1 light tank, crewed.\nL17 CAR PARK: 1 MLRS, 1 heavy tank, parked empty.\nOFF: the standard map start.",
                       11, OzUi.Ink2, 0f, OzStyle.Plain).Body(16, 36, 304);
             headTip.gameObject.SetActive(false);
         }
@@ -143,8 +149,8 @@ namespace OpenZ
             headText.Set(n > 0 ? $"+{n} VEHICLES" : "NOT ON THIS MAP"); headText.color = n > 0 ? (Color)OzUi.Ink : (Color)OzUi.Dim;
             headState.Set(on ? "ON" : "OFF"); headState.color = on ? (Color)OzUi.Amber : (Color)OzUi.Muted;
             headKnob.color = on ? (Color)OzUi.Amber : (Color)OzUi.GM500;
-            headKnob.rectTransform.anchoredPosition = new Vector2(OzMenuLayout.HeadStart.w - 12 - 48 + (on ? 24 : 2), headKnob.rectTransform.anchoredPosition.y);
-            headHint.Set(on ? OpenZDifficulty.HeadStartHint(id) : "OFF · THE STANDARD MAP START");
+            headKnob.rectTransform.anchoredPosition = new Vector2(DeployBlockW - 12 - 48 + (on ? 24 : 2), headKnob.rectTransform.anchoredPosition.y);   // K347: the deploy bar's block width (UI/OpenZMainMenu.DeployBar.cs)
+            headHint.Set(on ? OzDeployBar.HeadHint(id) : OzDeployBar.HeadOff);                                  // K347: the block's own short hint (the tooltip keeps the full list)
             headHint.color = on ? (Color)OzUi.Ink2 : (Color)OzUi.Muted;
         }
 

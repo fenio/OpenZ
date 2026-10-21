@@ -16,7 +16,7 @@ namespace OpenZ
     /// 160 px -> at most 2.29 s flight; ripple 7 x 0.15 = 1.05 s, so the last cosmetic blast lands by 3.34 s, inside one reload.
     /// </summary>
     [DefaultExecutionOrder(55)]
-    public class MlrsSalvo : MonoBehaviour
+    public partial class MlrsSalvo : MonoBehaviour                                                  // version 1.1 item 202: + MlrsSalvo.Marked.cs
     {
         // ------------------------------------------------------------------ numbers (README_IMPORT.md)
         public const int Rockets = 8;
@@ -66,6 +66,7 @@ namespace OpenZ
                 if (t < 0f || t > within || d >= best) continue;
                 best = d; inSeconds = t; at = l.pos; found = true;
             }
+            if (s.NearestMarked(shooter, p, within, speed, ref best, ref inSeconds, ref at)) found = true;   // version 1.1 item 202: the marked rockets land on the sim's blast frame
             return found;
         }
 
@@ -95,9 +96,10 @@ namespace OpenZ
             {   // golden-angle fill of the landing disc (never two rockets on one spot), stretched along the line of fire like a ripple
                 float r = spread * Mathf.Sqrt((i - 0.5f) / (Rockets - 1)), ang = turn + i * 2.39996f;
                 var p = to + right * (Mathf.Cos(ang) * r) + fwd * (Mathf.Sin(ang) * r * RangeStretch);
-                p.y = game.GroundY(p.x, p.z) + 0.25f;
+                p.y = OzShuttleAim.SalvoEndY(to, p, game.GroundY(p.x, p.z) + 0.25f);                 // DV118: round the flying shuttle in the air
                 launches.Add(new Pending { at = Time.time + i * Spacing / speed, flight = Mathf.Max(0.05f, delay), d0 = d0, shooter = a.Id, index = i, to = p });
             }
+            QueueMarked(a, launches.Count - (Rockets - 1));                                          // version 1.1 item 202: a rocket onto every vehicle / gun the splash reaches (MlrsSalvo.Marked.cs)
             MlrsSideKick.Kick(av, from, to);                                                          // rocket 1 (the sim's own) kicks its side too
             var aim = av.GetComponent<UnitAim>();
             if (aim) aim.KeepAim((Rockets - 1) * Spacing / speed + 0.25f);                          // the rack stays on the ripple's aim
@@ -110,7 +112,7 @@ namespace OpenZ
             if (au) au.PlayPitched("mlrs_reload", at, ReloadGain, ReloadThrottle, unitId, 1.1f, ReloadClips);
         }
 
-        void OnDisable() { launches.Clear(); landings.Clear(); }
+        void OnDisable() { launches.Clear(); landings.Clear(); marked.Clear(); }
 
         void Update()
         {
@@ -133,6 +135,7 @@ namespace OpenZ
                 landings.RemoveAt(i--);
                 Land(l);
             }
+            StepMarked();                                                                             // version 1.1 item 202: launch, steer and land the marked rockets
         }
 
         void Fire(Pending l)
@@ -155,6 +158,7 @@ namespace OpenZ
 
         void Land(Landing l)
         {
+            if (OzAirShots.SkipLanding(l.shooter, l.pos)) { Landed++; return; }                      // K337: it burst up there with its round already (View/OzAirShots.cs)
             var at = l.pos + Vector3.up * 0.2f;
             var z = OpenZFxPlayer.I;
             if (z && z.isActiveAndEnabled)
@@ -162,7 +166,7 @@ namespace OpenZ
                 OpenZFxPlayer.QuietBlast = true;                                                       // cosmetic: no Exploded listeners (props, lamps, bloom flare)
                 try
                 {
-                    if (OpenZFxPlayer.VolleyExp2(l.shooter, at, l.id)) z.Exp2(at, 1.9f, Exp2Kind.Salvo, l.id, BlastS, FxBlastKind.Rocket);
+                    if (OpenZFxPlayer.VolleyExp2(l.shooter, at, l.id) && !OzShuttleBreakup.IsAirBurst(at, z.GroundAt(at), FxBlastKind.Rocket)) z.Exp2(at, 1.9f, Exp2Kind.Salvo, l.id, BlastS, FxBlastKind.Rocket);   // K256e: up in the air (at the flying shuttle) the gated blast
                     else z.BlastSized(at, BlastS, BlastLegRadius, FxBlastKind.Rocket, l.id);
                 }
                 finally { OpenZFxPlayer.QuietBlast = false; }

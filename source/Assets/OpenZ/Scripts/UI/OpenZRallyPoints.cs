@@ -90,6 +90,7 @@ namespace OpenZ
             var b = pendingFor;
             if (b != null && pending.Count > 0 && W.SetRallyPoints(hud.Player, b, pending))
             {
+                OzFactoryReminder.RallySet(b);   // factory reminder (k247, UI/OzFactoryReminder.cs): he set this factory's rally point himself
                 var last = pending[pending.Count - 1];
                 pulsePos = Ground(last.x, last.y); pulseAt = Time.unscaledTime;
                 hud.Toast(pending.Count == 1 ? "RALLY POINT SET" : $"RALLY ROUTE SET · {pending.Count} POINTS", HudStyle.Amber);
@@ -104,6 +105,7 @@ namespace OpenZ
         {
             if (b == null || W == null) return;
             if (W.SetRallyPoints(hud.Player, b, Array.Empty<ZWaypoint>()) && OzSoundV3.RallyCleared()) hud.Toast("RALLY CLEARED · UNITS WAIT AT THE DOOR", HudStyle.Muted);
+            if (b.Owner == hud.Player) OzFactoryReminder.RallySet(b);   // factory reminder (k247, UI/OzFactoryReminder.cs): CLEAR is his rally choice too
             if (pendingFor == b) { pending.Clear(); pendingFor = null; }
         }
 

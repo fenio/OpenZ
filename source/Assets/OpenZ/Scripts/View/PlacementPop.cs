@@ -28,7 +28,7 @@ namespace OpenZ
     /// (TowerMounts.FootprintCentreLocal), so a gun grows out of its own footprint.
     /// </summary>
     [DefaultExecutionOrder(97)]   // after UnitView (60), BoardingView (70), PopOut (95); before FxManager (100) / OpenZFxPlayer (110)
-    public class PlacementPop : MonoBehaviour
+    public partial class PlacementPop : MonoBehaviour
     {
         /// <summary>POP_EFFECT_CONFIG: .4 s, 0 -> 1.15 -> 1.</summary>
         public const float Duration = 0.4f, PeakScale = 1.15f, StartScale = 0f;

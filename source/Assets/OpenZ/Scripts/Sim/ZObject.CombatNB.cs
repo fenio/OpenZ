@@ -149,6 +149,7 @@ namespace OpenZ.Sim
         double SnipeChanceAt(ZObject t)
         {
             double sc = RestSnipeChance(t, SnipeChanceAgainst(t));                                                   // veterancy_v1 DV12: veteran crews stay buttoned up (x0.25)
+            sc = ChargeSnipeChance(t, sc);                                                                           // DV121: a Laser / hero aims at the driver of a vehicle that drives at him from close (Sim/ZObject.JeepCharge.cs)
             if (!ZWorld.ExposedDriverDeviation || !t.HitFromBehind(this)) return sc;
             if (ZWorld.RearHitsCounted < int.MaxValue) ZWorld.RearHitsCounted++;
             return Math.Min(ZWorld.RearSnipeCap, sc * ZWorld.RearSnipeFactor);
@@ -186,7 +187,7 @@ namespace OpenZ.Sim
             if (InReach(t, CenterX, CenterY, AttackRadius) && HasLineOfSight(t)) return false;
             if (PS.level > 0) return false;                                                 // stuck on the way there once: Zod's goal and the layer's detours take over
             // (d > R - EntryBand) for good, so a vehicle that had to approach never manoeuvred; duel pairs stop inside the band
-            int reach = DuelPair(t) ? AttackRadius - ZDuel.EntryBand - 4 : AttackRadius - LosSpotSlack;
+            int reach = DuelPair(t) ? AttackRadius - ZDuel.EntryBand - 4 : HeroPlanRadius() - LosSpotSlack;   // KH2: a hero member plans no farther out than his leader (Sim/ZHeroSquad.Kh2.cs)
             if (!World.NearestInRangeSpot(this, t, Math.Max(8, reach), out int sx, out int sy, out approachPts)) return false;
             ex = sx; ey = sy; ApproachPlans++;
             return true;
@@ -282,7 +283,7 @@ namespace OpenZ.Sim
             {
                 int cur = apQueue[head++], cx = cur % w, cy = cur / w;
                 var (px, py) = ZReach.FootCentre(cx, cy, robot);
-                if (u.InReach(t, px, py, range) && (t.IsDestroyableImpass || !EngageBarrierBetween(px, py, t.CenterX, t.CenterY)) &&
+                if (u.InReach(t, px, py, range) && (t.IsDestroyableImpass || t.ShuttleAirborne || !EngageBarrierBetween(px, py, t.CenterX, t.CenterY)) &&   // DV118: the flying shuttle over any ground tile
                     (!line || Sight.Clear(px, py, 0, t.CenterX, t.CenterY, exT)) && !ParkedAt(px, py, half, pad) && !OnDeck(px, py, half))
                 { sx = px; sy = py; path = ApproachPath(cur, w, robot); return true; }
                 for (int k = 0; k < 8; k++)

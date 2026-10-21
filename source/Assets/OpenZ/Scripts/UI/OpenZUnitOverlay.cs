@@ -24,7 +24,7 @@ namespace OpenZ
     /// SelectionOverlay (ground rings, paths) keeps running; set hideSelectionRings to rely on the brackets only.
     /// </summary>
     [DefaultExecutionOrder(70)]                                                     // after UnitView (60) placed the models
-    public class OpenZUnitOverlay : MonoBehaviour
+    public partial class OpenZUnitOverlay : MonoBehaviour
     {
         [Tooltip("Zod bar length for 10000 HP in HUD units (Zod: 36 px at its 648x484 frame)")] public float barPer10k = 64f;
         [Tooltip("Shortest health bar (guide 9.9: 26 u)")] public float minBar = 26f;
@@ -191,10 +191,11 @@ namespace OpenZ
             var pointed = HoverMember;                                                                       // the robot under the pointer itself (a squad member, not its leader)
             foreach (var u in sel)
             {
-                if (u.Destroyed) continue;
-                if (!UnitRect(cam, u, out var r)) continue;
+                if (u.Destroyed || u.KillAt >= 0) continue;                                             // KC4b: got into a vehicle / gun / troop carrier / fort (or leaving the game): no frame or bar left on the map
+                if (!UnitRect(cam, u, out var r)) { DrawFarMembers(cam, sf, BracketColor(u), 1); continue; }
                 bool split = SquadSplit(u);
                 Draw(r, sf, u, BracketColor(u), 1, u == hover, groupOf.TryGetValue(u, out var g) ? g : -1, !split, 1f, false, u == hover ? pointed : null);
+                DrawFarMembers(cam, sf, BracketColor(u), 1);
                 if (split) DrawSquadBars(cam, sf, u, 1f, u == hover ? pointed : null);
                 if (u == hover) HoverRectLog(u, r);
             }
@@ -202,6 +203,7 @@ namespace OpenZ
             {
                 bool split = SquadSplit(hover);
                 Draw(hr, sf, hover, BracketColor(hover), 2, true, -1, !split, 1f, false, pointed);
+                DrawFarMembers(cam, sf, BracketColor(hover), 2);
                 if (split) DrawSquadBars(cam, sf, hover, 1f, pointed);
                 HoverRectLog(hover, hr);
             }
@@ -239,6 +241,7 @@ namespace OpenZ
             for (int i = bUsed; i < badges.Count; i++) badges[i].SetActive(false);
             for (int i = lUsed; i < lvlTags.Count; i++) lvlTags[i].SetActive(false);
             for (int i = iUsed; i < items.Count; i++) items[i].rt.gameObject.SetActiveFast(false);
+            FactoryReminderTip();   // factory reminder (k247, UI/OzFactoryReminder.cs): its mouseover tip, drawn or hidden every frame
             if (hud == null || hud.Modal || !canvas || !canvas.enabled) { if (order) order.gameObject.SetActiveFast(false); if (rally) rally.gameObject.SetActiveFast(false); }
         }
 
@@ -297,7 +300,7 @@ namespace OpenZ
             float camH = hud.rts ? hud.rts.height : 70f;
             compactView = compactView ? camH >= OzLayout.TagCompactExit : camH >= OzLayout.TagCompactEnter;
             var size = badgeRoot.rect.size; float e = OzLayout.TagEdge;
-            BadgeRects.Clear();
+            BadgeRects.Clear(); BadgeClickBegin();   // K429: this frame's clickable badge boxes (UI/OpenZUnitOverlay.BadgeClick.cs)
             foreach (var st in tags.Values) st.Seen = false;
             foreach (var lt in levelStates.Values) lt.seen = false;
             drawn.Clear();
@@ -305,7 +308,8 @@ namespace OpenZ
             {
                 if (!b.IsProducer) continue;
                 bool own = b.Owner == player;
-                bool want = OzBadgeState.Wants(b, own);
+                bool remind = FactoryReminder(b, own);   // factory reminder (k247, UI/OzFactoryReminder.cs): a factory he captured and has not set up yet
+                bool want = OzBadgeState.Wants(b, own) || remind;   // factory reminder (k247, UI/OzFactoryReminder.cs): it keeps its badge (the mark sits on it) even with idle badges off
                 bool built = builtNow.TryGetValue(b.Id, out var builtType);
                 if (!tags.TryGetValue(b.Id, out var st) && (want || built)) { st = new OzBadgeState(b.Id); tags[b.Id] = st; }
                 if (st != null)
@@ -331,6 +335,7 @@ namespace OpenZ
                     var B = compactView ? OzLayout.TagLevelTagCBox : OzLayout.TagLevelTagBox;
                     float px = anc.x, py = anc.y;
                     la *= Edge(ref px, anc.x, -B.x * ts, (B.x + B.w) * ts, size.x, e) * Edge(ref py, anc.y, (B.y + B.h) * ts, -B.y * ts, size.y, e);
+                    la *= OzShuttleBadgeFade.Alpha(b.Id, new Rect((px + B.x * ts) * sf, (py - (B.y + B.h) * ts) * sf, B.w * ts * sf, B.h * ts * sf), dt);   // K256e: under a flying shuttle's hull it fades
                     if (la > 0.004f)
                     {
                         var tag = NextLevelTag(); tag.Rt.anchoredPosition = SnapU(new Vector2(px, py), sf);
@@ -338,6 +343,7 @@ namespace OpenZ
                         Color sc = b.Destroyed ? (Color)OzUi.NeutralDeep : b.Owner == Team.Neutral ? (Color)OzUi.Neutral : OzUi.Mark(b.Owner);
                         tag.Apply(ZBuildLists.DisplayTech(b.Type, b.BuildLevel), col, sc, compactView, la, sf, ts);
                         BadgeRects[b.Id] = new Rect((px + B.x * ts) * sf, (py - (B.y + B.h) * ts) * sf, B.w * ts * sf, B.h * ts * sf);
+                        BadgeClickNote(b.Id, BadgeRects[b.Id], la);   // K429: a click on the level tag is a click on its factory
                     }
                 }
                 if (st == null) continue;
@@ -384,9 +390,14 @@ namespace OpenZ
                 float ea = Edge(ref p.x, d.pos.x, d.left, d.right, size.x, e) * Edge(ref p.y, d.pos.y + d.st.Nudge.y, d.down, d.up, size.y, e);
                 if (ea <= 0.004f) { d.badge.SetActive(false); continue; }
                 d.st.View.alpha *= ea;
+                d.st.View.alpha *= OzShuttleBadgeFade.Alpha(d.st.Id, new Rect((p.x - d.left) * sf, (p.y - d.down) * sf, (d.left + d.right) * sf, (d.up + d.down) * sf), dt);   // K256e: under a flying shuttle's hull it fades
                 d.badge.Rt.anchoredPosition = SnapU(p, sf);                                                   // whole pixels
                 d.badge.Apply(ref d.st.View, sf, d.s);
+                bool remFlag = !string.IsNullOrEmpty(d.st.View.flag) && d.st.View.flagAlpha > 0.004f, remOn = d.st.Want && Reminding(d.st.Id);   // factory reminder (k247 + k247b): a cue flag on the plate, the mark this frame
+                d.badge.Reminder(remOn, d.st.View.compact, remFlag, now, sf, d.s);   // factory reminder (k247, UI/OzFactoryReminder.cs): the amber ring and the "!" chip, bouncing
+                if (remOn && OzBadgeArt.Available) ReminderTipAnchor(d.st.Id, d.badge.Rt.anchoredPosition, d.s, d.st.View.compact, remFlag, d.st.View.plateW);   // factory reminder tip (k247b, UI/OpenZUnitOverlay.ReminderTip.cs): its tip hangs under this "!"
                 BadgeRects[d.st.Id] = new Rect((p.x - d.left) * sf, (p.y - d.down) * sf, (d.left + d.right) * sf, (d.up + d.down) * sf);
+                BadgeClickNote(d.st.Id, BadgeRects[d.st.Id], d.st.View.alpha, remOn && OzBadgeArt.Available, d.badge.Rt.anchoredPosition, d.s, d.st.View.compact, remFlag, sf);   // K429: a click on the badge (its reminder ring and "!" chip too) is a click on its building
             }
             dead.Clear();
             foreach (var kv in tags) if (!kv.Value.Seen || (!kv.Value.Want && !kv.Value.Alive(now))) dead.Add(kv.Key);
@@ -436,8 +447,8 @@ namespace OpenZ
         bool SquadSplit(ZObject u)
         {
             if (u == null || u.Kind != ZKind.Robot || u.Minions.Count == 0) return false;
-            sqAll.Clear(); sqAll.Add(u);
-            foreach (var m in u.Minions) if (m != null && !m.Destroyed && m.KillAt < 0) sqAll.Add(m);
+            sqAll.Clear(); if (BoardingView.FigureShown(u)) sqAll.Add(u);                                  // K431: members still inside their carrier are not in the squad's bars
+            foreach (var m in u.Minions) if (m != null && !m.Destroyed && m.KillAt < 0 && BoardingView.FigureShown(m)) sqAll.Add(m);
             if (sqAll.Count < 2) { apartIds.Remove(u.Id); return false; }
             var c = Vector3.zero;
             foreach (var m in sqAll) { var p = ViewPos(m); c += new Vector3(p.x, 0f, p.z); }
@@ -462,12 +473,12 @@ namespace OpenZ
             if (sqCore.Count > 0)
             {
                 sqPts.Clear(); foreach (var m in sqCore) sqPts.Add(ViewPos(m));
-                if (PointsRect(cam, sqPts, 0.55f, 1.9f, out var cr)) Draw(cr, sf, sqCore.Contains(u) ? u : sqCore[0], default, 0, false, -1, true, alpha, true, pointed != null && sqCore.Contains(pointed) ? pointed : null);
+                if (PointsRect(cam, sqPts, 0.55f * OzHeroSquadView.Tall(u), 1.9f * OzHeroSquadView.Tall(u), out var cr)) Draw(cr, sf, sqCore.Contains(u) ? u : sqCore[0], default, 0, false, -1, true, alpha, true, pointed != null && sqCore.Contains(pointed) ? pointed : null);
             }
             foreach (var m in sqApart)
             {
                 sqPts.Clear(); sqPts.Add(ViewPos(m));
-                if (PointsRect(cam, sqPts, 0.55f, 1.9f, out var mr)) { Draw(mr, sf, m, default, 0, false, -1, true, alpha, true, m == pointed ? m : null); MemberBars++; }
+                if (PointsRect(cam, sqPts, 0.55f * OzHeroSquadView.Tall(m), 1.9f * OzHeroSquadView.Tall(m), out var mr)) { Draw(mr, sf, m, default, 0, false, -1, true, alpha, true, m == pointed ? m : null); MemberBars++; }
             }
         }
 
@@ -532,7 +543,7 @@ namespace OpenZ
             if (hovered)
             {
                 bool own = o.Owner == hud.Player;
-                m.label.Set(UnitInfo.Name(o.Type));
+                m.label.Set(OzHeroSquadView.NameOr(o, UnitInfo.Name(o.Type)));                     // DV108: ALAN & BRAD
                 float tw = m.label.preferredWidth, w = tw + 16f + (own ? 11f : 0f);
                 m.chip.sizeDelta = new Vector2(w, OzLayout.HoverChipH);
                 m.chip.anchoredPosition = new Vector2(0, OzLayout.HpBarGap + (showBar ? OzLayout.HpBarH + 4f : 0f) + 4f);
@@ -631,13 +642,58 @@ namespace OpenZ
             return true;
         }
 
+        // ------------------------------------------------------------------ the squad frame's reach (item 136 b)
+        /// <summary>A squad's frame never runs across the screen: it holds the members that stand within FrameReachM metres of the
+        /// squad's main group AND within FrameReach x the screen height of it on screen (the main group: the member with the most
+        /// others within that reach, the leader on a tie); a member farther out gets its own small frame instead (DrawFarMembers)
+        /// and keeps its own health bar (the spread squad's bars). Drawn only: nothing of the rules changes.</summary>
+        public static float FrameReach = 0.45f, FrameReachM = 10f;
+        /// <summary>Play check: small frames drawn for far members; the largest squad frame drawn, as a share of the screen's width
+        /// and height.</summary>
+        public static int FarMemberFrames; public static float FrameMaxW, FrameMaxH;
+        static readonly List<ZObject> sqMembers = new List<ZObject>(), farMembers = new List<ZObject>();
+        static readonly List<Vector3> sqScreen = new List<Vector3>(), sqWorld = new List<Vector3>();
+
+        static bool SqNear(int a, int b, float reachPx)
+        {
+            if (a == b) return true;
+            Vector3 sa = sqScreen[a], sb = sqScreen[b], wa = sqWorld[a], wb = sqWorld[b];
+            if (sa.z <= 0 || sb.z <= 0) return false;
+            float dx = wa.x - wb.x, dz = wa.z - wb.z;
+            return dx * dx + dz * dz <= FrameReachM * FrameReachM && ((Vector2)sa - (Vector2)sb).sqrMagnitude <= reachPx * reachPx;
+        }
+
+        void DrawFarMembers(Camera cam, float sf, Color bracket, int brackets)
+        {
+            for (int i = 0; i < farMembers.Count; i++)
+            {
+                sqPts.Clear(); sqPts.Add(ViewPos(farMembers[i]));
+                if (PointsRect(cam, sqPts, 0.55f * OzHeroSquadView.Tall(farMembers[i]), 1.9f * OzHeroSquadView.Tall(farMembers[i]), out var fr)) { Draw(fr, sf, farMembers[i], bracket, brackets, false, -1, false, 1f); FarMemberFrames++; }
+            }
+            farMembers.Clear();
+        }
+
         bool UnitRect(Camera cam, ZObject u, out Rect r)
         {
             if ((u.Kind == ZKind.Cannon || u.Kind == ZKind.Vehicle || u.Kind == ZKind.Building) && MeshRect(cam, u, out r)) return true;   // PA2: tight to the model
-            members.Clear();
-            members.Add(ViewPos(u));
-            foreach (var m in u.Minions) if (!m.Destroyed && m.KillAt < 0) members.Add(ViewPos(m));
-            float rad = u.Kind == ZKind.Robot ? 0.55f : u.Kind == ZKind.Cannon ? 1.5f : 1.8f, h = u.Kind == ZKind.Robot ? 1.9f : 2.3f;
+            members.Clear(); farMembers.Clear();
+            sqMembers.Clear(); sqScreen.Clear(); sqWorld.Clear(); if (BoardingView.FigureShown(u)) sqMembers.Add(u);   // K431: a robot still inside its carrier gets no frame or bar (View/BoardingView.ExitRings.cs)
+            foreach (var m in u.Minions) if (!m.Destroyed && m.KillAt < 0 && BoardingView.FigureShown(m)) sqMembers.Add(m);
+            if (sqMembers.Count == 0) { r = default; return false; }                                     // K431: the whole squad still inside
+            foreach (var m in sqMembers) { var wp = ViewPos(m); sqWorld.Add(wp); sqScreen.Add(cam.WorldToScreenPoint(wp + Vector3.up * 0.9f)); }
+            int anchor = 0, most = -1; float reach = FrameReach * Screen.height;
+            if (sqMembers.Count > 1)
+                for (int a = 0; a < sqMembers.Count; a++)
+                {
+                    int near = 0;
+                    for (int b = 0; b < sqMembers.Count; b++) if (SqNear(a, b, reach)) near++;
+                    if (near > most) { most = near; anchor = a; }
+                }
+            for (int k = 0; k < sqMembers.Count; k++)
+            {
+                if (sqMembers.Count == 1 || SqNear(k, anchor, reach)) members.Add(sqWorld[k]); else farMembers.Add(sqMembers[k]);
+            }
+            float rad = u.Kind == ZKind.Robot ? 0.55f * OzHeroSquadView.Tall(u) : u.Kind == ZKind.Cannon ? 1.5f : 1.8f, h = u.Kind == ZKind.Robot ? 1.9f * OzHeroSquadView.Tall(u) : 2.3f;   // KC4b: a hero's size
             Vector2 mn = new Vector2(float.MaxValue, float.MaxValue), mx = new Vector2(float.MinValue, float.MinValue);
             bool any = false;
             foreach (var p in members)
@@ -648,10 +704,11 @@ namespace OpenZ
                     any = true; mn = Vector2.Min(mn, s); mx = Vector2.Max(mx, s);
                 }
             r = any ? Rect.MinMaxRect(mn.x, mn.y, mx.x, mx.y) : default;
+            if (any && u.Kind == ZKind.Robot && Screen.width > 0) { FrameMaxW = Mathf.Max(FrameMaxW, r.width / Screen.width); FrameMaxH = Mathf.Max(FrameMaxH, r.height / Screen.height); }
             return any && mx.x > 0 && mn.x < Screen.width && mx.y > 0 && mn.y < Screen.height;
         }
 
-        Vector3 ViewPos(ZObject o) => game.Views.TryGetValue(o.Id, out var v) && v && v.gameObject.activeInHierarchy ? v.transform.position : game.CenterWorld(o);
+        Vector3 ViewPos(ZObject o) { var p = game.Views.TryGetValue(o.Id, out var v) && v && v.gameObject.activeInHierarchy ? v.transform.position : game.CenterWorld(o); BoardingView.FigureAt(o, ref p); return p; }   // K431: a robot getting out of a carrier at its walking figure (View/BoardingView.ExitRings.cs)
 
         /// <summary>The robot, vehicle or cannon whose own box is under the pointer this frame: a squad member itself, not its leader
         /// (null = none). Where the boxes of several members of the hovered squad overlap under the pointer: the one whose box centre is
@@ -667,11 +724,12 @@ namespace OpenZ
             ZObject hit = null; float best = float.MaxValue;
             foreach (var o in game.World.Objects)
             {
-                if (!o.IsUnit || o.Destroyed || o.KillAt >= 0) continue;
+                if (!o.IsUnit || o.Destroyed || o.KillAt >= 0 || !BoardingView.FigureShown(o)) continue;   // K431: no mouse-over box on the empty spot of a robot still inside its carrier
                 var p = ViewPos(o);
                 var c = cam.WorldToScreenPoint(p + Vector3.up * 0.9f);
+                if (o.IsShuttle) { if (OzShuttleOverlay.Hovered(o, mp, out float sd)) { hit = o; hoverHits.Add(o); hoverDist.Add(sd); } continue; }   // DV118: the shuttle by its drawn outline (UI/OzShuttleOverlay.cs)
                 if (c.z < 0 || Mathf.Abs(c.x - mp.x) > 140 || Mathf.Abs(c.y - mp.y) > 140) continue;         // cheap reject before the box
-                float rad = o.Kind == ZKind.Robot ? 0.6f : o.Kind == ZKind.Cannon ? 1.5f : 1.8f, h = o.Kind == ZKind.Robot ? 1.9f : 2.3f;
+                float rad = o.Kind == ZKind.Robot ? 0.6f * OzHeroSquadView.Tall(o) : o.Kind == ZKind.Cannon ? 1.5f : 1.8f, h = o.Kind == ZKind.Robot ? 1.9f * OzHeroSquadView.Tall(o) : 2.3f;   // KC4b: a hero's size
                 Vector2 mn = new Vector2(float.MaxValue, float.MaxValue), mx = new Vector2(float.MinValue, float.MinValue);
                 for (int i = 0; i < 8; i++)
                 {

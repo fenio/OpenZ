@@ -91,7 +91,7 @@ namespace OpenZ
                 {
                     var q = p + inward * (Width * k * 0.5f);
                     float y = game.GroundY(q.x, q.z);
-                    if (cls == ZClass.Water && waterY > y) y = waterY;
+                    if (cls == ZClass.Water) { float wq = OzWaterLevel.At(game.level, q.x, q.z, waterY); if (wq > y) y = wq; }   // each pool at its own height (level 16)
                     v.Add(new Vector3(q.x, y + Lift, q.z));
                     col.Add(new Color(1, 1, 1, k == 1 ? 1f : 0f));                                    // soft edges, solid centre
                 }
