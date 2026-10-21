@@ -52,9 +52,9 @@
 
 Full list: [change log](docs/CHANGELOG.md).
 
-## 🎬 Trailer
+## 🎬 Trailer (1.1)
 
-https://github.com/user-attachments/assets/6206cf99-9648-42d5-abdc-1e849d804483
+https://github.com/user-attachments/assets/d2f8f14e-e250-4ff4-ae1d-8252bc9c53f5
 
 <table>
   <tr>
