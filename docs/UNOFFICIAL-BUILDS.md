@@ -9,17 +9,7 @@ Downloads: [unofficial community release](https://github.com/fenio/OpenZ/release
 - **macOS Universal:** extract the ZIP, then open `OpenZ.app`. It runs natively on Apple Silicon, unlike upstream's Intel-only experimental Mac build. Apple Silicon gameplay has been tested locally; the Intel architecture is included but not runtime-tested. This community build is not notarized. Use macOS's per-app approval procedure if needed; do not disable Gatekeeper globally.
 - **Linux x86-64 (experimental):** extract the `.tar.gz`, preserving permissions, open a terminal in the extracted directory, and run `./OpenZ`. A successful build is not a guarantee of compatibility: Linux gameplay has not yet been tested. Please report results to [the community fork](https://github.com/fenio/OpenZ/issues), not as official upstream platform support.
 
-Both default to native-resolution fullscreen. High-DPI/Retina displays can therefore be much slower than a smaller Unity editor Game view. To run at 1920 × 1080 fullscreen, quit any running copy first, then run from the extracted directory:
-
-```sh
-# macOS
-open ./OpenZ.app --args -screen-fullscreen 1 -screen-width 1920 -screen-height 1080
-
-# Linux
-./OpenZ -screen-fullscreen 1 -screen-width 1920 -screen-height 1080
-```
-
-Substitute your preferred width and height; use `-screen-fullscreen 0` for a window. Fullscreen behavior may vary by platform/display. No separate launcher script is needed. Enable **OPTIONS → FPS COUNTER** to compare performance in the same map and view.
+Both start in native-resolution fullscreen, which can be slow on high-DPI/Retina displays. OpenZ 1.1 has **OPTIONS → RESOLUTION** (and **FULLSCREEN** for a window); pick a lower resolution there and the game remembers it. Enable **OPTIONS → FPS COUNTER** to compare performance in the same map and view. Unity's `-screen-width`, `-screen-height` and `-screen-fullscreen` command-line options still work, but while they are given they override the in-game setting.
 
 Verify the downloaded archive against its adjacent `.sha256` file with `shasum -a 256 -c FILE.sha256` on macOS or `sha256sum -c FILE.sha256` on Linux. Binary packages include per-file checksums, licenses (`LICENSES.txt`, `LICENSE_ASSETS.txt`), credits, and `LAUNCHING.txt`. These releases contain binaries only. The game is built unmodified from the [upstream OpenZ 1.1 source archives](https://github.com/playopenz/OpenZ/releases/tag/v1.1); the only addition is the editor-only portable builder in this repository (see [Prerequisites](#prerequisites)).
 
